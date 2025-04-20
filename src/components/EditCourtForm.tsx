@@ -39,32 +39,32 @@ const EditCourtForm = ({ court, isOpen, onClose, onSave }: EditCourtFormProps) =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="gradient-card gradient-border neon-border max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Court Details</DialogTitle>
+          <DialogTitle className="gradient-text">Edit Court Details</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Court Name</Label>
+            <Label htmlFor="name" className="gradient-text">Court Name</Label>
             <Input
               id="name"
               value={courtData.name}
               onChange={(e) =>
                 setCourtData({ ...courtData, name: e.target.value })
               }
-              className="w-full"
+              className="gradient-border glass-card"
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
+            <Label htmlFor="location" className="gradient-text">Location</Label>
             <Input
               id="location"
               value={courtData.location}
               onChange={(e) =>
                 setCourtData({ ...courtData, location: e.target.value })
               }
-              className="w-full"
+              className="gradient-border glass-card"
               required
             />
           </div>
@@ -75,14 +75,15 @@ const EditCourtForm = ({ court, isOpen, onClose, onSave }: EditCourtFormProps) =
               onCheckedChange={(checked) =>
                 setCourtData({ ...courtData, indoor: checked === true })
               }
+              className="gradient-border"
             />
-            <Label htmlFor="indoor">Indoor Court</Label>
+            <Label htmlFor="indoor" className="gradient-text">Indoor Court</Label>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} className="gradient-hover">
               Cancel
             </Button>
-            <Button type="submit">Save Changes</Button>
+            <Button type="submit" className="gradient-border gradient-hover">Save Changes</Button>
           </DialogFooter>
         </form>
       </DialogContent>

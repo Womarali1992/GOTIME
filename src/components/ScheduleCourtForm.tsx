@@ -39,33 +39,36 @@ const ScheduleCourtForm = ({ court, isOpen, onClose, onSave }: ScheduleCourtForm
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="gradient-card gradient-border neon-border max-w-md">
         <DialogHeader>
-          <DialogTitle>Schedule {court.name}</DialogTitle>
+          <DialogTitle className="gradient-text">Schedule {court.name}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Select Date</Label>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              className="rounded-md border"
-            />
+            <Label className="gradient-text">Select Date</Label>
+            <div className="gradient-border rounded-lg p-[1px]">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                className="rounded-md glass-card"
+              />
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox
               id="available"
               checked={isAvailable}
               onCheckedChange={(checked) => setIsAvailable(checked === true)}
+              className="gradient-border"
             />
-            <Label htmlFor="available">Court Available</Label>
+            <Label htmlFor="available" className="gradient-text">Court Available</Label>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} className="gradient-hover">
               Cancel
             </Button>
-            <Button type="submit">Save Schedule</Button>
+            <Button type="submit" className="gradient-border gradient-hover">Save Schedule</Button>
           </DialogFooter>
         </form>
       </DialogContent>
