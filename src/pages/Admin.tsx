@@ -7,8 +7,24 @@ import { Button } from "@/components/ui/button";
 import { reservations, courts, timeSlots } from "@/lib/data";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
+import { useState } from "react";
+import EditCourtForm from "@/components/EditCourtForm";
+import ScheduleCourtForm from "@/components/ScheduleCourtForm";
 
 const Admin = () => {
+  const [editingCourt, setEditingCourt] = useState<any>(null);
+  const [schedulingCourt, setSchedulingCourt] = useState<any>(null);
+  
+  const handleEditCourt = (courtData: any) => {
+    console.log("Editing court:", courtData);
+    // In a real app, this would update the court in the database
+  };
+
+  const handleScheduleCourt = (scheduleData: any) => {
+    console.log("Scheduling court:", scheduleData);
+    // In a real app, this would update the court's schedule in the database
+  };
+
   // Group reservations by date for easier display
   const reservationsByDate: Record<string, typeof reservations> = {};
   
@@ -140,8 +156,20 @@ const Admin = () => {
                       ID: {court.id}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm">Schedule</Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setEditingCourt(court)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setSchedulingCourt(court)}
+                      >
+                        Schedule
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -168,6 +196,26 @@ const Admin = () => {
       </main>
       
       <Footer />
+
+      {/* Court Edit Dialog */}
+      {editingCourt && (
+        <EditCourtForm
+          court={editingCourt}
+          isOpen={!!editingCourt}
+          onClose={() => setEditingCourt(null)}
+          onSave={handleEditCourt}
+        />
+      )}
+
+      {/* Court Schedule Dialog */}
+      {schedulingCourt && (
+        <ScheduleCourtForm
+          court={schedulingCourt}
+          isOpen={!!schedulingCourt}
+          onClose={() => setSchedulingCourt(null)}
+          onSave={handleScheduleCourt}
+        />
+      )}
     </div>
   );
 };
