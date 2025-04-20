@@ -1,4 +1,3 @@
-
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { reservations, courts, timeSlots } from "@/lib/data";
 import { format } from "date-fns";
+import AdminCalendarView from "@/components/AdminCalendarView";
 
 const Admin = () => {
   // Group reservations by date for easier display
@@ -40,13 +40,18 @@ const Admin = () => {
           </p>
         </div>
         
-        <Tabs defaultValue="reservations">
+        <Tabs defaultValue="calendar">
           <TabsList className="mb-6">
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
             <TabsTrigger value="courts">Courts</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           
+          <TabsContent value="calendar">
+            <AdminCalendarView />
+          </TabsContent>
+
           <TabsContent value="reservations" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Upcoming Reservations</h2>
