@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -64,40 +65,15 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 142 70% 50%;
   }
+}
 
+@layer base {
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
-  }
-}
-
-@layer components {
-  .gradient-border {
-    @apply relative before:absolute before:-inset-[1px] before:rounded-[inherit] before:p-[1px] before:bg-gradient-to-r before:from-primary/50 before:via-secondary/50 before:to-primary/50 before:-z-10;
-  }
-
-  .gradient-card {
-    @apply relative overflow-hidden bg-gradient-to-br from-card/95 to-background/95 backdrop-blur-xl backdrop-saturate-150 border-border/50;
-  }
-
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
-  }
-
-  .gradient-hover {
-    @apply transition-all duration-300 hover:bg-gradient-to-br hover:from-primary/10 hover:to-secondary/10;
-  }
-
-  .glass-card {
-    @apply bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60;
-  }
-
-  .neon-border {
-    @apply shadow-[0_0_15px_rgba(var(--primary-rgb)/0.5)];
   }
 }
 
