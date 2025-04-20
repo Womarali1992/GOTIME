@@ -31,9 +31,16 @@ const AdminCalendarView = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Calendar View</h2>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          Calendar View
+        </h2>
         <div className="flex items-center gap-4">
-          <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value as "month" | "week")}>
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={(value) => value && setViewMode(value as "month" | "week")}
+            className="border border-border/50 bg-background/95"
+          >
             <ToggleGroupItem value="month" aria-label="Month view">
               <CalendarIcon className="h-4 w-4" />
             </ToggleGroupItem>
@@ -45,18 +52,20 @@ const AdminCalendarView = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
-        <Card className="p-4">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => date && setSelectedDate(date)}
-            className="pointer-events-auto"
-          />
+        <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+          <div className="p-4">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              className="pointer-events-auto"
+            />
+          </div>
         </Card>
 
-        <Card>
+        <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
           <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4">
+            <h3 className="text-lg font-semibold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {format(selectedDate, "EEEE, MMMM d, yyyy")}
             </h3>
             <div className="space-y-6">
@@ -73,7 +82,7 @@ const AdminCalendarView = () => {
                         <Button
                           key={slot.id}
                           variant="outline"
-                          className={`h-16 flex flex-col items-center justify-center ${getSlotColor(
+                          className={`h-16 flex flex-col items-center justify-center border border-border/50 transition-all duration-300 ${getSlotColor(
                             slot.id,
                             slot.available
                           )}`}
