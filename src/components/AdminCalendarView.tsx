@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar as CalendarIcon, LayoutGrid, LayoutList } from "lucide-react";
+import { Calendar as CalendarIcon, LayoutList } from "lucide-react";
 import { format } from "date-fns";
 import { timeSlots, courts, reservations } from "@/lib/data";
 
@@ -31,7 +31,7 @@ const AdminCalendarView = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        <h2 className="text-2xl font-bold gradient-text">
           Calendar View
         </h2>
         <div className="flex items-center gap-4">
@@ -39,12 +39,12 @@ const AdminCalendarView = () => {
             type="single" 
             value={viewMode} 
             onValueChange={(value) => value && setViewMode(value as "month" | "week")}
-            className="border border-border/50 bg-background/95"
+            className="gradient-border glass-card"
           >
-            <ToggleGroupItem value="month" aria-label="Month view">
+            <ToggleGroupItem value="month" aria-label="Month view" className="gradient-hover">
               <CalendarIcon className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="week" aria-label="Week view">
+            <ToggleGroupItem value="week" aria-label="Week view" className="gradient-hover">
               <LayoutList className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
@@ -52,7 +52,7 @@ const AdminCalendarView = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
-        <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+        <Card className="gradient-card gradient-border neon-border">
           <div className="p-4">
             <Calendar
               mode="single"
@@ -63,9 +63,9 @@ const AdminCalendarView = () => {
           </div>
         </Card>
 
-        <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+        <Card className="gradient-card gradient-border neon-border">
           <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h3 className="text-lg font-semibold mb-4 gradient-text">
               {format(selectedDate, "EEEE, MMMM d, yyyy")}
             </h3>
             <div className="space-y-6">
@@ -76,13 +76,13 @@ const AdminCalendarView = () => {
 
                 return (
                   <div key={court.id} className="space-y-2">
-                    <h4 className="font-medium">{court.name}</h4>
+                    <h4 className="font-medium gradient-text">{court.name}</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                       {courtSlots.map((slot) => (
                         <Button
                           key={slot.id}
                           variant="outline"
-                          className={`h-16 flex flex-col items-center justify-center border border-border/50 transition-all duration-300 ${getSlotColor(
+                          className={`h-16 flex flex-col items-center justify-center gradient-border gradient-hover transition-all duration-300 ${getSlotColor(
                             slot.id,
                             slot.available
                           )}`}
