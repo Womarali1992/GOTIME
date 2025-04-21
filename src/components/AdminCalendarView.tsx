@@ -35,9 +35,9 @@ const AdminCalendarView = () => {
           Calendar View
         </h2>
         <div className="flex items-center gap-4">
-          <ToggleGroup 
-            type="single" 
-            value={viewMode} 
+          <ToggleGroup
+            type="single"
+            value={viewMode}
             onValueChange={(value) => value && setViewMode(value as "month" | "week")}
             className="gradient-border glass-card"
           >
@@ -82,15 +82,12 @@ const AdminCalendarView = () => {
                         <Button
                           key={slot.id}
                           variant="outline"
-                          className={`h-16 flex flex-col items-center justify-center gradient-border gradient-hover transition-all duration-300 ${getSlotColor(
-                            slot.id,
-                            slot.available
-                          )}`}
+                          className={`h-16 flex flex-col items-center justify-center bg-gradient-to-r from-primary/90 via-secondary/90 to-primary/90 text-foreground transition-all duration-300 rounded-md`}
                         >
-                          <span className="text-sm font-medium">
+                          <span className="text-sm font-medium text-white">
                             {slot.startTime}
                           </span>
-                          <span className="text-xs">
+                          <span className="text-xs text-white">
                             {isSlotReserved(slot.id)
                               ? "Reserved"
                               : slot.available
