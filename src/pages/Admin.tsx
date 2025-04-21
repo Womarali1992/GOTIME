@@ -11,6 +11,7 @@ import AdminCalendarView from "@/components/AdminCalendarView";
 import { useState } from "react";
 import EditCourtForm from "@/components/EditCourtForm";
 import ScheduleCourtForm from "@/components/ScheduleCourtForm";
+import SchedulerChart from "@/components/SchedulerChart";
 
 const Admin = () => {
   const [editingCourt, setEditingCourt] = useState<any>(null);
@@ -57,13 +58,22 @@ const Admin = () => {
           </p>
         </div>
         
-        <Tabs defaultValue="calendar" className="space-y-6">
+        <Tabs defaultValue="scheduler" className="space-y-6">
           <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50">
+            <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
             <TabsTrigger value="calendar">Calendar</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
             <TabsTrigger value="courts">Courts</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="scheduler" className="space-y-6">
+            <SchedulerChart 
+              courts={courts} 
+              timeSlots={timeSlots} 
+              onScheduleCourt={setSchedulingCourt} 
+            />
+          </TabsContent>
           
           <TabsContent value="calendar" className="space-y-6">
             <AdminCalendarView />
