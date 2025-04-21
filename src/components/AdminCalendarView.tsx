@@ -23,15 +23,15 @@ const AdminCalendarView = () => {
   };
 
   const getSlotColor = (slotId: string, available: boolean) => {
-    if (!available) return "bg-gray-200 text-gray-500"; // Blocked
-    if (isSlotReserved(slotId)) return "bg-secondary/20 text-secondary"; // Reserved
-    return "bg-primary/20 text-primary"; // Available
+    if (!available) return "bg-gray-200 text-gray-700"; // Blocked with better contrast
+    if (isSlotReserved(slotId)) return "bg-secondary/20 text-secondary-foreground"; // Reserved with better contrast
+    return "bg-primary/20 text-primary-foreground"; // Available with better contrast
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold gradient-text">
+        <h2 className="text-2xl font-bold">
           Calendar View
         </h2>
         <div className="flex items-center gap-4">
@@ -39,20 +39,20 @@ const AdminCalendarView = () => {
             type="single"
             value={viewMode}
             onValueChange={(value) => value && setViewMode(value as "month" | "week")}
-            className="gradient-border glass-card"
+            className="border border-input rounded-md glass-card"
           >
-            <ToggleGroupItem value="month" aria-label="Month view" className="gradient-hover">
-              <CalendarIcon className="h-4 w-4" />
+            <ToggleGroupItem value="month" aria-label="Month view" className="hover:bg-primary/10 transition-colors rounded-md p-1">
+              <CalendarIcon className="h-4 w-4 text-foreground" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="week" aria-label="Week view" className="gradient-hover">
-              <LayoutList className="h-4 w-4" />
+            <ToggleGroupItem value="week" aria-label="Week view" className="hover:bg-primary/10 transition-colors rounded-md p-1">
+              <LayoutList className="h-4 w-4 text-foreground" />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
-        <Card className="gradient-card gradient-border neon-border">
+        <Card className="border border-input rounded-md shadow-sm glass-card">
           <div className="p-4">
             <Calendar
               mode="single"
@@ -63,9 +63,9 @@ const AdminCalendarView = () => {
           </div>
         </Card>
 
-        <Card className="gradient-card gradient-border neon-border">
+        <Card className="border border-input rounded-md shadow-sm glass-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4 gradient-text">
+            <h3 className="text-lg font-semibold mb-4 text-foreground">
               {format(selectedDate, "EEEE, MMMM d, yyyy")}
             </h3>
             <div className="space-y-6">
@@ -76,18 +76,21 @@ const AdminCalendarView = () => {
 
                 return (
                   <div key={court.id} className="space-y-2">
-                    <h4 className="font-medium gradient-text">{court.name}</h4>
+                    <h4 className="font-medium text-foreground">{court.name}</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                       {courtSlots.map((slot) => (
                         <Button
                           key={slot.id}
                           variant="outline"
-                          className={`h-16 flex flex-col items-center justify-center bg-gradient-to-r from-primary/90 via-secondary/90 to-primary/90 text-foreground transition-all duration-300 rounded-md`}
+                          className={`h-16 flex flex-col items-center justify-center ${getSlotColor(
+                            slot.id,
+                            slot.available
+                          )} rounded-md transition-all duration-300`}
                         >
-                          <span className="text-sm font-medium text-white">
+                          <span className="text-sm font-medium">
                             {slot.startTime}
                           </span>
-                          <span className="text-xs text-white">
+                          <span className="text-xs">
                             {isSlotReserved(slot.id)
                               ? "Reserved"
                               : slot.available
