@@ -1,4 +1,3 @@
-
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +49,7 @@ const Admin = () => {
       
       <main className="flex-1 container py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold tracking-tight mb-2 text-foreground">
             Admin Dashboard
           </h1>
           <p className="text-muted-foreground">

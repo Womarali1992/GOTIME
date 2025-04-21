@@ -57,7 +57,8 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
   return (
     <Card className="gradient-card gradient-border neon-border overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-lg md:text-xl font-bold gradient-text">
+        {/* Changed gradient-text to normal text color for better readability */}
+        <CardTitle className="text-lg md:text-xl font-bold text-foreground">
           Court Schedule
         </CardTitle>
         <div className="flex items-center space-x-2">
@@ -101,7 +102,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
               {daysToShow.map((day) => (
                 <div 
                   key={day.toString()} 
-                  className="border-b border-border/30 p-2 text-center font-medium gradient-text"
+                  className="border-b border-border/30 p-2 text-center font-medium text-foreground"
                 >
                   {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
                 </div>
@@ -119,7 +120,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
               >
                 {/* Court name */}
                 <div className="border-b border-border/30 p-2 flex flex-col justify-center">
-                  <span className="font-medium gradient-text">{court.name}</span>
+                  <span className="font-medium text-foreground">{court.name}</span>
                   <Badge 
                     variant={court.indoor ? "secondary" : "outline"} 
                     className={cn(
@@ -174,3 +175,4 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
 };
 
 export default SchedulerChart;
+
