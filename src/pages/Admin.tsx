@@ -11,6 +11,7 @@ import { useState } from "react";
 import EditCourtForm from "@/components/EditCourtForm";
 import ScheduleCourtForm from "@/components/ScheduleCourtForm";
 import SchedulerChart from "@/components/SchedulerChart";
+import { Clock } from "lucide-react";
 
 const Admin = () => {
   const [editingCourt, setEditingCourt] = useState<any>(null);
@@ -40,7 +41,7 @@ const Admin = () => {
   const sortedDates = Object.keys(slotsByDate).sort();
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background/95 to-background/90">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background/90 to-background/90">
       <Header />
       
       <main className="flex-1 container py-8">
@@ -77,108 +78,93 @@ const Admin = () => {
           <TabsContent value="reservations" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-foreground">
-                All Time Slots
+                Time Slots Overview
               </h2>
-              <Button className="bg-primary hover:bg-primary/90">Add Reservation</Button>
+              <Button className="bg-primary hover:bg-primary/90">Add Time Slot</Button>
             </div>
             
-            {sortedDates.length > 0 ? (
-              sortedDates.map(date => (
-                <Card key={date} className="border border-input bg-card shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-foreground">{format(new Date(date), "EEEE, MMMM d, yyyy")}</CardTitle>
-                    <CardDescription>
-                      {slotsByDate[date].length} time slots
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {slotsByDate[date].map(slot => {
-                        const court = courts.find(c => c.id === slot.courtId);
-                        const reservation = reservations.find(r => r.timeSlotId === slot.id);
-                        
-                        return (
-                          <div 
-                            key={slot.id} 
-                            className={`rounded-lg p-4 transition-all duration-300 ${
-                              reservation 
-                                ? 'bg-secondary/20 text-secondary-foreground' 
-                                : slot.available 
-                                  ? 'bg-primary/20 text-primary-foreground'
-                                  : 'bg-muted/30 text-muted-foreground'
-                            }`}
-                          >
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-foreground">
-                                  {court?.name}
-                                </span>
-                                <Badge variant={slot.available ? "outline" : "secondary"} className="text-foreground">
-                                  {reservation ? "Reserved" : slot.available ? "Available" : "Blocked"}
-                                </Badge>
-                              </div>
-                              
-                              <div className="text-sm space-y-1">
-                                <div className="font-medium text-foreground">
-                                  {slot.startTime} - {slot.endTime}
-                                </div>
-                                
-                                {reservation && (
-                                  <>
-                                    <div className="flex items-center gap-2 text-foreground">
+            {courts.map((court) => (
+              <Card key={court.id} className="border border-input bg-card shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-xl text-foreground">{court.name}</CardTitle>
+                  <CardDescription>
+                    <Badge
+                      variant={court.indoor ? "secondary" : "outline"}
+                      className={court.indoor ? "bg-secondary/20" : "border-primary/20"}
+                    >
+                      {court.indoor ? "Indoor" : "Outdoor"}
+                    </Badge>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {sortedDates.map((date) => {
+                      const courtSlots = slotsByDate[date].filter(
+                        (slot) => slot.courtId === court.id
+                      );
+
+                      if (courtSlots.length === 0) return null;
+
+                      return (
+                        <div key={date} className="mb-4">
+                          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                            {format(new Date(date), "EEEE, MMMM d, yyyy")}
+                          </h3>
+                          <div className="space-y-1">
+                            {courtSlots.map((slot) => {
+                              const reservation = reservations.find(
+                                (r) => r.timeSlotId === slot.id
+                              );
+
+                              return (
+                                <div
+                                  key={slot.id}
+                                  className={`h-16 rounded-sm flex flex-col justify-center px-3 transition-all duration-300 hover:scale-[1.02] ${
+                                    reservation
+                                      ? "bg-secondary/20 text-secondary-foreground"
+                                      : slot.available
+                                      ? "bg-primary/20 text-primary-foreground"
+                                      : "bg-muted/30 text-muted-foreground"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="h-4 w-4" />
+                                      <span className="text-base font-medium">
+                                        {slot.startTime} - {slot.endTime}
+                                      </span>
+                                    </div>
+                                    <Badge
+                                      variant={slot.available ? "outline" : "secondary"}
+                                      className="text-xs"
+                                    >
+                                      {reservation
+                                        ? "Reserved"
+                                        : slot.available
+                                        ? "Available"
+                                        : "Blocked"}
+                                    </Badge>
+                                  </div>
+                                  
+                                  {reservation && (
+                                    <div className="mt-1 text-sm">
                                       <span className="font-medium">{reservation.playerName}</span>
-                                      <Badge variant="outline">
-                                        {reservation.players} player{reservation.players !== 1 ? 's' : ''}
-                                      </Badge>
+                                      <span className="text-muted-foreground ml-2">
+                                        ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
+                                      </span>
                                     </div>
-                                    <div className="text-muted-foreground">
-                                      {reservation.playerEmail} • {reservation.playerPhone}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                              
-                              <div className="flex justify-end gap-2">
-                                {reservation ? (
-                                  <>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      className="text-foreground hover:bg-primary/10"
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      className="text-destructive hover:bg-destructive/10"
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </>
-                                ) : slot.available && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    className="text-primary hover:bg-primary/10"
-                                  >
-                                    Book
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No time slots found</p>
-              </div>
-            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
           
           <TabsContent value="courts" className="space-y-6">
