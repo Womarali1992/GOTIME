@@ -80,23 +80,23 @@ const Admin = () => {
 
           <TabsContent value="reservations" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <h2 className="text-2xl font-bold text-foreground">
                 Upcoming Reservations
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80">Add Reservation</Button>
+              <Button className="bg-primary hover:bg-primary/90">Add Reservation</Button>
             </div>
             
             {sortedDates.length > 0 ? (
               sortedDates.map(date => (
-                <Card key={date} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+                <Card key={date} className="border border-input bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
                   <CardHeader>
-                    <CardTitle>{format(new Date(date), "EEEE, MMMM d, yyyy")}</CardTitle>
+                    <CardTitle className="text-foreground">{format(new Date(date), "EEEE, MMMM d, yyyy")}</CardTitle>
                     <CardDescription>
                       {reservationsByDate[date].length} reservations
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4 divide-y divide-border/50">
+                    <div className="space-y-4">
                       {reservationsByDate[date].map(reservation => {
                         const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
                         const court = courts.find(c => c.id === reservation.courtId);
@@ -104,33 +104,45 @@ const Admin = () => {
                         return (
                           <div 
                             key={reservation.id} 
-                            className="flex flex-col md:flex-row justify-between pt-4 first:pt-0 items-start md:items-center"
+                            className="bg-primary/20 text-primary-foreground rounded-md p-4 transition-all duration-300"
                           >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-medium">{reservation.playerName}</h3>
-                                <Badge variant="outline" className="border-primary/20">
-                                  {reservation.players} player{reservation.players !== 1 ? 's' : ''}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {reservation.playerEmail} • {reservation.playerPhone}
-                              </p>
-                            </div>
-                            
-                            <div className="flex items-center gap-4 mt-2 md:mt-0">
-                              <div className="text-sm text-right">
-                                <div className="font-medium">{court?.name}</div>
-                                <div className="text-muted-foreground">
-                                  {timeSlot?.startTime} - {timeSlot?.endTime}
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-medium">{reservation.playerName}</h3>
+                                  <Badge variant="outline" className="border-primary/20">
+                                    {reservation.players} player{reservation.players !== 1 ? 's' : ''}
+                                  </Badge>
                                 </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {reservation.playerEmail} • {reservation.playerPhone}
+                                </p>
                               </div>
                               
-                              <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" className="hover:bg-primary/10">Edit</Button>
-                                <Button variant="ghost" size="sm" className="hover:bg-destructive/10 hover:text-destructive">
-                                  Cancel
-                                </Button>
+                              <div className="flex items-center gap-4">
+                                <div className="text-sm text-right">
+                                  <div className="font-medium">{court?.name}</div>
+                                  <div className="text-muted-foreground">
+                                    {timeSlot?.startTime} - {timeSlot?.endTime}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="hover:bg-primary/10"
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="hover:bg-destructive/10 hover:text-destructive"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           </div>
