@@ -119,24 +119,29 @@ const Admin = () => {
                               return (
                                 <div
                                   key={slot.id}
-                                  className={`h-16 rounded-sm flex flex-col justify-center px-3 transition-all duration-300 hover:scale-[1.02] ${
+                                  className={`min-h-16 rounded-sm flex flex-col justify-center px-3 transition-all duration-300 hover:scale-[1.02] ${
                                     reservation
                                       ? "bg-secondary/20 text-secondary-foreground"
                                       : slot.available
                                       ? "bg-primary/20 text-primary-foreground"
-                                      : "bg-muted/30 text-muted-foreground"
+                                      : "bg-muted/50 text-muted-foreground"
                                   }`}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
+                                  <div className="flex items-center justify-between gap-4">
+                                    {reservation && (
+                                      <span className="font-medium truncate">
+                                        {reservation.playerName}
+                                      </span>
+                                    )}
+                                    <div className="flex items-center gap-2 mx-auto">
                                       <Clock className="h-4 w-4" />
-                                      <span className="text-base font-medium">
+                                      <span className="text-base font-semibold whitespace-nowrap">
                                         {slot.startTime} - {slot.endTime}
                                       </span>
                                     </div>
                                     <Badge
                                       variant={slot.available ? "outline" : "secondary"}
-                                      className="text-xs"
+                                      className="text-xs shrink-0"
                                     >
                                       {reservation
                                         ? "Reserved"
@@ -147,11 +152,8 @@ const Admin = () => {
                                   </div>
                                   
                                   {reservation && (
-                                    <div className="mt-1 text-sm">
-                                      <span className="font-medium">{reservation.playerName}</span>
-                                      <span className="text-muted-foreground ml-2">
-                                        ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
-                                      </span>
+                                    <div className="mt-1 text-sm text-muted-foreground">
+                                      ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
                                     </div>
                                   )}
                                 </div>
