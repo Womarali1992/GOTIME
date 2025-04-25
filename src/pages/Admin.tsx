@@ -86,7 +86,7 @@ const Admin = () => {
             {courts.map((court) => (
               <Card key={court.id} className="border border-input bg-card shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-xl text-foreground">{court.name}</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground">{court.name}</CardTitle>
                   <CardDescription>
                     <Badge
                       variant={court.indoor ? "secondary" : "outline"}
@@ -97,7 +97,7 @@ const Admin = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-1">
+                  <div className="space-y-4">
                     {sortedDates.map((date) => {
                       const courtSlots = slotsByDate[date].filter(
                         (slot) => slot.courtId === court.id
@@ -106,11 +106,11 @@ const Admin = () => {
                       if (courtSlots.length === 0) return null;
 
                       return (
-                        <div key={date} className="mb-4">
-                          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                        <div key={date} className="space-y-3">
+                          <h3 className="text-base font-semibold text-foreground mb-2">
                             {format(new Date(date), "EEEE, MMMM d, yyyy")}
                           </h3>
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {courtSlots.map((slot) => {
                               const reservation = reservations.find(
                                 (r) => r.timeSlotId === slot.id
@@ -119,29 +119,42 @@ const Admin = () => {
                               return (
                                 <div
                                   key={slot.id}
-                                  className={`min-h-16 rounded-sm flex flex-col justify-center px-3 transition-all duration-300 hover:scale-[1.02] ${
+                                  className={`min-h-[4rem] rounded-sm flex items-center px-4 transition-all duration-300 hover:scale-[1.01] ${
                                     reservation
                                       ? "bg-secondary/20 text-secondary-foreground"
                                       : slot.available
                                       ? "bg-primary/20 text-primary-foreground"
-                                      : "bg-muted/50 text-muted-foreground"
+                                      : "bg-muted/80 text-muted-foreground"
                                   }`}
                                 >
-                                  <div className="flex items-center justify-between gap-4">
-                                    {reservation && (
-                                      <span className="font-medium truncate">
-                                        {reservation.playerName}
-                                      </span>
-                                    )}
-                                    <div className="flex items-center gap-2 mx-auto">
-                                      <Clock className="h-4 w-4" />
-                                      <span className="text-base font-semibold whitespace-nowrap">
+                                  <div className="flex items-center justify-between w-full gap-4">
+                                    <div className="min-w-[150px]">
+                                      {reservation ? (
+                                        <div>
+                                          <span className="font-semibold text-base">
+                                            {reservation.playerName}
+                                          </span>
+                                          <div className="text-sm text-muted-foreground">
+                                            ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-base font-medium">
+                                          {slot.available ? "Available" : "Blocked"}
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2 flex-1 justify-center">
+                                      <Clock className="h-5 w-5" />
+                                      <span className="text-lg font-semibold whitespace-nowrap">
                                         {slot.startTime} - {slot.endTime}
                                       </span>
                                     </div>
+
                                     <Badge
                                       variant={slot.available ? "outline" : "secondary"}
-                                      className="text-xs shrink-0"
+                                      className="text-sm shrink-0 min-w-[80px] justify-center"
                                     >
                                       {reservation
                                         ? "Reserved"
@@ -150,12 +163,6 @@ const Admin = () => {
                                         : "Blocked"}
                                     </Badge>
                                   </div>
-                                  
-                                  {reservation && (
-                                    <div className="mt-1 text-sm text-muted-foreground">
-                                      ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
-                                    </div>
-                                  )}
                                 </div>
                               );
                             })}
