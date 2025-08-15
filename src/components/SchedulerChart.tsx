@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { format, addDays, subDays, startOfDay } from "date-fns";
 import { TimeSlot, Court } from "@/lib/types";
+import { clinics } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -43,13 +44,15 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
         parseInt(slot.startTime.split(":")[0]) === hour
     );
 
-    if (relevantSlots.length === 0) return { available: false, reserved: false };
+    if (relevantSlots.length === 0) return { available: false, reserved: false, isClinic: false };
 
     const slot = relevantSlots[0];
-    // Check if it's reserved (not available in our data model means it's either blocked or reserved)
+    const isClinic = slot.type === 'clinic';
+    
     return {
       available: slot.available,
-      reserved: !slot.available,
+      reserved: !slot.available && !isClinic,
+      isClinic: isClinic,
       slot: slot,
     };
   };
@@ -125,12 +128,13 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
                   <div key={`${court.id}-${day.toString()}`} className="border-b border-border/30 p-2">
                     <div className="space-y-1">
                       {hours.map((hour) => {
-                        const { available, reserved } = getSlotStatus(court, day, hour);
+                        const { available, reserved, isClinic } = getSlotStatus(court, day, hour);
                         return (
                           <div
                             key={`${court.id}-${day.toString()}-${hour}`}
                             className={cn(
                               "h-6 rounded-sm flex items-center px-1 text-xs court-slot",
+                              isClinic ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50" :
                               available ? "bg-primary/20 text-primary" :
                               reserved ? "bg-secondary/20 text-secondary" :
                               "bg-gray-100/20 text-gray-500"

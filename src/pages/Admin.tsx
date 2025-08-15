@@ -4,18 +4,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { reservations, courts, timeSlots } from "@/lib/data";
+import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic } from "@/lib/data";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import { useState } from "react";
 import EditCourtForm from "@/components/EditCourtForm";
 import ScheduleCourtForm from "@/components/ScheduleCourtForm";
 import SchedulerChart from "@/components/SchedulerChart";
-import { Clock } from "lucide-react";
+import AddUserForm from "@/components/AddUserForm";
+import AddCoachForm from "@/components/AddCoachForm";
+import AddClinicForm from "@/components/AddClinicForm";
+import { Clock, User, GraduationCap } from "lucide-react";
 
 const Admin = () => {
   const [editingCourt, setEditingCourt] = useState<any>(null);
   const [schedulingCourt, setSchedulingCourt] = useState<any>(null);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [showAddCoach, setShowAddCoach] = useState(false);
+  const [showAddClinic, setShowAddClinic] = useState(false);
   
   const handleEditCourt = (courtData: any) => {
     console.log("Editing court:", courtData);
@@ -25,6 +31,21 @@ const Admin = () => {
   const handleScheduleCourt = (scheduleData: any) => {
     console.log("Scheduling court:", scheduleData);
     // In a real app, this would update the court's schedule in the database
+  };
+
+  const handleAddUser = (userData: any) => {
+    addUser(userData);
+    console.log("Added user:", userData);
+  };
+
+  const handleAddCoach = (coachData: any) => {
+    addCoach(coachData);
+    console.log("Added coach:", coachData);
+  };
+
+  const handleAddClinic = (clinicData: any) => {
+    addClinic(clinicData);
+    console.log("Added clinic:", clinicData);
   };
 
   // Group ALL time slots by date, not just reservations
@@ -234,24 +255,34 @@ const Admin = () => {
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Users
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80">Add User</Button>
+              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddUser(true)}>
+                Add User
+              </Button>
             </div>
             
-            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-              <CardHeader>
-                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  User Management
-                </CardTitle>
-                <CardDescription>
-                  Manage user accounts, permissions, and profiles.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-muted-foreground text-sm">
-                  User management functionality will be implemented soon.
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {users.map(user => (
+                <Card key={user.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5" />
+                        {user.name}
+                      </CardTitle>
+                      <Badge variant={user.membershipType === 'premium' ? 'default' : user.membershipType === 'admin' ? 'secondary' : 'outline'}>
+                        {user.membershipType}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      <div className="space-y-1">
+                        <div>{user.email}</div>
+                        <div>{user.phone}</div>
+                      </div>
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
           </TabsContent>
 
           <TabsContent value="coaches" className="space-y-6">
@@ -259,24 +290,42 @@ const Admin = () => {
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Coaches
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80">Add Coach</Button>
+              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddCoach(true)}>
+                Add Coach
+              </Button>
             </div>
             
-            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-              <CardHeader>
-                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  Coach Management
-                </CardTitle>
-                <CardDescription>
-                  Manage coach profiles, schedules, and assignments.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-muted-foreground text-sm">
-                  Coach management functionality will be implemented soon.
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {coaches.map(coach => (
+                <Card key={coach.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="flex items-center gap-2">
+                        <GraduationCap className="h-5 w-5" />
+                        {coach.name}
+                      </CardTitle>
+                      <Badge variant="secondary">${coach.hourlyRate}/hr</Badge>
+                    </div>
+                    <CardDescription>
+                      <div className="space-y-2">
+                        <div>{coach.email}</div>
+                        <div>{coach.phone}</div>
+                        <div className="text-sm">{coach.bio}</div>
+                      </div>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1">
+                      {coach.specialties.map((specialty) => (
+                        <Badge key={specialty} variant="outline" className="text-xs">
+                          {specialty}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </TabsContent>
 
           <TabsContent value="clinics" className="space-y-6">
@@ -284,24 +333,43 @@ const Admin = () => {
               <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Clinics
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80">Add Clinic</Button>
+              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddClinic(true)}>
+                Add Clinic
+              </Button>
             </div>
             
-            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-              <CardHeader>
-                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  Clinic Management
-                </CardTitle>
-                <CardDescription>
-                  Manage tennis clinics, programs, and group sessions.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-muted-foreground text-sm">
-                  Clinic management functionality will be implemented soon.
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {clinics.map(clinic => {
+                const coach = coaches.find(c => c.id === clinic.coachId);
+                const court = courts.find(c => c.id === clinic.courtId);
+                
+                return (
+                  <Card key={clinic.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+                    <CardHeader>
+                      <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                        {clinic.name}
+                      </CardTitle>
+                      <CardDescription>
+                        <div className="space-y-1">
+                          <div className="font-medium">Coach: {coach?.name}</div>
+                          <div>Court: {court?.name}</div>
+                          <div>{clinic.date} • {clinic.startTime} - {clinic.endTime}</div>
+                        </div>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">{clinic.description}</p>
+                        <div className="flex justify-between items-center">
+                          <Badge variant="outline">Max: {clinic.maxParticipants} players</Badge>
+                          <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">${clinic.price}</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </TabsContent>
 
           <TabsContent value="settings">
@@ -326,7 +394,7 @@ const Admin = () => {
       
       <Footer />
 
-      {/* Court Edit Dialog */}
+      {/* Forms */}
       {editingCourt && (
         <EditCourtForm
           court={editingCourt}
@@ -336,13 +404,36 @@ const Admin = () => {
         />
       )}
 
-      {/* Court Schedule Dialog */}
       {schedulingCourt && (
         <ScheduleCourtForm
           court={schedulingCourt}
           isOpen={!!schedulingCourt}
           onClose={() => setSchedulingCourt(null)}
           onSave={handleScheduleCourt}
+        />
+      )}
+
+      {showAddUser && (
+        <AddUserForm
+          isOpen={showAddUser}
+          onClose={() => setShowAddUser(false)}
+          onSave={handleAddUser}
+        />
+      )}
+
+      {showAddCoach && (
+        <AddCoachForm
+          isOpen={showAddCoach}
+          onClose={() => setShowAddCoach(false)}
+          onSave={handleAddCoach}
+        />
+      )}
+
+      {showAddClinic && (
+        <AddClinicForm
+          isOpen={showAddClinic}
+          onClose={() => setShowAddClinic(false)}
+          onSave={handleAddClinic}
         />
       )}
     </div>

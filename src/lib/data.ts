@@ -1,5 +1,5 @@
 
-import { Court, TimeSlot, Reservation } from './types';
+import { Court, TimeSlot, Reservation, User, Coach, Clinic } from './types';
 
 export const courts: Court[] = [
   {
@@ -139,4 +139,135 @@ export const mockCreateReservation = (
   
   reservations.push(newReservation);
   return newReservation;
+};
+
+// Users data
+export const users: User[] = [
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    phone: '555-123-4567',
+    membershipType: 'premium',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: '2',
+    name: 'Jane Smith',
+    email: 'jane@example.com',
+    phone: '555-987-6543',
+    membershipType: 'basic',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// Coaches data
+export const coaches: Coach[] = [
+  {
+    id: '1',
+    name: 'Maria Rodriguez',
+    email: 'maria@example.com',
+    phone: '555-111-2222',
+    specialties: ['Beginner Lessons', 'Advanced Training'],
+    bio: 'Professional tennis coach with 10+ years experience.',
+    hourlyRate: 85,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: '2',
+    name: 'David Wilson',
+    email: 'david@example.com',
+    phone: '555-333-4444',
+    specialties: ['Junior Programs', 'Competition Prep'],
+    bio: 'Former professional player specializing in youth development.',
+    hourlyRate: 95,
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// Clinics data
+export const clinics: Clinic[] = [
+  {
+    id: '1',
+    name: 'Beginner Tennis Clinic',
+    description: 'Learn the basics of tennis in a fun, supportive environment.',
+    coachId: '1',
+    courtId: '1',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+    startTime: '10:00',
+    endTime: '12:00',
+    maxParticipants: 8,
+    price: 45,
+    createdAt: new Date().toISOString(),
+  },
+];
+
+// Helper functions for managing users
+export const addUser = (user: Omit<User, 'id' | 'createdAt'>): User => {
+  const newUser: User = {
+    ...user,
+    id: `user-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  users.push(newUser);
+  return newUser;
+};
+
+// Helper functions for managing coaches
+export const addCoach = (coach: Omit<Coach, 'id' | 'createdAt'>): Coach => {
+  const newCoach: Coach = {
+    ...coach,
+    id: `coach-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  coaches.push(newCoach);
+  return newCoach;
+};
+
+// Helper functions for managing clinics
+export const addClinic = (clinic: Omit<Clinic, 'id' | 'createdAt'>): Clinic => {
+  const newClinic: Clinic = {
+    ...clinic,
+    id: `clinic-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  };
+  clinics.push(newClinic);
+  
+  // Create time slots for the clinic
+  createClinicTimeSlots(newClinic);
+  
+  return newClinic;
+};
+
+// Create time slots for clinics
+const createClinicTimeSlots = (clinic: Clinic) => {
+  const startHour = parseInt(clinic.startTime.split(':')[0]);
+  const endHour = parseInt(clinic.endTime.split(':')[0]);
+  
+  for (let hour = startHour; hour < endHour; hour++) {
+    const slotId = `${clinic.courtId}-${clinic.date}-${hour}`;
+    const existingSlotIndex = timeSlots.findIndex(slot => slot.id === slotId);
+    
+    if (existingSlotIndex !== -1) {
+      // Update existing slot to be clinic type
+      timeSlots[existingSlotIndex] = {
+        ...timeSlots[existingSlotIndex],
+        type: 'clinic',
+        clinicId: clinic.id,
+        available: false,
+      };
+    } else {
+      // Create new time slot for clinic
+      timeSlots.push({
+        id: slotId,
+        courtId: clinic.courtId,
+        startTime: `${hour}:00`,
+        endTime: `${hour + 1}:00`,
+        date: clinic.date,
+        available: false,
+        type: 'clinic',
+        clinicId: clinic.id,
+      });
+    }
+  }
 };
