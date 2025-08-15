@@ -60,6 +60,9 @@ const Admin = () => {
             <TabsTrigger value="calendar">Calendar</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
             <TabsTrigger value="courts">Courts</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="coaches">Coaches</TabsTrigger>
+            <TabsTrigger value="clinics">Clinics</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           
@@ -226,6 +229,81 @@ const Admin = () => {
             </div>
           </TabsContent>
           
+          <TabsContent value="users" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Users
+              </h2>
+              <Button className="bg-primary/90 hover:bg-primary/80">Add User</Button>
+            </div>
+            
+            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+              <CardHeader>
+                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  User Management
+                </CardTitle>
+                <CardDescription>
+                  Manage user accounts, permissions, and profiles.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-muted-foreground text-sm">
+                  User management functionality will be implemented soon.
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="coaches" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Coaches
+              </h2>
+              <Button className="bg-primary/90 hover:bg-primary/80">Add Coach</Button>
+            </div>
+            
+            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+              <CardHeader>
+                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  Coach Management
+                </CardTitle>
+                <CardDescription>
+                  Manage coach profiles, schedules, and assignments.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-muted-foreground text-sm">
+                  Coach management functionality will be implemented soon.
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="clinics" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Clinics
+              </h2>
+              <Button className="bg-primary/90 hover:bg-primary/80">Add Clinic</Button>
+            </div>
+            
+            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
+              <CardHeader>
+                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  Clinic Management
+                </CardTitle>
+                <CardDescription>
+                  Manage tennis clinics, programs, and group sessions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-muted-foreground text-sm">
+                  Clinic management functionality will be implemented soon.
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="settings">
             <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
               <CardHeader>
