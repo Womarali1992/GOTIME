@@ -22,6 +22,7 @@ const Admin = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddCoach, setShowAddCoach] = useState(false);
   const [showAddClinic, setShowAddClinic] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   const handleEditCourt = (courtData: any) => {
     console.log("Editing court:", courtData);
@@ -45,6 +46,7 @@ const Admin = () => {
 
   const handleAddClinic = (clinicData: any) => {
     addClinic(clinicData);
+    setRefreshKey(prev => prev + 1); // Force re-render
     console.log("Added clinic:", clinicData);
   };
 
@@ -89,6 +91,7 @@ const Admin = () => {
           
           <TabsContent value="scheduler" className="space-y-6">
             <SchedulerChart 
+              key={refreshKey}
               courts={courts} 
               timeSlots={timeSlots} 
               onScheduleCourt={setSchedulingCourt} 

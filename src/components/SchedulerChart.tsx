@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { format, addDays, subDays, startOfDay } from "date-fns";
 import { TimeSlot, Court } from "@/lib/types";
-import { clinics } from "@/lib/data";
+
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
