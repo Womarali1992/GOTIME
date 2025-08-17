@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 const Header = () => {
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
       <div className="container flex h-16 items-center">
         <div className="mr-4 flex">
           <Link to="/" className="mr-6 flex items-center space-x-2">
@@ -13,20 +13,20 @@ const Header = () => {
           <nav className="flex items-center space-x-6 text-sm font-medium">
             <Link
               to="/"
-              className="transition-colors hover:text-foreground/80 text-foreground"
+              className="transition-colors hover:text-primary/80 text-foreground"
             >
               Book a Court
             </Link>
             <Link
               to="/admin"
-              className="transition-colors hover:text-foreground/80 text-muted-foreground"
+              className="transition-colors hover:text-primary/80 text-muted-foreground"
             >
               Admin Dashboard
             </Link>
           </nav>
         </div>
         <div className="ml-auto flex items-center space-x-4">
-          <Button>Sign In</Button>
+          <Button className="paper-button">Sign In</Button>
         </div>
       </div>
     </header>

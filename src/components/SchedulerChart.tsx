@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { format, addDays, subDays, startOfDay } from "date-fns";
 import { TimeSlot, Court } from "@/lib/types";
-
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import DayView from "./DayView";
+import { reservations, clinics, coaches } from "@/lib/data";
 
 interface SchedulerChartProps {
   courts: Court[];
@@ -19,6 +20,7 @@ interface SchedulerChartProps {
 const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
   const [viewDays, setViewDays] = useState<number>(3);
+  const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   // Time range to display (8am to 10pm)
@@ -27,12 +29,29 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Calculate days to display based on current date
-  const daysToShow = Array.from({ length: viewDays }, (_, i) => addDays(currentDate, i));
+  // Show viewDays starting from the current date, no past days
+  const daysToShow = Array.from({ length: viewDays }, (_, i) => addDays(currentDate, i))
+    .filter(day => {
+      // Filter out any days that are in the past
+      const today = startOfDay(new Date());
+      return day >= today;
+    });
 
-  // Navigate through dates
-  const previousDay = () => setCurrentDate(subDays(currentDate, 1));
+  // Navigate through dates - prevent going to past dates
+  const previousDay = () => {
+    const newDate = subDays(currentDate, 1);
+    const today = startOfDay(new Date());
+    if (newDate >= today) {
+      setCurrentDate(newDate);
+    }
+  };
   const nextDay = () => setCurrentDate(addDays(currentDate, 1));
   const today = () => setCurrentDate(startOfDay(new Date()));
+
+  // Handle date header click to open DayView
+  const handleDateHeaderClick = (date: Date) => {
+    setSelectedDateForDayView(date);
+  };
 
   // Get availability for a specific court, day and hour
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
@@ -58,49 +77,34 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
   };
 
   return (
-    <Card className="gradient-card overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        {/* Changed gradient-text to normal text color for better readability */}
-        <CardTitle className="text-lg md:text-xl font-bold text-foreground">
-          Court Schedule
-        </CardTitle>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={previousDay}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={today}>
-            Today
-          </Button>
-          <Button variant="outline" size="sm" onClick={nextDay}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="px-1 md:px-4 pb-2">
-        <div className="overflow-x-auto">
-          <div className="min-w-max relative">
-            {/* Time header */}
-            <div
-              className="grid"
-              style={{
-                gridTemplateColumns: `150px repeat(${viewDays}, 1fr)`,
-              }}
+    <>
+      <Card className="gradient-card overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          {/* Changed gradient-text to normal text color for better readability */}
+          <CardTitle className="text-lg md:text-xl font-bold text-foreground">
+            Court Schedule
+          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={previousDay}
+              disabled={subDays(currentDate, 1) < startOfDay(new Date())}
             >
-              {/* Empty cell for court names */}
-              <div className="border-b border-border/30 p-2"></div>
-
-              {/* Date headers */}
-              {daysToShow.map((day) => (
-                <div
-                  key={day.toString()}
-                  className="border-b border-border/30 p-2 text-center font-medium text-foreground"
-                >
-                  {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
-                </div>
-              ))}
-            </div>
-
-            {/* Court rows */}
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={today}>
+              Today
+            </Button>
+            <Button variant="outline" size="sm" onClick={nextDay}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="px-1 md:px-4 pb-2">
+                  <div className="overflow-x-auto">
+          <div className="min-w-max relative">
+            {/* Court rows with date headers over each column */}
             {courts.map((court) => (
               <div
                 key={court.id}
@@ -123,9 +127,19 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
                   </Badge>
                 </div>
 
-                {/* Day cells */}
+                {/* Date headers over each column */}
                 {daysToShow.map((day) => (
                   <div key={`${court.id}-${day.toString()}`} className="border-b border-border/30 p-2">
+                    {/* Date header */}
+                    <div
+                      className="text-center font-medium text-foreground cursor-pointer hover:bg-muted/50 transition-colors duration-200 p-2 mb-2 rounded"
+                      onClick={() => handleDateHeaderClick(day)}
+                      title="Click to view full day schedule"
+                    >
+                      {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                    </div>
+                    
+                    {/* Time slots */}
                     <div className="space-y-1">
                       {hours.map((hour) => {
                         const { available, reserved, isClinic } = getSlotStatus(court, day, hour);
@@ -161,8 +175,42 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+          
+          <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+            <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-primary/20 rounded-sm border border-primary/30"></div>
+                <span>Available</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
+                <span>Reserved</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-yellow-500/30 rounded-sm border border-yellow-500/50"></div>
+                <span>Clinic</span>
+              </div>
+            </div>
+            <p className="text-center text-xs text-muted-foreground mt-2">
+              Click date headers to view full day schedule
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* DayView Modal */}
+      {selectedDateForDayView && (
+        <DayView
+          selectedDate={selectedDateForDayView}
+          onClose={() => setSelectedDateForDayView(null)}
+          courts={courts}
+          timeSlots={timeSlots}
+          reservations={reservations}
+          clinics={clinics}
+          coaches={coaches}
+        />
+      )}
+    </>
   );
 };
 

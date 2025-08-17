@@ -1,9 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { TimeSlot, Court } from "@/lib/types";
-import { getAvailableTimeSlots, courts, clinics, coaches } from "@/lib/data";
+import { timeSlots, courts, clinics, coaches, getTimeSlotsForDate } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
@@ -15,18 +15,32 @@ const CourtCalendar = ({ onSelectTimeSlot }: CourtCalendarProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedCourt, setSelectedCourt] = useState<string | undefined>(undefined);
   
+  // Generate time slots for the selected date when it changes
+  useEffect(() => {
+    if (selectedDate) {
+      getTimeSlotsForDate(selectedDate);
+    }
+  }, [selectedDate]);
+  
   // Format the date as YYYY-MM-DD for our data functions
   const formattedDate = selectedDate 
     ? format(selectedDate, "yyyy-MM-dd") 
     : format(new Date(), "yyyy-MM-dd");
   
-  // Get available time slots for the selected date and court
-  const availableSlots = getAvailableTimeSlots(formattedDate, selectedCourt);
+  // Get all time slots for the selected date and court (not just available ones)
+  const getAllTimeSlots = (date: string, courtId?: string): TimeSlot[] => {
+    return timeSlots.filter(
+      slot => slot.date === date && (!courtId || slot.courtId === courtId)
+    );
+  };
+  
+  // Get all time slots for the selected date and court
+  const allSlots = getAllTimeSlots(formattedDate, selectedCourt);
   
   // Group time slots by court
   const slotsByCourtId: Record<string, TimeSlot[]> = {};
   
-  availableSlots.forEach(slot => {
+  allSlots.forEach(slot => {
     if (!slotsByCourtId[slot.courtId]) {
       slotsByCourtId[slot.courtId] = [];
     }
@@ -92,14 +106,31 @@ const CourtCalendar = ({ onSelectTimeSlot }: CourtCalendarProps) => {
                         const clinic = isClinic ? clinics.find(c => c.id === slot.clinicId) : null;
                         const coach = clinic ? coaches.find(c => c.id === clinic.coachId) : null;
                         
+                        // Determine slot status and styling
+                        let statusText = "Available";
+                        let statusClass = "bg-primary/20 border-primary/300 hover:bg-primary/100";
+                        let isClickable = true;
+                        
+                        if (isClinic) {
+                          statusText = "Clinic";
+                          statusClass = "bg-yellow-50 border-yellow-300 hover:bg-yellow-100";
+                        } else if (slot.blocked) {
+                          statusText = "Blocked";
+                          statusClass = "bg-gray-500/20 border-gray-400 text-gray-600";
+                          isClickable = false;
+                        } else if (!slot.available) {
+                          statusText = "Reserved";
+                          statusClass = "bg-secondary/20 border-secondary/300 text-secondary-foreground";
+                          isClickable = false;
+                        }
+                        
                         return (
                           <Button
                             key={slot.id}
                             variant="outline"
-                            className={`court-slot h-20 flex flex-col items-center justify-center ${
-                              isClinic ? "bg-yellow-50 border-yellow-300 hover:bg-yellow-100" : ""
-                            }`}
-                            onClick={() => onSelectTimeSlot(slot)}
+                            className={`court-slot h-20 flex flex-col items-center justify-center ${statusClass}`}
+                            onClick={() => isClickable && onSelectTimeSlot(slot)}
+                            disabled={!isClickable}
                           >
                             <span className="text-sm font-medium">
                               {slot.startTime} - {slot.endTime}
@@ -118,7 +149,7 @@ const CourtCalendar = ({ onSelectTimeSlot }: CourtCalendarProps) => {
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">
-                                Available
+                                {statusText}
                               </span>
                             )}
                           </Button>
@@ -132,10 +163,32 @@ const CourtCalendar = ({ onSelectTimeSlot }: CourtCalendarProps) => {
             
             {Object.keys(slotsByCourtId).length === 0 && (
               <div className="p-8 text-center">
-                <p className="text-muted-foreground">No available courts found for the selected date.</p>
+                <p className="text-muted-foreground">No courts found for the selected date.</p>
                 <p className="text-sm text-muted-foreground mt-2">Please select another date or check back later.</p>
               </div>
             )}
+            
+            {/* Legend */}
+            <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+              <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-primary/20 rounded-sm border border-primary/30"></div>
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
+                  <span>Reserved</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-yellow-500/30 rounded-sm border border-yellow-500/50"></div>
+                  <span>Clinic</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-gray-500/20 rounded-sm border border-gray-400"></div>
+                  <span>Blocked</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

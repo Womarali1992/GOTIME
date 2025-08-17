@@ -60,6 +60,31 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Admin Features
+
+### Reservation Management
+The admin dashboard includes comprehensive reservation management capabilities:
+
+- **View All Time Slots**: See all available, reserved, and clinic time slots across all courts
+- **Add Users to Reservations**: Admins can add users to available time slots or clinics
+- **User Selection**: Choose from existing system users or add custom players
+- **Interactive Interface**: Click on available time slots to quickly add users
+- **Real-time Updates**: All changes are reflected immediately in the interface
+
+### How to Add Users to Reservations
+1. Navigate to the Admin dashboard
+2. Go to the "Reservations" tab
+3. Click "Add User to Reservation" button or click on an available time slot
+4. Select the desired time slot or clinic
+5. Choose an existing user or add a custom player
+6. Specify the number of players
+7. Submit to create the reservation
+
+The system automatically handles:
+- Marking time slots as unavailable when booked
+- Preventing double-booking
+- Maintaining clinic availability for multiple participants
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/b610c5c7-6c95-4271-8a94-004616d1046c) and click on Share -> Publish.

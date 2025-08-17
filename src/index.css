@@ -4,64 +4,64 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 45 29% 97%; /* Warm paper white */
+    --foreground: 25 15% 25%; /* Warm dark brown */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 45 29% 99%; /* Slightly whiter paper */
+    --card-foreground: 25 15% 25%; /* Warm dark brown */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 45 29% 99%; /* Slightly whiter paper */
+    --popover-foreground: 25 15% 25%; /* Warm dark brown */
 
     --primary: 142 76% 56%;
-    --primary-foreground: 210 40% 98%;
+    --primary-foreground: 45 29% 97%;
 
     --secondary: 217 91% 60%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary-foreground: 45 29% 97%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 40 20% 94%; /* Warm light beige */
+    --muted-foreground: 25 20% 40%; /* Warm medium brown */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 40 20% 94%; /* Warm light beige */
+    --accent-foreground: 25 15% 25%; /* Warm dark brown */
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 45 29% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 35 25% 88%; /* Warm light gray */
+    --input: 35 25% 88%; /* Warm light gray */
     --ring: 142 76% 56%;
 
     --radius: 0.8rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 25 15% 15%; /* Warm dark brown */
+    --foreground: 40 20% 94%; /* Warm light beige */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 25 15% 20%; /* Slightly lighter warm brown */
+    --card-foreground: 40 20% 94%; /* Warm light beige */
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 25 15% 20%; /* Slightly lighter warm brown */
+    --popover-foreground: 40 20% 94%; /* Warm light beige */
 
     --primary: 142 70% 50%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary-foreground: 25 15% 15%;
 
     --secondary: 217 91% 60%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary-foreground: 40 20% 94%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 25 15% 25%; /* Warm medium brown */
+    --muted-foreground: 35 20% 70%; /* Warm light brown */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 25 15% 25%; /* Warm medium brown */
+    --accent-foreground: 40 20% 94%; /* Warm light beige */
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 40 20% 94%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 25 15% 25%; /* Warm medium brown */
+    --input: 25 15% 25%; /* Warm medium brown */
     --ring: 142 70% 50%;
   }
 
@@ -77,11 +77,11 @@
 
 @layer components {
   .gradient-border {
-    @apply relative before:absolute before:-inset-[1px] before:rounded-[inherit] before:p-[1px] before:bg-gradient-to-r before:from-primary/50 before:via-secondary/50 before:to-primary/50 before:-z-10;
+    @apply relative before:absolute before:-inset-[1px] before:rounded-[inherit] before:p-[1px] before:bg-gradient-to-r before:from-primary/30 before:via-secondary/30 before:to-primary/30 before:-z-10;
   }
 
   .gradient-card {
-    @apply relative overflow-hidden bg-gradient-to-br from-card/95 to-background/95 backdrop-blur-xl backdrop-saturate-150 border-border/50;
+    @apply relative overflow-hidden bg-gradient-to-br from-card/95 to-background/95 backdrop-blur-xl backdrop-saturate-150 border-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)];
   }
 
   .gradient-text {
@@ -89,15 +89,23 @@
   }
 
   .gradient-hover {
-    @apply transition-all duration-300 hover:bg-gradient-to-br hover:from-primary/10 hover:to-secondary/10;
+    @apply transition-all duration-300 hover:bg-gradient-to-br hover:from-primary/5 hover:to-secondary/5;
   }
 
   .glass-card {
-    @apply bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60;
+    @apply bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_2px_15px_rgba(0,0,0,0.06)];
   }
 
   .neon-border {
-    @apply shadow-[0_0_15px_rgba(var(--primary-rgb)/0.5)];
+    @apply shadow-[0_0_15px_rgba(var(--primary-rgb)/0.3)];
+  }
+
+  .paper-card {
+    @apply bg-card border border-border/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-shadow duration-200;
+  }
+
+  .paper-button {
+    @apply bg-card hover:bg-muted/50 border border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] transition-all duration-200;
   }
 }
 

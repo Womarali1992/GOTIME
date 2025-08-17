@@ -13,6 +13,7 @@ export type TimeSlot = {
   endTime: string;
   date: string;
   available: boolean;
+  blocked: boolean;
   type?: 'clinic' | 'reservation';
   clinicId?: string;
 };
@@ -60,4 +61,26 @@ export type Clinic = {
   maxParticipants: number;
   price: number;
   createdAt: string;
+};
+
+export type DaySettings = {
+  dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  isOpen: boolean;
+  startTime: string;
+  endTime: string;
+  timeSlotDuration: number; // in minutes
+  breakTime: number; // in minutes between slots
+};
+
+export type ReservationSettings = {
+  id: string;
+  advanceBookingLimit: number; // hours before the time slot
+  cancellationDeadline: number; // hours before the time slot
+  maxPlayersPerSlot: number;
+  minPlayersPerSlot: number;
+  allowWalkIns: boolean;
+  requirePayment: boolean;
+  operatingHours: DaySettings[];
+  createdAt: string;
+  updatedAt: string;
 };

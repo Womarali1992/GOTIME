@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic } from "@/lib/data";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic, addUserToReservation, blockTimeSlot, unblockTimeSlot } from "@/lib/data";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import { useState } from "react";
@@ -14,7 +16,10 @@ import SchedulerChart from "@/components/SchedulerChart";
 import AddUserForm from "@/components/AddUserForm";
 import AddCoachForm from "@/components/AddCoachForm";
 import AddClinicForm from "@/components/AddClinicForm";
+import AddUserToReservationForm from "@/components/AddUserToReservationForm";
+import AdminSettings from "@/components/AdminSettings";
 import { Clock, User, GraduationCap } from "lucide-react";
+import { ReservationSettings } from "@/lib/types";
 
 const Admin = () => {
   const [editingCourt, setEditingCourt] = useState<any>(null);
@@ -22,6 +27,8 @@ const Admin = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddCoach, setShowAddCoach] = useState(false);
   const [showAddClinic, setShowAddClinic] = useState(false);
+  const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
+  const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
   const [refreshKey, setRefreshKey] = useState(0);
   
   const handleEditCourt = (courtData: any) => {
@@ -48,6 +55,48 @@ const Admin = () => {
     addClinic(clinicData);
     setRefreshKey(prev => prev + 1); // Force re-render
     console.log("Added clinic:", clinicData);
+  };
+
+  const handleAddUserToReservation = (reservationData: any) => {
+    try {
+      addUserToReservation(
+        reservationData.timeSlotId,
+        reservationData.courtId,
+        reservationData.playerName,
+        reservationData.playerEmail,
+        reservationData.playerPhone,
+        reservationData.players
+      );
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Added user to reservation:", reservationData);
+    } catch (error) {
+      console.error("Error adding user to reservation:", error);
+      // In a real app, you'd show a toast notification here
+    }
+  };
+
+  const handleBlockTimeSlot = (timeSlotId: string) => {
+    if (blockTimeSlot(timeSlotId)) {
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Blocked time slot:", timeSlotId);
+    }
+  };
+
+  const handleUnblockTimeSlot = (timeSlotId: string) => {
+    if (unblockTimeSlot(timeSlotId)) {
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Unblocked time slot:", timeSlotId);
+    }
+  };
+
+  const handleCreateClinic = (timeSlotId: string) => {
+    // In a real app, this would open a clinic creation form
+    console.log("Creating clinic for time slot:", timeSlotId);
+    // For now, just block the slot to simulate clinic creation
+    if (blockTimeSlot(timeSlotId)) {
+      setRefreshKey(prev => prev + 1);
+      console.log("Created clinic (blocked slot):", timeSlotId);
+    }
   };
 
   // Group ALL time slots by date, not just reservations
@@ -115,8 +164,23 @@ const Admin = () => {
               <h2 className="text-2xl font-bold text-foreground">
                 Time Slots Overview
               </h2>
-              <Button className="bg-primary hover:bg-primary/90">Add Time Slot</Button>
+              <div className="flex gap-3">
+                                 <Button 
+                   className="bg-primary hover:bg-primary/90"
+                   onClick={() => {
+                     setSelectedTimeSlotForForm("");
+                     setShowAddUserToReservation(true);
+                   }}
+                 >
+                   Add User to Reservation
+                 </Button>
+                <Button className="bg-primary hover:bg-primary/90">Add Time Slot</Button>
+              </div>
             </div>
+            
+                         <div className="text-sm text-muted-foreground mb-4">
+               💡 Click on available time slots or clinics to add users to them. You can also use the "Add User to Reservation" button above.
+             </div>
             
             {courts.map((court) => (
               <Card key={court.id} className="border border-input bg-card shadow-sm">
@@ -153,17 +217,25 @@ const Admin = () => {
                               const clinic = getClinicForSlot(slot);
 
                               return (
-                                <div
+                                                                <div
                                   key={slot.id}
                                   className={`min-h-[4rem] rounded-sm flex items-center px-4 transition-all duration-300 hover:scale-[1.01] ${
                                     clinic
-                                      ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50"
+                                      ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
                                       : reservation
                                       ? "bg-secondary/20 text-secondary-foreground"
+                                      : slot.blocked
+                                      ? "bg-red-500/20 text-red-800 border border-red-500/50"
                                       : slot.available
-                                      ? "bg-primary/20 text-primary-foreground"
+                                      ? "bg-primary/20 text-primary-foreground cursor-pointer"
                                       : "bg-muted/80 text-muted-foreground"
                                   }`}
+                                                                     onClick={() => {
+                                     if (slot.available && !slot.blocked) {
+                                       setSelectedTimeSlotForForm(slot.id);
+                                       setShowAddUserToReservation(true);
+                                     }
+                                   }}
                                 >
                                   <div className="flex items-center justify-between w-full gap-4">
                                     <div className="min-w-[150px]">
@@ -185,34 +257,100 @@ const Admin = () => {
                                             ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
                                           </div>
                                         </div>
-                                      ) : (
-                                        <span className="text-base font-medium">
-                                          {slot.available ? "Available" : "Blocked"}
-                                        </span>
-                                      )}
+                                                                             ) : (
+                                         <span className="text-base font-medium !text-foreground">
+                                           {slot.available ? "Available" : "Blocked"}
+                                         </span>
+                                       )}
                                     </div>
                                     
-                                    <div className="flex items-center gap-2 flex-1 justify-center">
-                                      <Clock className="h-5 w-5" />
-                                      <span className="text-lg font-semibold whitespace-nowrap">
-                                        {slot.startTime} - {slot.endTime}
-                                      </span>
-                                    </div>
+                                                                         <div className="flex items-center gap-2 flex-1 justify-center">
+                                       <Clock className="h-5 w-5" />
+                                       <span className="text-lg font-semibold whitespace-nowrap !text-foreground">
+                                         {slot.startTime} - {slot.endTime}
+                                       </span>
+                                     </div>
 
-                                    <Badge
-                                      variant={clinic ? "default" : slot.available ? "outline" : "secondary"}
-                                      className={`text-sm shrink-0 min-w-[80px] justify-center ${
-                                        clinic ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" : ""
-                                      }`}
-                                    >
-                                      {clinic
-                                        ? "Clinic"
-                                        : reservation
-                                        ? "Reserved"
-                                        : slot.available
-                                        ? "Available"
-                                        : "Blocked"}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                      {clinic ? (
+                                        <Badge
+                                          variant="default"
+                                          className="text-sm shrink-0 min-w-[80px] justify-center bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
+                                        >
+                                          Clinic
+                                        </Badge>
+                                                                             ) : reservation ? (
+                                         <Badge
+                                           variant="outline"
+                                           className="text-sm shrink-0 min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
+                                         >
+                                           Reserved
+                                         </Badge>
+                                      ) : slot.blocked ? (
+                                        <div className="relative">
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger>
+                                                                                             <Badge
+                                                 variant="destructive"
+                                                 className="text-sm shrink-0 min-w-[80px] justify-center cursor-pointer hover:bg-red-500/20"
+                                               >
+                                                 Blocked
+                                               </Badge>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent 
+                                              align="end" 
+                                              className="z-[9999]"
+                                              sideOffset={5}
+                                            >
+                                              <DropdownMenuItem
+                                                onClick={() => handleUnblockTimeSlot(slot.id)}
+                                                className="text-green-600 focus:text-green-600"
+                                              >
+                                                Unblock
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                        </div>
+                                      ) : (
+                                        <div className="relative">
+                                          <DropdownMenu>
+                                                                                         <DropdownMenuTrigger>
+                                               <Badge
+                                                 variant="outline"
+                                                 className="text-sm shrink-0 min-w-[80px] justify-center cursor-pointer bg-green-500/20 !text-green-700 border-green-500/30 hover:bg-green-500/30"
+                                               >
+                                                 Available
+                                               </Badge>
+                                             </DropdownMenuTrigger>
+                                            <DropdownMenuContent 
+                                              align="end" 
+                                              className="z-[9999]"
+                                              sideOffset={5}
+                                            >
+                                              <DropdownMenuItem
+                                                onClick={() => {
+                                                  setSelectedTimeSlotForForm(slot.id);
+                                                  setShowAddUserToReservation(true);
+                                                }}
+                                              >
+                                                Book
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() => handleCreateClinic(slot.id)}
+                                              >
+                                                Create Clinic
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() => handleBlockTimeSlot(slot.id)}
+                                                className="text-red-600 focus:text-red-600"
+                                              >
+                                                Block
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -400,21 +538,10 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="settings">
-            <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-              <CardHeader>
-                <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  System Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure global settings for the reservation system.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-muted-foreground text-sm">
-                  Settings functionality will be implemented in a future update.
-                </div>
-              </CardContent>
-            </Card>
+            <AdminSettings onSettingsUpdate={(updatedSettings) => {
+              console.log('Settings updated:', updatedSettings);
+              // In a real app, you might want to refresh data or show a notification
+            }} />
           </TabsContent>
         </Tabs>
       </main>
@@ -463,6 +590,22 @@ const Admin = () => {
           onSave={handleAddClinic}
         />
       )}
+
+             {showAddUserToReservation && (
+         <AddUserToReservationForm
+           isOpen={showAddUserToReservation}
+           onClose={() => {
+             setShowAddUserToReservation(false);
+             setSelectedTimeSlotForForm("");
+           }}
+           onSave={handleAddUserToReservation}
+           timeSlots={timeSlots}
+           users={users}
+           clinics={clinics}
+           courts={courts}
+           preSelectedTimeSlot={selectedTimeSlotForForm}
+         />
+       )}
     </div>
   );
 };
