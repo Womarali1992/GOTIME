@@ -63,6 +63,14 @@ const Admin = () => {
   // Sort dates in ascending order
   const sortedDates = Object.keys(slotsByDate).sort();
 
+  // Function to get clinic for a time slot
+  const getClinicForSlot = (slot: any) => {
+    if (slot.type === 'clinic' && slot.clinicId) {
+      return clinics.find(clinic => clinic.id === slot.clinicId);
+    }
+    return null;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background/90 to-background/90">
       <Header />
@@ -142,12 +150,15 @@ const Admin = () => {
                               const reservation = reservations.find(
                                 (r) => r.timeSlotId === slot.id
                               );
+                              const clinic = getClinicForSlot(slot);
 
                               return (
                                 <div
                                   key={slot.id}
                                   className={`min-h-[4rem] rounded-sm flex items-center px-4 transition-all duration-300 hover:scale-[1.01] ${
-                                    reservation
+                                    clinic
+                                      ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50"
+                                      : reservation
                                       ? "bg-secondary/20 text-secondary-foreground"
                                       : slot.available
                                       ? "bg-primary/20 text-primary-foreground"
@@ -156,7 +167,16 @@ const Admin = () => {
                                 >
                                   <div className="flex items-center justify-between w-full gap-4">
                                     <div className="min-w-[150px]">
-                                      {reservation ? (
+                                      {clinic ? (
+                                        <div>
+                                          <span className="font-semibold text-base">
+                                            {clinic.name}
+                                          </span>
+                                          <div className="text-sm text-muted-foreground">
+                                            Coach: {coaches.find(c => c.id === clinic.coachId)?.name}
+                                          </div>
+                                        </div>
+                                      ) : reservation ? (
                                         <div>
                                           <span className="font-semibold text-base">
                                             {reservation.playerName}
@@ -180,10 +200,14 @@ const Admin = () => {
                                     </div>
 
                                     <Badge
-                                      variant={slot.available ? "outline" : "secondary"}
-                                      className="text-sm shrink-0 min-w-[80px] justify-center"
+                                      variant={clinic ? "default" : slot.available ? "outline" : "secondary"}
+                                      className={`text-sm shrink-0 min-w-[80px] justify-center ${
+                                        clinic ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" : ""
+                                      }`}
                                     >
-                                      {reservation
+                                      {clinic
+                                        ? "Clinic"
+                                        : reservation
                                         ? "Reserved"
                                         : slot.available
                                         ? "Available"
