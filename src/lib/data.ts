@@ -185,6 +185,39 @@ export const coaches: Coach[] = [
   },
 ];
 
+// Create time slots for clinics (moved before clinics array usage)
+const createClinicTimeSlots = (clinic: Clinic) => {
+  const startHour = parseInt(clinic.startTime.split(':')[0]);
+  const endHour = parseInt(clinic.endTime.split(':')[0]);
+  
+  for (let hour = startHour; hour < endHour; hour++) {
+    const slotId = `${clinic.courtId}-${clinic.date}-${hour}`;
+    const existingSlotIndex = timeSlots.findIndex(slot => slot.id === slotId);
+    
+    if (existingSlotIndex !== -1) {
+      // Update existing slot to be clinic type
+      timeSlots[existingSlotIndex] = {
+        ...timeSlots[existingSlotIndex],
+        type: 'clinic',
+        clinicId: clinic.id,
+        available: true, // Clinics should be bookable
+      };
+    } else {
+      // Create new time slot for clinic
+      timeSlots.push({
+        id: slotId,
+        courtId: clinic.courtId,
+        startTime: `${hour}:00`,
+        endTime: `${hour + 1}:00`,
+        date: clinic.date,
+        available: true, // Clinics should be bookable
+        type: 'clinic',
+        clinicId: clinic.id,
+      });
+    }
+  }
+};
+
 // Clinics data
 export const clinics: Clinic[] = [
   {
@@ -201,6 +234,11 @@ export const clinics: Clinic[] = [
     createdAt: new Date().toISOString(),
   },
 ];
+
+// Create time slots for existing clinics
+clinics.forEach(clinic => {
+  createClinicTimeSlots(clinic);
+});
 
 // Helper functions for managing users
 export const addUser = (user: Omit<User, 'id' | 'createdAt'>): User => {
@@ -239,35 +277,3 @@ export const addClinic = (clinic: Omit<Clinic, 'id' | 'createdAt'>): Clinic => {
   return newClinic;
 };
 
-// Create time slots for clinics
-const createClinicTimeSlots = (clinic: Clinic) => {
-  const startHour = parseInt(clinic.startTime.split(':')[0]);
-  const endHour = parseInt(clinic.endTime.split(':')[0]);
-  
-  for (let hour = startHour; hour < endHour; hour++) {
-    const slotId = `${clinic.courtId}-${clinic.date}-${hour}`;
-    const existingSlotIndex = timeSlots.findIndex(slot => slot.id === slotId);
-    
-    if (existingSlotIndex !== -1) {
-      // Update existing slot to be clinic type
-      timeSlots[existingSlotIndex] = {
-        ...timeSlots[existingSlotIndex],
-        type: 'clinic',
-        clinicId: clinic.id,
-        available: false,
-      };
-    } else {
-      // Create new time slot for clinic
-      timeSlots.push({
-        id: slotId,
-        courtId: clinic.courtId,
-        startTime: `${hour}:00`,
-        endTime: `${hour + 1}:00`,
-        date: clinic.date,
-        available: false,
-        type: 'clinic',
-        clinicId: clinic.id,
-      });
-    }
-  }
-};
