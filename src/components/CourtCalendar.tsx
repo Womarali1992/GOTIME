@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { TimeSlot, Court } from "@/lib/types";
-import { getAvailableTimeSlots, courts } from "@/lib/data";
+import { getAvailableTimeSlots, courts, clinics, coaches } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
@@ -87,21 +87,43 @@ const CourtCalendar = ({ onSelectTimeSlot }: CourtCalendarProps) => {
                   </div>
                   <CardContent className="p-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {slots.map(slot => (
-                        <Button
-                          key={slot.id}
-                          variant="outline"
-                          className="court-slot h-16 flex flex-col items-center justify-center"
-                          onClick={() => onSelectTimeSlot(slot)}
-                        >
-                          <span className="text-sm font-medium">
-                            {slot.startTime} - {slot.endTime}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            Available
-                          </span>
-                        </Button>
-                      ))}
+                      {slots.map(slot => {
+                        const isClinic = slot.type === 'clinic';
+                        const clinic = isClinic ? clinics.find(c => c.id === slot.clinicId) : null;
+                        const coach = clinic ? coaches.find(c => c.id === clinic.coachId) : null;
+                        
+                        return (
+                          <Button
+                            key={slot.id}
+                            variant="outline"
+                            className={`court-slot h-20 flex flex-col items-center justify-center ${
+                              isClinic ? "bg-yellow-50 border-yellow-300 hover:bg-yellow-100" : ""
+                            }`}
+                            onClick={() => onSelectTimeSlot(slot)}
+                          >
+                            <span className="text-sm font-medium">
+                              {slot.startTime} - {slot.endTime}
+                            </span>
+                            {isClinic ? (
+                              <div className="text-center">
+                                <span className="text-xs text-yellow-700 font-medium">
+                                  {clinic?.name}
+                                </span>
+                                <span className="text-xs text-yellow-600 block">
+                                  Coach: {coach?.name}
+                                </span>
+                                <span className="text-xs text-yellow-800 font-semibold">
+                                  ${clinic?.price}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                Available
+                              </span>
+                            )}
+                          </Button>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

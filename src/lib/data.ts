@@ -95,7 +95,7 @@ export const reservations: Reservation[] = [
 // Helper functions for managing data
 export const getAvailableTimeSlots = (date: string, courtId?: string): TimeSlot[] => {
   return timeSlots.filter(
-    slot => slot.date === date && slot.available && (!courtId || slot.courtId === courtId)
+    slot => slot.date === date && (slot.available || slot.type === 'clinic') && (!courtId || slot.courtId === courtId)
   );
 };
 
