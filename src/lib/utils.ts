@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { ReservationSettings, DaySettings, TimeSlot } from "./types"
+import { getTimeSlotReservationStatus } from "./data"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -84,25 +85,39 @@ export function validateDaySettings(daySettings: DaySettings[]): string[] {
   return errors;
 }
 
-// Standardized timeslot status determination
+// Standardized timeslot status determination - now uses centralized function
 export function getTimeSlotStatus(slot: TimeSlot) {
-  const isClinic = slot.type === 'clinic';
+  const status = getTimeSlotReservationStatus(slot.id);
+  if (!status) {
+    return {
+      available: slot.available && !slot.blocked,
+      reserved: !slot.available && !slot.blocked && slot.type !== 'clinic',
+      blocked: slot.blocked,
+      isClinic: slot.type === 'clinic',
+      slot: slot,
+    };
+  }
   
   return {
-    available: slot.available && !slot.blocked,
-    reserved: !slot.available && !slot.blocked && !isClinic,
-    blocked: slot.blocked,
-    isClinic: isClinic,
+    available: status.isAvailable,
+    reserved: status.isReserved,
+    blocked: status.isBlocked,
+    isClinic: status.isClinic,
     slot: slot,
   };
 }
 
-// Get status text for display
+// Get status text for display - now uses centralized function
 export function getTimeSlotStatusText(slot: TimeSlot): string {
-  if (slot.blocked) return "Blocked";
-  if (slot.type === 'clinic') return "Clinic";
-  if (!slot.available) return "Reserved";
-  return "Available";
+  const status = getTimeSlotReservationStatus(slot.id);
+  if (!status) {
+    if (slot.blocked) return "Blocked";
+    if (slot.type === 'clinic') return "Clinic";
+    if (!slot.available) return "Reserved";
+    return "Available";
+  }
+  
+  return status.status.charAt(0).toUpperCase() + status.status.slice(1);
 }
 
 // Get CSS classes for timeslot styling

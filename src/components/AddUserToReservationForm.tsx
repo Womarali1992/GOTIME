@@ -104,48 +104,34 @@ const AddUserToReservationForm = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Add User to Reservation</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="px-2 sm:px-0">
+          <DialogTitle className="text-xl sm:text-2xl font-bold">Add User to Reservation</DialogTitle>
+          <DialogDescription className="text-sm">
             Select an available time slot or clinic and add a user to it.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 px-2 sm:px-0">
           {/* Time Slot Selection */}
-          <div className="space-y-3">
-            <Label htmlFor="timeSlot">Select Time Slot or Clinic</Label>
+          <div className="space-y-2">
+            <Label className="text-sm">Select Time Slot</Label>
             <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a time slot or clinic" />
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="Choose a time slot" />
               </SelectTrigger>
               <SelectContent>
                 {availableTimeSlots.map((slot) => {
                   const court = courts.find(c => c.id === slot.courtId);
-                  const clinic = clinics.find(c => c.id === slot.clinicId);
-                  const reservation = slot.type === 'reservation';
+                  const clinic = clinics.find(cl => cl.id === slot.clinicId);
                   
                   return (
-                    <SelectItem key={slot.id} value={slot.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <div className="font-medium">
-                            {court?.name} • {slot.date} • {slot.startTime}-{slot.endTime}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {clinic ? (
-                              <span className="flex items-center gap-1">
-                                <GraduationCap className="h-3 w-3" />
-                                {clinic.name} (Clinic)
-                              </span>
-                            ) : reservation ? (
-                              <span className="text-orange-600">Reserved</span>
-                            ) : (
-                              <span className="text-green-600">Available</span>
-                            )}
-                          </div>
-                        </div>
+                    <SelectItem key={slot.id} value={slot.id} className="text-sm">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{slot.startTime} - {slot.endTime}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {court?.name} • {clinic ? clinic.name : 'Open Play'}
+                        </span>
                       </div>
                     </SelectItem>
                   );
@@ -154,121 +140,90 @@ const AddUserToReservationForm = ({
             </Select>
           </div>
 
-          {/* Selected Slot Info */}
-          {selectedSlot && (
-            <div className="p-4 bg-muted/50 rounded-lg border">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold">Selected Slot Details</h4>
-                <Badge variant={selectedClinic ? "default" : "outline"}>
-                  {selectedClinic ? "Clinic" : "Time Slot"}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Court:</span> {selectedCourt?.name}
-                </div>
-                <div>
-                  <span className="font-medium">Date:</span> {selectedSlot.date}
-                </div>
-                <div>
-                  <span className="font-medium">Time:</span> {selectedSlot.startTime} - {selectedSlot.endTime}
-                </div>
-                {selectedClinic && (
-                  <>
-                    <div>
-                      <span className="font-medium">Clinic:</span> {selectedClinic.name}
-                    </div>
-                    <div>
-                      <span className="font-medium">Price:</span> ${selectedClinic.price}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Player Selection */}
-          <div className="space-y-3">
-            <Label>Player Information</Label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="useCustomPlayer"
-                checked={useCustomPlayer}
-                onChange={(e) => setUseCustomPlayer(e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="useCustomPlayer">Add custom player (not in system)</Label>
-            </div>
-
-            {!useCustomPlayer ? (
+          {/* User Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm">Select User</Label>
+            <div className="space-y-2">
               <Select value={selectedUser} onValueChange={setSelectedUser}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a user from the system" />
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Choose a user" />
                 </SelectTrigger>
                 <SelectContent>
                   {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex items-center gap-2">
+                    <SelectItem key={user.id} value={user.id} className="text-sm">
+                      <div className="flex items-center space-x-2">
                         <User className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">{user.name}</div>
-                          <div className="text-sm text-muted-foreground">{user.email}</div>
-                        </div>
+                        <span>{user.name}</span>
+                        <Badge variant="secondary" className="text-xs">{user.email}</Badge>
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="customPlayerName">Player Name</Label>
-                  <Input
-                    id="customPlayerName"
-                    value={customPlayerName}
-                    onChange={(e) => setCustomPlayerName(e.target.value)}
-                    placeholder="Enter player name"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customPlayerEmail">Email</Label>
-                  <Input
-                    id="customPlayerEmail"
-                    type="email"
-                    value={customPlayerEmail}
-                    onChange={(e) => setCustomPlayerEmail(e.target.value)}
-                    placeholder="Enter email address"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customPlayerPhone">Phone</Label>
-                  <Input
-                    id="customPlayerPhone"
-                    value={customPlayerPhone}
-                    onChange={(e) => setCustomPlayerPhone(e.target.value)}
-                    placeholder="Enter phone number"
-                    required
-                  />
-                </div>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="useCustomPlayer"
+                  checked={useCustomPlayer}
+                  onChange={(e) => setUseCustomPlayer(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="useCustomPlayer" className="text-sm">Add custom player instead</Label>
               </div>
-            )}
+            </div>
           </div>
 
+          {/* Custom Player Fields */}
+          {useCustomPlayer && (
+            <div className="space-y-3 p-3 bg-muted rounded-md">
+              <div className="space-y-2">
+                <Label htmlFor="customName" className="text-sm">Player Name</Label>
+                <Input
+                  id="customName"
+                  value={customPlayerName}
+                  onChange={(e) => setCustomPlayerName(e.target.value)}
+                  placeholder="Enter player name"
+                  className="text-sm"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="customEmail" className="text-sm">Player Email</Label>
+                <Input
+                  id="customEmail"
+                  type="email"
+                  value={customPlayerEmail}
+                  onChange={(e) => setCustomPlayerEmail(e.target.value)}
+                  placeholder="Enter player email"
+                  className="text-sm"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="customPhone" className="text-sm">Player Phone</Label>
+                <Input
+                  id="customPhone"
+                  value={customPlayerPhone}
+                  onChange={(e) => setCustomPlayerPhone(e.target.value)}
+                  placeholder="Enter player phone"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Number of Players */}
-          <div className="space-y-3">
-            <Label htmlFor="players">Number of Players</Label>
+          <div className="space-y-2">
+            <Label className="text-sm">Number of Players</Label>
             <Select value={players.toString()} onValueChange={(value) => setPlayers(parseInt(value))}>
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="Select number of players" />
               </SelectTrigger>
               <SelectContent>
                 {[1, 2, 3, 4].map((num) => (
-                  <SelectItem key={num} value={num.toString()}>
-                    {num} player{num !== 1 ? 's' : ''}
+                  <SelectItem key={num} value={num.toString()} className="text-sm">
+                    {num} Player{num > 1 ? 's' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -276,8 +231,8 @@ const AddUserToReservationForm = ({
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end pt-4">
+            <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm">
               Cancel
             </Button>
             <Button 
@@ -287,6 +242,7 @@ const AddUserToReservationForm = ({
                 (!useCustomPlayer && !selectedUser) ||
                 (useCustomPlayer && (!customPlayerName || !customPlayerEmail || !customPlayerPhone))
               }
+              className="w-full sm:w-auto text-sm"
             >
               Add to Reservation
             </Button>

@@ -2,10 +2,12 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, User, GraduationCap, X } from "lucide-react";
+import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Star } from "lucide-react";
 import { format } from "date-fns";
 import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getTimeSlotsWithStatusForDate, getReservationsForDate } from "@/lib/data";
 
 interface DayViewProps {
   selectedDate: Date;
@@ -15,6 +17,7 @@ interface DayViewProps {
   reservations: Reservation[];
   clinics: Clinic[];
   coaches: Coach[];
+  isOpen: boolean;
 }
 
 const DayView = ({ 
@@ -24,7 +27,8 @@ const DayView = ({
   timeSlots, 
   reservations, 
   clinics, 
-  coaches 
+  coaches,
+  isOpen
 }: DayViewProps) => {
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
   const displayDate = format(selectedDate, "EEEE, MMMM d, yyyy");
@@ -37,14 +41,14 @@ const DayView = ({
   // Get all time slots for the selected date
   const dateTimeSlots = timeSlots.filter(slot => slot.date === formattedDate);
   
-  // Get all reservations for the selected date
-  const dateReservations = reservations.filter(reservation => {
-    const slot = timeSlots.find(s => s.id === reservation.timeSlotId);
-    return slot && slot.date === formattedDate;
-  });
-
+  // Get all reservations for the selected date using centralized function
+  const dateReservations = getReservationsForDate(formattedDate);
+  
   // Get all clinics for the selected date
   const dateClinics = clinics.filter(clinic => clinic.date === formattedDate);
+  
+  // Get time slots with status for better reservation handling
+  const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(formattedDate);
 
   // Function to get clinic for a time slot
   const getClinicForSlot = (slot: TimeSlot) => {
@@ -59,72 +63,89 @@ const DayView = ({
     return reservations.find(reservation => reservation.timeSlotId === slot.id);
   };
 
-  // Function to get time slot status for a specific court and hour
+  // Function to get time slot status for a specific court and hour - now uses centralized data
   const getSlotStatus = (court: Court, hour: number) => {
-    const relevantSlots = dateTimeSlots.filter(
+    const relevantSlots = timeSlotsWithStatus.filter(
       slot => slot.courtId === court.id && parseInt(slot.startTime.split(":")[0]) === hour
     );
 
     if (relevantSlots.length === 0) return { available: false, reserved: false, blocked: false, isClinic: false, slot: null };
 
-    const slot = relevantSlots[0];
-    const isClinic = slot.type === 'clinic';
-    const reservation = getReservationForSlot(slot);
-    const clinic = getClinicForSlot(slot);
+    const slotWithStatus = relevantSlots[0];
     
     return {
-      available: slot.available && !slot.blocked,
-      reserved: !slot.available && !slot.blocked && !isClinic,
-      blocked: slot.blocked,
-      slot: slot,
-      reservation: reservation,
-      clinic: clinic,
+      available: slotWithStatus.isAvailable,
+      reserved: slotWithStatus.isReserved,
+      blocked: slotWithStatus.isBlocked,
+      slot: slotWithStatus,
+      reservation: slotWithStatus.reservation,
+      clinic: slotWithStatus.clinic,
     };
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm" onClick={onClose}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Scheduler
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {displayDate}
-              </h1>
-              <p className="text-muted-foreground">
-                Full day schedule for all courts
-              </p>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-6xl max-h-[90vh] overflow-hidden p-0 bg-gradient-to-br from-background via-muted/30 to-background">
+        <DialogHeader className="px-6 py-6 border-b border-border bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" size="sm" onClick={onClose} className="hover:bg-primary/10 hover:border-primary/30">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Scheduler
+              </Button>
+              <div>
+                <DialogTitle className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                  {displayDate}
+                </DialogTitle>
+                <p className="text-muted-foreground">
+                  Full day schedule for all courts
+                </p>
+              </div>
             </div>
+            <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-primary/10">
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
+        </DialogHeader>
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           {/* Courts Grid */}
           <div className="space-y-6">
             {courts.map((court) => (
-              <Card key={court.id} className="border border-input bg-card shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-foreground flex items-center gap-3">
-                    {court.name}
-                    <Badge
-                      variant={court.indoor ? "secondary" : "outline"}
-                      className={court.indoor ? "bg-secondary/20" : "border-primary/20"}
-                    >
-                      {court.indoor ? "Indoor" : "Outdoor"}
-                    </Badge>
-                  </CardTitle>
-                  <p className="text-muted-foreground">{court.location}</p>
-                </CardHeader>
-                <CardContent>
+              <Card key={court.id} className="overflow-hidden bg-card/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 sm:p-6 border-b border-border/20">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/20 rounded-lg">
+                        <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                      </div>
+                      <div className="text-center sm:text-left">
+                        <h3 className="text-lg sm:text-xl font-bold text-foreground">
+                          {court.name}
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                          {court.location}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 justify-center sm:justify-end">
+                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
+                        court.indoor 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                          : 'bg-green-100 text-green-800 border border-green-200'
+                      }`}>
+                        {court.indoor ? "Indoor" : "Outdoor"}
+                      </span>
+                      <div className="flex items-center gap-1 text-yellow-600">
+                        <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-current" />
+                        <span className="text-xs sm:text-sm font-medium">Premium</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <CardContent className="p-4 sm:p-6">
                   <div className="space-y-3">
                     {hours.map((hour) => {
                       const { available, reserved, blocked, slot, reservation, clinic } = getSlotStatus(court, hour);
@@ -140,9 +161,9 @@ const DayView = ({
                               : blocked
                               ? "bg-gray-500/30 text-gray-100 border border-gray-500/50"
                               : reservation
-                              ? "bg-secondary/20 text-secondary-foreground"
+                              ? "bg-blue-500/20 text-blue-700 border border-blue-500/30"
                               : available
-                              ? "bg-primary/20 text-primary-foreground"
+                              ? "bg-green-500/20 text-green-700 border border-green-500/30"
                               : "bg-muted/80 text-muted-foreground"
                           )}
                         >
@@ -217,11 +238,11 @@ const DayView = ({
           <div className="mt-8 p-4 bg-muted/50 rounded-lg">
             <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-primary/20 rounded-sm border border-primary/30"></div>
+                <div className="w-3 h-3 bg-green-500/20 rounded-sm border border-green-500/30"></div>
                 <span>Available</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
+                <div className="w-3 h-3 bg-blue-500/20 rounded-sm border border-blue-500/30"></div>
                 <span>Reserved</span>
               </div>
               <div className="flex items-center space-x-2">
@@ -235,8 +256,8 @@ const DayView = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

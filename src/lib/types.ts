@@ -6,6 +6,15 @@ export type Court = {
   indoor: boolean;
 };
 
+export type Comment = {
+  id: string;
+  text: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type TimeSlot = {
   id: string;
   courtId: string;
@@ -16,6 +25,7 @@ export type TimeSlot = {
   blocked: boolean;
   type?: 'clinic' | 'reservation';
   clinicId?: string;
+  comments: Comment[]; // Multiple comments instead of single notes
 };
 
 export type Reservation = {
@@ -27,6 +37,7 @@ export type Reservation = {
   playerPhone: string;
   players: number;
   createdAt: string;
+  comments: Comment[]; // Multiple comments instead of single notes
 };
 
 export type User = {
@@ -36,6 +47,7 @@ export type User = {
   phone: string;
   membershipType: 'basic' | 'premium' | 'admin';
   createdAt: string;
+  comments: Comment[]; // Multiple comments instead of single notes
 };
 
 export type Coach = {

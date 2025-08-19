@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import DayView from "./DayView";
-import { reservations, clinics, coaches } from "@/lib/data";
+import { reservations, clinics, coaches, getTimeSlotsWithStatusForDate } from "@/lib/data";
 
 interface SchedulerChartProps {
   courts: Court[];
@@ -53,26 +53,26 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
     setSelectedDateForDayView(date);
   };
 
-  // Get availability for a specific court, day and hour
+  // Get availability for a specific court, day and hour - now uses centralized function
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const relevantSlots = timeSlots.filter(
+    const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(formattedDate);
+    
+    const relevantSlots = timeSlotsWithStatus.filter(
       slot =>
         slot.courtId === court.id &&
-        slot.date === formattedDate &&
         parseInt(slot.startTime.split(":")[0]) === hour
     );
 
     if (relevantSlots.length === 0) return { available: false, reserved: false, isClinic: false };
 
-    const slot = relevantSlots[0];
-    const isClinic = slot.type === 'clinic';
+    const slotWithStatus = relevantSlots[0];
     
     return {
-      available: slot.available,
-      reserved: !slot.available && !isClinic,
-      isClinic: isClinic,
-      slot: slot,
+      available: slotWithStatus.isAvailable,
+      reserved: slotWithStatus.isReserved,
+      isClinic: slotWithStatus.isClinic,
+      slot: slotWithStatus,
     };
   };
 
@@ -208,6 +208,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
           reservations={reservations}
           clinics={clinics}
           coaches={coaches}
+          isOpen={selectedDateForDayView !== null}
         />
       )}
     </>

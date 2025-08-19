@@ -1,5 +1,5 @@
 
-import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings } from './types';
+import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings, Comment } from './types';
 
 export const courts: Court[] = [
   {
@@ -107,6 +107,7 @@ export const generateTimeSlots = (): TimeSlot[] => {
           date: dateString,
           available,
           blocked: false,
+          comments: [],
         });
       }
     });
@@ -170,6 +171,7 @@ export const generateTimeSlotsForDateRange = (startDate: Date, endDate: Date): T
           date: dateString,
           available: !isPast, // Available if not in the past
           blocked: false,
+          comments: [],
         });
       }
     });
@@ -261,7 +263,7 @@ export const debugTimeSlots = () => {
 };
 
 // Uncomment the line below to debug time slot generation
-debugTimeSlots();
+// debugTimeSlots();
 
 // Create some sample reservations after time slots are generated
 export const createSampleReservations = (): Reservation[] => {
@@ -284,6 +286,15 @@ export const createSampleReservations = (): Reservation[] => {
       playerPhone: '555-123-4567',
       players: 4,
       createdAt: new Date().toISOString(),
+      comments: [
+        {
+          id: '1',
+          text: 'Regular player, prefers early morning slots. Has requested court maintenance.',
+          authorId: 'admin',
+          authorName: 'Admin',
+          createdAt: new Date().toISOString(),
+        }
+      ],
     });
   }
   
@@ -301,6 +312,15 @@ export const createSampleReservations = (): Reservation[] => {
       playerPhone: '555-987-6543',
       players: 2,
       createdAt: new Date().toISOString(),
+      comments: [
+        {
+          id: '2',
+          text: 'New player, may need equipment assistance.',
+          authorId: 'admin',
+          authorName: 'Admin',
+          createdAt: new Date().toISOString(),
+        }
+      ],
     });
   }
   
@@ -324,6 +344,41 @@ export const getTimeSlotById = (id: string): TimeSlot | undefined => {
   return timeSlots.find(slot => slot.id === id);
 };
 
+// Function to ensure reservation data consistency
+export const ensureReservationConsistency = () => {
+  // Update all time slots to reflect their current reservation status
+  timeSlots.forEach(slot => {
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.type === 'clinic' && slot.clinicId 
+      ? clinics.find(c => c.id === slot.clinicId) 
+      : null;
+    
+    // Update slot availability based on reservation status
+    if (slot.blocked) {
+      slot.available = false;
+    } else if (slot.type === 'clinic') {
+      slot.available = true; // Clinics are always available for booking
+    } else if (reservation) {
+      slot.available = false;
+      slot.type = 'reservation';
+    } else {
+      slot.available = true;
+      slot.type = undefined;
+    }
+  });
+  
+  // Remove any orphaned reservations (reservations without corresponding time slots)
+  const validReservationIds = new Set(timeSlots.map(slot => slot.id));
+  const validReservations = reservations.filter(res => validReservationIds.has(res.timeSlotId));
+  
+  if (validReservations.length !== reservations.length) {
+    // Update the reservations array to remove orphaned ones
+    reservations.length = 0;
+    reservations.push(...validReservations);
+  }
+};
+
+// Update the mockCreateReservation function to ensure consistency
 export const mockCreateReservation = (
   timeSlotId: string,
   playerName: string,
@@ -345,6 +400,7 @@ export const mockCreateReservation = (
   const slotIndex = timeSlots.findIndex(slot => slot.id === timeSlotId);
   if (slotIndex !== -1) {
     timeSlots[slotIndex].available = false;
+    timeSlots[slotIndex].type = 'reservation';
   }
   
   const newReservation: Reservation = {
@@ -356,9 +412,14 @@ export const mockCreateReservation = (
     playerPhone,
     players,
     createdAt: new Date().toISOString(),
+    comments: [],
   };
   
   reservations.push(newReservation);
+  
+  // Ensure consistency after creating reservation
+  ensureReservationConsistency();
+  
   return newReservation;
 };
 
@@ -392,6 +453,15 @@ export const users: User[] = [
     phone: '555-123-4567',
     membershipType: 'premium',
     createdAt: new Date().toISOString(),
+    comments: [
+      {
+        id: '1',
+        text: 'Premium member since 2022. Excellent player, helps with new member orientation.',
+        authorId: 'admin',
+        authorName: 'Admin',
+        createdAt: new Date().toISOString(),
+      }
+    ],
   },
   {
     id: '2',
@@ -400,6 +470,15 @@ export const users: User[] = [
     phone: '555-987-6543',
     membershipType: 'basic',
     createdAt: new Date().toISOString(),
+    comments: [
+      {
+        id: '2',
+        text: 'Basic member, interested in upgrading to premium. Has requested private lessons.',
+        authorId: 'admin',
+        authorName: 'Admin',
+        createdAt: new Date().toISOString(),
+      }
+    ],
   },
 ];
 
@@ -428,7 +507,7 @@ export const coaches: Coach[] = [
 ];
 
 // Create time slots for clinics (moved before clinics array usage)
-const createClinicTimeSlots = (clinic: Clinic) => {
+export const createClinicTimeSlots = (clinic: Clinic) => {
   const startHour = parseInt(clinic.startTime.split(':')[0]);
   const startMinute = parseInt(clinic.startTime.split(':')[1]);
   const endHour = parseInt(clinic.endTime.split(':')[0]);
@@ -446,27 +525,29 @@ const createClinicTimeSlots = (clinic: Clinic) => {
       const existingSlotIndex = timeSlots.findIndex(slot => slot.id === slotId);
       
       if (existingSlotIndex !== -1) {
-        // Update existing slot to be clinic type
-        timeSlots[existingSlotIndex] = {
-          ...timeSlots[existingSlotIndex],
-          type: 'clinic',
-          clinicId: clinic.id,
-          available: true, // Clinics should be bookable
-          blocked: false, // Ensure clinic slots are not blocked
-        };
+                 // Update existing slot to be clinic type
+         timeSlots[existingSlotIndex] = {
+           ...timeSlots[existingSlotIndex],
+           type: 'clinic',
+           clinicId: clinic.id,
+           available: true, // Clinics should be bookable
+           blocked: false, // Ensure clinic slots are not blocked
+           comments: timeSlots[existingSlotIndex].comments || [],
+         };
       } else {
-        // Create new time slot for clinic
-        timeSlots.push({
-          id: slotId,
-          courtId: clinic.courtId,
-          startTime: `${hour}:00`,
-          endTime: `${hour + 1}:00`,
-          date: clinic.date,
-          available: true, // Clinics should be bookable
-          blocked: false,
-          type: 'clinic',
-          clinicId: clinic.id,
-        });
+                 // Create new time slot for clinic
+         timeSlots.push({
+           id: slotId,
+           courtId: clinic.courtId,
+           startTime: `${hour}:00`,
+           endTime: `${hour + 1}:00`,
+           date: clinic.date,
+           available: true, // Clinics should be bookable
+           blocked: false,
+           type: 'clinic',
+           clinicId: clinic.id,
+           comments: [],
+         });
       }
     }
   } else {
@@ -485,17 +566,18 @@ const createClinicTimeSlots = (clinic: Clinic) => {
       };
     } else {
       // Create new time slot for clinic
-      timeSlots.push({
-        id: slotId,
-        courtId: clinic.courtId,
-        startTime: clinic.startTime,
-        endTime: clinic.endTime,
-        date: clinic.date,
-        available: true,
-        blocked: false,
-        type: 'clinic',
-        clinicId: clinic.id,
-      });
+              timeSlots.push({
+          id: slotId,
+          courtId: clinic.courtId,
+          startTime: clinic.startTime,
+          endTime: clinic.endTime,
+          date: clinic.date,
+          available: true,
+          blocked: false,
+          type: 'clinic',
+          clinicId: clinic.id,
+          comments: [],
+        });
     }
   }
 };
@@ -642,9 +724,14 @@ export const addUserToReservation = (
     playerPhone,
     players,
     createdAt: new Date().toISOString(),
+    comments: [],
   };
   
   reservations.push(newReservation);
+  
+  // Ensure consistency after creating reservation
+  ensureReservationConsistency();
+  
   return newReservation;
 };
 
@@ -683,4 +770,422 @@ export const getClinicById = (id: string): Clinic | undefined => {
 export const getCoachById = (id: string): Coach | undefined => {
   return coaches.find(coach => coach.id === id);
 };
+
+// Helper function to update reservation comments
+export const updateReservationComments = (reservationId: string, comments: Comment[]): boolean => {
+  const reservationIndex = reservations.findIndex(r => r.id === reservationId);
+  if (reservationIndex !== -1) {
+    reservations[reservationIndex].comments = comments;
+    return true;
+  }
+  return false;
+};
+
+// Helper function to update user comments
+export const updateUserComments = (userId: string, comments: Comment[]): boolean => {
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex !== -1) {
+    users[userIndex].comments = comments;
+    return true;
+  }
+  return false;
+};
+
+// Helper function to update time slot comments
+export const updateTimeSlotComments = (timeSlotId: string, comments: Comment[]): boolean => {
+  const timeSlotIndex = timeSlots.findIndex(ts => ts.id === timeSlotId);
+  if (timeSlotIndex !== -1) {
+    timeSlots[timeSlotIndex].comments = comments;
+    return true;
+  }
+  return false;
+};
+
+// Centralized function to get reservation status for any time slot
+export const getTimeSlotReservationStatus = (timeSlotId: string) => {
+  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
+  if (!timeSlot) return null;
+  
+  const reservation = reservations.find(res => res.timeSlotId === timeSlotId);
+  const clinic = timeSlot.type === 'clinic' && timeSlot.clinicId 
+    ? clinics.find(c => c.id === timeSlot.clinicId) 
+    : null;
+  
+  return {
+    timeSlot,
+    reservation,
+    clinic,
+    isAvailable: timeSlot.available && !timeSlot.blocked,
+    isReserved: !timeSlot.available && !timeSlot.blocked && timeSlot.type !== 'clinic',
+    isBlocked: timeSlot.blocked,
+    isClinic: timeSlot.type === 'clinic',
+    status: timeSlot.blocked ? 'blocked' : 
+            timeSlot.type === 'clinic' ? 'clinic' : 
+            !timeSlot.available ? 'reserved' : 'available'
+  };
+};
+
+// Centralized function to get all reservations for a specific date
+export const getReservationsForDate = (date: string) => {
+  return reservations.filter(reservation => {
+    const slot = timeSlots.find(s => s.id === reservation.timeSlotId);
+    return slot && slot.date === date;
+  });
+};
+
+// Centralized function to get all time slots with their reservation status for a date
+export const getTimeSlotsWithStatusForDate = (date: string, courtId?: string) => {
+  const dateSlots = timeSlots.filter(
+    slot => slot.date === date && (!courtId || slot.courtId === courtId)
+  );
+  
+  return dateSlots.map(slot => {
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.type === 'clinic' && slot.clinicId 
+      ? clinics.find(c => c.id === slot.clinicId) 
+      : null;
+    
+    return {
+      ...slot,
+      reservation,
+      clinic,
+      isAvailable: slot.available && !slot.blocked,
+      isReserved: !slot.available && !slot.blocked && slot.type !== 'clinic',
+      isBlocked: slot.blocked,
+      isClinic: slot.type === 'clinic',
+      status: slot.blocked ? 'blocked' : 
+              slot.type === 'clinic' ? 'clinic' : 
+              !slot.available ? 'reserved' : 'available'
+    };
+  });
+};
+
+// Function to refresh reservation data and ensure consistency
+export const refreshReservationData = () => {
+  // Ensure all time slots have the correct reservation status
+  ensureReservationConsistency();
+  
+  // Log current state for debugging
+  console.log('Reservation data refreshed:');
+  console.log(`- Total time slots: ${timeSlots.length}`);
+  console.log(`- Total reservations: ${reservations.length}`);
+  console.log(`- Available slots: ${timeSlots.filter(s => s.available).length}`);
+  console.log(`- Reserved slots: ${timeSlots.filter(s => !s.available && !s.blocked && s.type !== 'clinic').length}`);
+  console.log(`- Clinic slots: ${timeSlots.filter(s => s.type === 'clinic').length}`);
+  console.log(`- Blocked slots: ${timeSlots.filter(s => s.blocked).length}`);
+};
+
+// Call refresh function after initial data setup
+export const initializeData = () => {
+  // Create sample reservations
+  createSampleReservations();
+  
+  // Create time slots for existing clinics
+  clinics.forEach(clinic => {
+    createClinicTimeSlots(clinic);
+  });
+  
+  // Ensure consistency
+  ensureReservationConsistency();
+  
+  // Log initial state
+  console.log('Data initialization complete');
+  refreshReservationData();
+};
+
+// Initialize data with consistency checks
+// Moved to end of file to ensure all data arrays are defined first
+
+// Function to validate reservation data integrity
+export const validateReservationIntegrity = () => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Check for orphaned reservations
+  const validTimeSlotIds = new Set(timeSlots.map(slot => slot.id));
+  const orphanedReservations = reservations.filter(res => !validTimeSlotIds.has(res.timeSlotId));
+  
+  if (orphanedReservations.length > 0) {
+    errors.push(`Found ${orphanedReservations.length} orphaned reservations without corresponding time slots`);
+  }
+  
+  // Check for time slots with inconsistent status
+  timeSlots.forEach(slot => {
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.type === 'clinic' && slot.clinicId 
+      ? clinics.find(c => c.id === slot.clinicId) 
+      : null;
+    
+    // Check if blocked slots are marked as available
+    if (slot.blocked && slot.available) {
+      errors.push(`Time slot ${slot.id} is blocked but marked as available`);
+    }
+    
+    // Check if reserved slots are marked as available
+    if (reservation && slot.available && slot.type !== 'clinic') {
+      errors.push(`Time slot ${slot.id} has a reservation but is marked as available`);
+    }
+    
+    // Check if clinic slots are marked as unavailable
+    if (slot.type === 'clinic' && !slot.available) {
+      warnings.push(`Clinic time slot ${slot.id} is marked as unavailable`);
+    }
+    
+    // Check if time slot type matches its actual status
+    if (slot.type === 'reservation' && !reservation) {
+      errors.push(`Time slot ${slot.id} is marked as reservation type but has no reservation`);
+    }
+    
+    if (slot.type === 'clinic' && !clinic) {
+      errors.push(`Time slot ${slot.id} is marked as clinic type but has no clinic`);
+    }
+  });
+  
+  // Check for duplicate reservations
+  const reservationTimeSlotIds = reservations.map(res => res.timeSlotId);
+  const duplicateTimeSlotIds = reservationTimeSlotIds.filter((id, index) => 
+    reservationTimeSlotIds.indexOf(id) !== index
+  );
+  
+  if (duplicateTimeSlotIds.length > 0) {
+    errors.push(`Found duplicate reservations for time slots: ${duplicateTimeSlotIds.join(', ')}`);
+  }
+  
+  return { errors, warnings, isValid: errors.length === 0 };
+};
+
+// Function to fix common data inconsistencies
+export const fixDataInconsistencies = () => {
+  console.log('Fixing data inconsistencies...');
+  
+  // Remove orphaned reservations
+  const validTimeSlotIds = new Set(timeSlots.map(slot => slot.id));
+  const validReservations = reservations.filter(res => validTimeSlotIds.has(res.timeSlotId));
+  
+  if (validReservations.length !== reservations.length) {
+    reservations.length = 0;
+    reservations.push(...validReservations);
+    console.log(`Removed ${reservations.length - validReservations.length} orphaned reservations`);
+  }
+  
+  // Fix time slot status inconsistencies
+  timeSlots.forEach(slot => {
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    
+    if (slot.blocked) {
+      slot.available = false;
+    } else if (slot.type === 'clinic') {
+      slot.available = true;
+    } else if (reservation) {
+      slot.available = false;
+      slot.type = 'reservation';
+    } else {
+      slot.available = true;
+      slot.type = undefined;
+    }
+  });
+  
+  console.log('Data inconsistencies fixed');
+};
+
+// Function to get all items with comments
+export const getAllItemsWithComments = () => {
+  const itemsWithComments: Array<{
+    type: 'reservation' | 'user' | 'timeSlot';
+    id: string;
+    comments: Comment[];
+    commentCount: number;
+    latestComment?: string;
+    title: string;
+    subtitle: string;
+    date?: string;
+    time?: string;
+    court?: string;
+    slotId?: string;
+  }> = [];
+
+  // Get reservations with comments
+  reservations.forEach(reservation => {
+    if (reservation.comments && reservation.comments.length > 0) {
+      const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+      const court = courts.find(c => c.id === reservation.courtId);
+      
+      itemsWithComments.push({
+        type: 'reservation',
+        id: reservation.id,
+        comments: reservation.comments,
+        commentCount: reservation.comments.length,
+        latestComment: reservation.comments[reservation.comments.length - 1].text,
+        title: reservation.playerName,
+        subtitle: `${reservation.players} player${reservation.players !== 1 ? 's' : ''}`,
+        date: timeSlot?.date,
+        time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
+        court: court?.name,
+        slotId: reservation.timeSlotId,
+      });
+    }
+  });
+
+  // Get users with comments
+  users.forEach(user => {
+    if (user.comments && user.comments.length > 0) {
+      itemsWithComments.push({
+        type: 'user',
+        id: user.id,
+        comments: user.comments,
+        commentCount: user.comments.length,
+        latestComment: user.comments[user.comments.length - 1].text,
+        title: user.name,
+        subtitle: `${user.membershipType} member`,
+        date: user.createdAt,
+      });
+    }
+  });
+
+  // Get time slots with comments (blocked slots, special status, or actual comments)
+  timeSlots.forEach(slot => {
+    if (slot.blocked || slot.type === 'clinic' || (slot.comments && slot.comments.length > 0)) {
+      const court = courts.find(c => c.id === slot.courtId);
+      const clinic = slot.type === 'clinic' && slot.clinicId 
+        ? clinics.find(c => c.id === slot.clinicId) 
+        : null;
+      
+      let comments: Comment[] = slot.comments || [];
+      let title = '';
+      let subtitle = '';
+      
+      if (slot.blocked) {
+        title = `Blocked Slot - ${court?.name}`;
+        subtitle = 'Court unavailable';
+        // Add system comment for blocked slots if no comments exist
+        if (comments.length === 0) {
+          comments = [{
+            id: `system-${slot.id}`,
+            text: 'Time slot is blocked',
+            authorId: 'system',
+            authorName: 'System',
+            createdAt: new Date().toISOString(),
+          }];
+        }
+      } else if (clinic) {
+        title = clinic.name;
+        subtitle = `Coach: ${coaches.find(c => c.id === clinic.coachId)?.name || 'Unknown'}`;
+        // Add system comment for clinics if no comments exist
+        if (comments.length === 0) {
+          comments = [{
+            id: `system-${slot.id}`,
+            text: `Clinic: ${clinic.name} - ${clinic.description}`,
+            authorId: 'system',
+            authorName: 'System',
+            createdAt: new Date().toISOString(),
+          }];
+        }
+      } else {
+        title = `Time Slot - ${court?.name}`;
+        subtitle = 'Available time slot';
+      }
+      
+      if (comments.length > 0) {
+        itemsWithComments.push({
+          type: 'timeSlot',
+          id: slot.id,
+          comments,
+          commentCount: comments.length,
+          latestComment: comments[comments.length - 1].text,
+          title,
+          subtitle,
+          date: slot.date,
+          time: `${slot.startTime} - ${slot.endTime}`,
+          court: court?.name,
+          slotId: slot.id,
+        });
+      }
+    }
+  });
+
+  // Sort by date (most recent first) and then by type
+  return itemsWithComments.sort((a, b) => {
+    if (a.date && b.date) {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }
+    return 0;
+  });
+};
+
+// Legacy function for backward compatibility (deprecated)
+export const getAllItemsWithNotes = () => {
+  const itemsWithComments = getAllItemsWithComments();
+  return itemsWithComments.map(item => ({
+    ...item,
+    notes: item.latestComment || '',
+  }));
+};
+
+// Function to get all time slots with notes or special status
+export const getTimeSlotsWithNotes = () => {
+  const slotsWithNotes: Array<{
+    id: string;
+    courtId: string;
+    courtName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: 'blocked' | 'clinic' | 'reserved' | 'available';
+    notes: string;
+    reservation?: any;
+    clinic?: any;
+  }> = [];
+
+  timeSlots.forEach(slot => {
+    const court = courts.find(c => c.id === slot.courtId);
+    const reservation = reservations.find(r => r.timeSlotId === slot.id);
+    const clinic = slot.type === 'clinic' && slot.clinicId 
+      ? clinics.find(c => c.id === slot.clinicId) 
+      : null;
+    
+    let notes = '';
+    let status: 'blocked' | 'clinic' | 'reserved' | 'available' = 'available';
+    
+    if (slot.blocked) {
+      status = 'blocked';
+      notes = 'Time slot is blocked';
+    } else if (clinic) {
+      status = 'clinic';
+      notes = `Clinic: ${clinic.name} - ${clinic.description}`;
+    } else if (reservation && reservation.comments && reservation.comments.length > 0) {
+      status = 'reserved';
+      notes = reservation.comments[reservation.comments.length - 1].text;
+    } else if (slot.available) {
+      status = 'available';
+      notes = 'Available time slot';
+    }
+    
+    // Only include slots that have meaningful notes or special status
+    // For reservations, only include if they have actual notes
+    if ((notes !== 'Available time slot' && notes !== '') || slot.blocked || slot.type === 'clinic') {
+      slotsWithNotes.push({
+        id: slot.id,
+        courtId: slot.courtId,
+        courtName: court?.name || 'Unknown Court',
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        status,
+        notes,
+        reservation,
+        clinic,
+      });
+    }
+  });
+
+  // Sort by date (most recent first) and then by time
+  return slotsWithNotes.sort((a, b) => {
+    const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+    if (dateComparison !== 0) return dateComparison;
+    return a.startTime.localeCompare(b.startTime);
+  });
+};
+
+// Initialize data with consistency checks - called at the end to ensure all data arrays are defined
+initializeData();
 

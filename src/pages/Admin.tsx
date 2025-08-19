@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic, addUserToReservation, blockTimeSlot, unblockTimeSlot } from "@/lib/data";
+import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic, addUserToReservation, blockTimeSlot, unblockTimeSlot, updateReservationComments, updateUserComments, updateTimeSlotComments, getAllItemsWithComments, getTimeSlotsWithNotes } from "@/lib/data";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import { useState } from "react";
@@ -17,9 +17,12 @@ import AddUserForm from "@/components/AddUserForm";
 import AddCoachForm from "@/components/AddCoachForm";
 import AddClinicForm from "@/components/AddClinicForm";
 import AddUserToReservationForm from "@/components/AddUserToReservationForm";
+import CommentForm from "@/components/CommentForm";
 import AdminSettings from "@/components/AdminSettings";
-import { Clock, User, GraduationCap } from "lucide-react";
+// import EditNotesForm from "@/components/EditNotesForm"; // Deprecated - using CommentForm instead
+import { Clock, User, GraduationCap, StickyNote } from "lucide-react";
 import { ReservationSettings } from "@/lib/types";
+import type { Comment as AppComment } from "@/lib/types";
 
 const Admin = () => {
   const [editingCourt, setEditingCourt] = useState<any>(null);
@@ -30,6 +33,13 @@ const Admin = () => {
   const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
   const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Comments editing state
+  const [editingReservationComments, setEditingReservationComments] = useState<any>(null);
+  const [editingUserComments, setEditingUserComments] = useState<any>(null);
+  const [editingTimeSlotComments, setEditingTimeSlotComments] = useState<any>(null);
+  
+
   
   const handleEditCourt = (courtData: any) => {
     console.log("Editing court:", courtData);
@@ -89,6 +99,29 @@ const Admin = () => {
     }
   };
 
+  const handleUpdateReservationComments = (comments: AppComment[]) => {
+    if (editingReservationComments && updateReservationComments(editingReservationComments.id, comments)) {
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Updated reservation comments:", comments);
+    }
+  };
+
+  const handleUpdateUserComments = (comments: AppComment[]) => {
+    if (editingUserComments && updateUserComments(editingUserComments.id, comments)) {
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Updated user comments:", comments);
+    }
+  };
+
+  const handleUpdateTimeSlotComments = (comments: AppComment[]) => {
+    if (editingTimeSlotComments && updateTimeSlotComments(editingTimeSlotComments.id, comments)) {
+      setRefreshKey(prev => prev + 1); // Force re-render
+      console.log("Updated time slot comments:", comments);
+    }
+  };
+
+
+
   const handleCreateClinic = (timeSlotId: string) => {
     // In a real app, this would open a clinic creation form
     console.log("Creating clinic for time slot:", timeSlotId);
@@ -135,7 +168,7 @@ const Admin = () => {
         </div>
         
         <Tabs defaultValue="scheduler" className="space-y-6">
-          <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50">
+                      <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50">
             <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
             <TabsTrigger value="calendar">Calendar</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
@@ -143,6 +176,7 @@ const Admin = () => {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="coaches">Coaches</TabsTrigger>
             <TabsTrigger value="clinics">Clinics</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           
@@ -161,9 +195,14 @@ const Admin = () => {
 
           <TabsContent value="reservations" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-foreground">
-                Time Slots Overview
-              </h2>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Time Slots Overview
+                </h2>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {reservations.filter(r => r.comments && r.comments.length > 0).length} reservation{reservations.filter(r => r.comments && r.comments.length > 0).length !== 1 ? 's' : ''} with notes
+                </div>
+              </div>
               <div className="flex gap-3">
                                  <Button 
                    className="bg-primary hover:bg-primary/90"
@@ -256,11 +295,22 @@ const Admin = () => {
                                           <div className="text-sm text-muted-foreground">
                                             ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
                                           </div>
+
                                         </div>
-                                                                             ) : (
-                                         <span className="text-base font-medium !text-foreground">
-                                           {slot.available ? "Available" : "Blocked"}
-                                         </span>
+                                      ) : (
+                                         <div>
+                                           <span className="text-base font-medium !text-foreground">
+                                             {slot.available ? "Available" : "Blocked"}
+                                           </span>
+                                           {slot.comments && slot.comments.length > 0 && (
+                                             <div className="text-sm text-muted-foreground mt-1">
+                                               <span className="text-xs font-medium text-blue-600">
+                                                 {slot.comments.length} comment{slot.comments.length !== 1 ? 's' : ''}:
+                                               </span>
+                                               <span className="ml-1">{slot.comments[slot.comments.length - 1].text}</span>
+                                             </div>
+                                           )}
+                                         </div>
                                        )}
                                     </div>
                                     
@@ -279,13 +329,39 @@ const Admin = () => {
                                         >
                                           Clinic
                                         </Badge>
-                                                                             ) : reservation ? (
-                                         <Badge
-                                           variant="outline"
-                                           className="text-sm shrink-0 min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
-                                         >
-                                           Reserved
-                                         </Badge>
+                                      ) : reservation ? (
+                                        <div className="flex items-center gap-2">
+                                          {(!reservation.comments || reservation.comments.length === 0) && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-sm shrink-0 min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
+                                            >
+                                              Reserved
+                                            </Badge>
+                                          )}
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              const court = courts.find(c => c.id === reservation.courtId);
+                                              const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+                                              setEditingReservationComments({
+                                                ...reservation,
+                                                court: court?.name,
+                                                date: timeSlot?.date,
+                                                time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
+                                              });
+                                            }}
+                                            className={`h-6 px-2 text-xs ${
+                                              reservation.comments && reservation.comments.length > 0
+                                                ? 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800 bg-yellow-100' 
+                                                : 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800'
+                                            }`}
+                                          >
+                                            <StickyNote className="h-3 w-3 mr-1" />
+                                            {reservation.comments && reservation.comments.length > 0 ? `Notes (${reservation.comments.length})` : 'Add Notes'}
+                                          </Button>
+                                        </div>
                                       ) : slot.blocked ? (
                                         <div className="relative">
                                           <DropdownMenu>
@@ -308,8 +384,32 @@ const Admin = () => {
                                               >
                                                 Unblock
                                               </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() => {
+                                                  const court = courts.find(c => c.id === slot.courtId);
+                                                  setEditingTimeSlotComments({
+                                                    id: slot.id,
+                                                    comments: slot.comments || [],
+                                                    court: court?.name,
+                                                    date: slot.date,
+                                                    time: `${slot.startTime} - ${slot.endTime}`,
+                                                  });
+                                                }}
+                                                className="text-blue-600 focus:text-blue-600"
+                                              >
+                                                <StickyNote className="h-3 w-3 mr-1" />
+                                                Add Note
+                                              </DropdownMenuItem>
                                             </DropdownMenuContent>
                                           </DropdownMenu>
+                                          {slot.comments && slot.comments.length > 0 && (
+                                            <div className="text-sm text-muted-foreground mt-1">
+                                              <span className="text-xs font-medium text-blue-600">
+                                                {slot.comments.length} comment{slot.comments.length !== 1 ? 's' : ''}:
+                                              </span>
+                                              <span className="ml-1">{slot.comments[slot.comments.length - 1].text}</span>
+                                            </div>
+                                          )}
                                         </div>
                                       ) : (
                                         <div className="relative">
@@ -417,9 +517,14 @@ const Admin = () => {
           
           <TabsContent value="users" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Users
-              </h2>
+              <div>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  Users
+                </h2>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {users.filter(u => u.comments && u.comments.length > 0).length} user{users.filter(u => u.comments && u.comments.length > 0).length !== 1 ? 's' : ''} with notes
+                </div>
+              </div>
               <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddUser(true)}>
                 Add User
               </Button>
@@ -445,6 +550,36 @@ const Admin = () => {
                       </div>
                     </CardDescription>
                   </CardHeader>
+                  <CardContent className="space-y-3">
+                    {user.comments && user.comments.length > 0 && (
+                      <div className="p-3 bg-yellow-200 border border-yellow-300 rounded text-sm text-yellow-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <StickyNote className="h-4 w-4" />
+                            <span className="font-medium">Admin Comments:</span>
+                          </div>
+                          <span className="text-xs font-medium">
+                            {user.comments.length} comment{user.comments.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div className="text-xs text-yellow-700 mb-1">
+                          Latest: {new Date(user.comments[user.comments.length - 1].createdAt).toLocaleDateString()}
+                        </div>
+                        {user.comments[user.comments.length - 1].text}
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingUserComments(user)}
+                        className="border-yellow-300 hover:bg-yellow-50"
+                      >
+                        <StickyNote className="h-4 w-4 mr-2" />
+                        {user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}
+                      </Button>
+                    </div>
+                  </CardContent>
                 </Card>
               ))}
             </div>
@@ -537,6 +672,190 @@ const Admin = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="notes" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Notes Overview
+                </h2>
+                <div className="text-sm text-muted-foreground mt-1">
+                  All items with admin notes and time slots with blocked/clinic status
+                </div>
+              </div>
+            </div>
+            
+            {/* Time Slots with Notes Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground">Time Slots with Special Status</h3>
+              {getTimeSlotsWithNotes().map((slot) => (
+                <Card key={slot.id} className="border border-input bg-card shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg font-semibold text-foreground">
+                          {slot.courtName} - {format(new Date(slot.date), 'MMM d, yyyy')}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 mt-1">
+                          <Badge
+                            variant={slot.status === 'blocked' ? 'destructive' : slot.status === 'clinic' ? 'default' : 'secondary'}
+                            className={
+                              slot.status === 'blocked' ? 'bg-red-500/20 text-red-700 border-red-500/30' : 
+                              slot.status === 'clinic' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' :
+                              'bg-blue-500/20 text-blue-700 border-blue-500/30'
+                            }
+                          >
+                            {slot.status.charAt(0).toUpperCase() + slot.status.slice(1)}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {slot.startTime} - {slot.endTime}
+                          </span>
+                          {slot.reservation && (
+                            <span className="text-sm text-muted-foreground">
+                              Player: {slot.reservation.playerName}
+                            </span>
+                          )}
+                          {slot.clinic && (
+                            <span className="text-sm text-muted-foreground">
+                              Coach: {coaches.find(c => c.id === slot.clinic.coachId)?.name}
+                            </span>
+                          )}
+                        </CardDescription>
+                      </div>
+
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`border rounded-md p-4 ${
+                      slot.status === 'blocked' ? 'bg-red-50 border-red-200' :
+                      slot.status === 'clinic' ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-blue-50 border-blue-200'
+                    }`}>
+                      <p className={`text-sm whitespace-pre-wrap ${
+                        slot.status === 'blocked' ? 'text-red-800' :
+                        slot.status === 'clinic' ? 'text-yellow-800' :
+                        'text-blue-800'
+                      }`}>
+                        {slot.notes}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {getTimeSlotsWithNotes().length === 0 && (
+                <Card className="border border-input bg-card shadow-sm">
+                  <CardContent className="py-8">
+                    <div className="text-center text-muted-foreground">
+                      <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                      <p className="text-lg font-medium">No time slots with notes</p>
+                      <p className="text-sm">Time slots will appear here when they are blocked or have clinics.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Other Items with Notes Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground">Other Items with Notes</h3>
+              {getAllItemsWithComments().filter(item => item.type !== 'timeSlot').map((item) => (
+                <Card key={item.id} className="border border-input bg-card shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg font-semibold text-foreground">
+                          {item.title}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 mt-1">
+                          <Badge
+                            variant={item.type === 'reservation' ? 'secondary' : 'outline'}
+                            className={
+                              item.type === 'reservation' ? 'bg-blue-500/20 text-blue-700 border-blue-500/30' : 
+                              'bg-green-500/20 text-green-700 border-green-500/30'
+                            }
+                          >
+                            {item.type === 'reservation' ? 'Notes' : 'User'}
+                          </Badge>
+                          <span>{item.subtitle}</span>
+                          {item.court && (
+                            <span className="text-sm text-muted-foreground">
+                              Court: {item.court}
+                            </span>
+                          )}
+                          {item.date && (
+                            <span className="text-sm text-muted-foreground">
+                              {format(new Date(item.date), 'MMM d, yyyy')}
+                            </span>
+                          )}
+                          {item.time && (
+                            <span className="text-sm text-muted-foreground">
+                              {item.time}
+                            </span>
+                          )}
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (item.type === 'reservation') {
+                            const reservation = reservations.find(r => r.id === item.id);
+                            if (reservation) {
+                              const court = courts.find(c => c.id === reservation.courtId);
+                              const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+                              setEditingReservationComments({
+                                ...reservation,
+                                court: court?.name,
+                                date: timeSlot?.date,
+                                time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
+                              });
+                            }
+                          } else if (item.type === 'user') {
+                            const user = users.find(u => u.id === item.id);
+                            if (user) {
+                              setEditingUserComments(user);
+                            }
+                          }
+                        }}
+                        className="h-8 px-3 text-sm border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
+                      >
+                        <StickyNote className="h-4 w-4 mr-2" />
+                        {item.commentCount > 0 ? `Edit Comments (${item.commentCount})` : 'Add Comments'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-yellow-700 font-medium">
+                          {item.commentCount} comment{item.commentCount !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-xs text-yellow-600">
+                          Latest: {new Date(item.comments[item.comments.length - 1].createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-yellow-800 whitespace-pre-wrap">
+                        {item.latestComment}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {getAllItemsWithComments().filter(item => item.type !== 'timeSlot').length === 0 && (
+                <Card className="border border-input bg-card shadow-sm">
+                  <CardContent className="py-8">
+                    <div className="text-center text-muted-foreground">
+                      <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                      <p className="text-lg font-medium">No other items with notes</p>
+                      <p className="text-sm">Notes will appear here when you add them to reservations or users.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="settings">
             <AdminSettings onSettingsUpdate={(updatedSettings) => {
               console.log('Settings updated:', updatedSettings);
@@ -606,6 +925,63 @@ const Admin = () => {
            preSelectedTimeSlot={selectedTimeSlotForForm}
          />
        )}
+
+      {/* Comments Forms */}
+      {editingReservationComments && (
+        <CommentForm
+          isOpen={!!editingReservationComments}
+          onClose={() => setEditingReservationComments(null)}
+          onSave={handleUpdateReservationComments}
+          currentComments={editingReservationComments.comments || []}
+          title="Edit Reservation Comments"
+          description="Add or update admin comments for this reservation. These comments are only visible to administrators."
+          type="reservation"
+          data={{
+            name: editingReservationComments.playerName,
+            email: editingReservationComments.playerEmail,
+            date: editingReservationComments.date,
+            time: editingReservationComments.time,
+            court: editingReservationComments.court,
+          }}
+        />
+      )}
+
+      {editingUserComments && (
+        <CommentForm
+          isOpen={!!editingUserComments}
+          onClose={() => setEditingUserComments(null)}
+          onSave={handleUpdateUserComments}
+          currentComments={editingUserComments.comments || []}
+          title="Edit User Comments"
+          description="Add or update admin comments for this user. These comments are only visible to administrators."
+          type="user"
+          data={{
+            name: editingUserComments.name,
+            email: editingUserComments.email,
+            membershipType: editingUserComments.membershipType,
+          }}
+        />
+      )}
+
+      {editingTimeSlotComments && (
+        <CommentForm
+          isOpen={!!editingTimeSlotComments}
+          onClose={() => setEditingTimeSlotComments(null)}
+          onSave={handleUpdateTimeSlotComments}
+          currentComments={editingTimeSlotComments.comments || []}
+          title="Edit Time Slot Comments"
+          description="Add or update admin comments for this time slot. These comments are only visible to administrators."
+          type="timeSlot"
+          data={{
+            name: "Time Slot",
+            date: editingTimeSlotComments.date,
+            time: editingTimeSlotComments.time,
+            court: editingTimeSlotComments.court,
+          }}
+        />
+       )}
+
+
     </div>
   );
 };

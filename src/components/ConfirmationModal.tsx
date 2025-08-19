@@ -34,32 +34,32 @@ const ConfirmationModal = ({ open, onClose, reservationId }: ConfirmationModalPr
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bounce-in">
-        <DialogHeader className="flex flex-col items-center">
-          <CheckCircle className="h-16 w-16 text-primary mb-2" />
-          <DialogTitle className="text-xl text-center">Reservation Confirmed!</DialogTitle>
-          <DialogDescription className="text-center">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md mx-auto bounce-in">
+        <DialogHeader className="flex flex-col items-center px-2 sm:px-0">
+          <CheckCircle className="h-12 w-12 sm:h-16 sm:w-16 text-primary mb-2" />
+          <DialogTitle className="text-lg sm:text-xl text-center">Reservation Confirmed!</DialogTitle>
+          <DialogDescription className="text-center text-sm">
             Your court has been successfully booked. We've sent a confirmation email with all the details.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="bg-muted p-4 rounded-md text-sm space-y-1 my-4">
-          <p><span className="font-medium">Confirmation Code:</span> {reservationId}</p>
+        <div className="bg-muted p-3 sm:p-4 rounded-md text-xs sm:text-sm space-y-1 my-4 mx-2 sm:mx-0">
+          <p className="break-words"><span className="font-medium">Confirmation Code:</span> {reservationId}</p>
           <p className="text-muted-foreground text-xs mt-2">
             Please save this code for your records. You'll need it if you need to modify or cancel your reservation.
           </p>
         </div>
         
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between px-2 sm:px-0">
           <Button 
             variant="outline" 
-            className="w-full sm:w-auto" 
+            className="w-full sm:w-auto text-sm" 
             onClick={handleViewDashboard}
           >
             View My Bookings
           </Button>
           <Button 
-            className="w-full sm:w-auto" 
+            className="w-full sm:w-auto text-sm" 
             onClick={handleBookAnother}
           >
             Book Another Court
