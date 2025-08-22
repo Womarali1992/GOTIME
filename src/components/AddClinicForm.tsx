@@ -52,9 +52,9 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Clinic</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Add New Clinic</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -116,7 +116,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="startTime">Start Time</Label>
               <Select value={formData.startTime} onValueChange={(value) => setFormData(prev => ({ ...prev, startTime: value }))}>
@@ -148,7 +148,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="maxParticipants">Max Participants</Label>
               <Input
@@ -170,11 +170,11 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="text-sm sm:text-base">
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" className="text-sm sm:text-base">
               Add Clinic
             </Button>
           </div>

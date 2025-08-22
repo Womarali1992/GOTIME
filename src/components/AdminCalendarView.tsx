@@ -86,9 +86,9 @@ const AdminCalendarView = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] xl:grid-cols-[350px_1fr] gap-4 lg:gap-8">
           {/* Calendar Sidebar */}
-          <Card className="sticky top-6 bg-card/80 backdrop-blur-sm border-0 shadow-xl">
+          <Card className="lg:sticky lg:top-6 bg-card/80 backdrop-blur-sm border-0 shadow-xl">
             <CardHeader className="text-center pb-4">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <CalendarIcon className="h-6 w-6 text-primary" />
@@ -176,17 +176,17 @@ const AdminCalendarView = () => {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
                         {courtSlots.map((slot) => (
                           <Button
                             key={slot.id}
                             variant="outline"
-                            className={`h-20 flex flex-col items-center justify-center ${getSlotColor(
+                            className={`h-16 sm:h-20 flex flex-col items-center justify-center ${getSlotColor(
                               slot.id,
                               slot.available
                             )} border-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg`}
                           >
-                            <div className="text-lg mb-1">{getSlotIcon(slot.id, slot.available)}</div>
+                            <div className="text-base sm:text-lg mb-1">{getSlotIcon(slot.id, slot.available)}</div>
                             <span className="text-xs font-semibold">
                               {slot.startTime}
                             </span>

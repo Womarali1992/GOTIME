@@ -157,27 +157,27 @@ const Admin = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background/90 to-background/90">
       <Header />
       
-      <main className="flex-1 container py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight mb-2 text-foreground">
+      <main className="flex-1 container px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2 text-foreground">
             Admin Dashboard
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage courts, view reservations, and configure system settings.
           </p>
         </div>
         
         <Tabs defaultValue="scheduler" className="space-y-6">
-                      <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50">
-            <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            <TabsTrigger value="reservations">Reservations</TabsTrigger>
-            <TabsTrigger value="courts">Courts</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="coaches">Coaches</TabsTrigger>
-            <TabsTrigger value="clinics">Clinics</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 flex-wrap h-auto p-2 gap-1">
+            <TabsTrigger value="scheduler" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Scheduler</TabsTrigger>
+            <TabsTrigger value="calendar" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Calendar</TabsTrigger>
+            <TabsTrigger value="reservations" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Reservations</TabsTrigger>
+            <TabsTrigger value="courts" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Courts</TabsTrigger>
+            <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Users</TabsTrigger>
+            <TabsTrigger value="coaches" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Coaches</TabsTrigger>
+            <TabsTrigger value="clinics" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Clinics</TabsTrigger>
+            <TabsTrigger value="notes" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Notes</TabsTrigger>
+            <TabsTrigger value="settings" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Settings</TabsTrigger>
           </TabsList>
           
           <TabsContent value="scheduler" className="space-y-6">
@@ -194,26 +194,26 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="reservations" className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-foreground">
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground">
                   Time Slots Overview
                 </h2>
                 <div className="text-sm text-muted-foreground mt-1">
                   {reservations.filter(r => r.comments && r.comments.length > 0).length} reservation{reservations.filter(r => r.comments && r.comments.length > 0).length !== 1 ? 's' : ''} with notes
                 </div>
               </div>
-              <div className="flex gap-3">
-                                 <Button 
-                   className="bg-primary hover:bg-primary/90"
-                   onClick={() => {
-                     setSelectedTimeSlotForForm("");
-                     setShowAddUserToReservation(true);
-                   }}
-                 >
-                   Add User to Reservation
-                 </Button>
-                <Button className="bg-primary hover:bg-primary/90">Add Time Slot</Button>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <Button 
+                  className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
+                  onClick={() => {
+                    setSelectedTimeSlotForForm("");
+                    setShowAddUserToReservation(true);
+                  }}
+                >
+                  Add User to Reservation
+                </Button>
+                <Button className="bg-primary hover:bg-primary/90 text-sm sm:text-base">Add Time Slot</Button>
               </div>
             </div>
             
@@ -258,7 +258,7 @@ const Admin = () => {
                               return (
                                                                 <div
                                   key={slot.id}
-                                  className={`min-h-[4rem] rounded-sm flex items-center px-4 transition-all duration-300 hover:scale-[1.01] ${
+                                  className={`min-h-[4rem] sm:min-h-[5rem] rounded-sm flex flex-col sm:flex-row items-start sm:items-center p-2 sm:px-4 transition-all duration-300 hover:scale-[1.01] ${
                                     clinic
                                       ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
                                       : reservation
@@ -276,8 +276,8 @@ const Admin = () => {
                                      }
                                    }}
                                 >
-                                  <div className="flex items-center justify-between w-full gap-4">
-                                    <div className="min-w-[150px]">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2 sm:gap-4">
+                                    <div className="sm:min-w-[150px] flex-1">
                                       {clinic ? (
                                         <div>
                                           <span className="font-semibold text-base">
@@ -314,27 +314,27 @@ const Admin = () => {
                                        )}
                                     </div>
                                     
-                                                                         <div className="flex items-center gap-2 flex-1 justify-center">
-                                       <Clock className="h-5 w-5" />
-                                       <span className="text-lg font-semibold whitespace-nowrap !text-foreground">
-                                         {slot.startTime} - {slot.endTime}
-                                       </span>
-                                     </div>
+                                    <div className="flex items-center gap-2 flex-1 sm:justify-center mt-2 sm:mt-0">
+                                      <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
+                                      <span className="text-sm sm:text-lg font-semibold whitespace-nowrap !text-foreground">
+                                        {slot.startTime} - {slot.endTime}
+                                      </span>
+                                    </div>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
                                       {clinic ? (
                                         <Badge
                                           variant="default"
-                                          className="text-sm shrink-0 min-w-[80px] justify-center bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
+                                          className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
                                         >
                                           Clinic
                                         </Badge>
                                       ) : reservation ? (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
                                           {(!reservation.comments || reservation.comments.length === 0) && (
                                             <Badge
                                               variant="outline"
-                                              className="text-sm shrink-0 min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
+                                              className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
                                             >
                                               Reserved
                                             </Badge>
@@ -359,19 +359,20 @@ const Admin = () => {
                                             }`}
                                           >
                                             <StickyNote className="h-3 w-3 mr-1" />
-                                            {reservation.comments && reservation.comments.length > 0 ? `Notes (${reservation.comments.length})` : 'Add Notes'}
+                                            <span className="hidden sm:inline">{reservation.comments && reservation.comments.length > 0 ? `Notes (${reservation.comments.length})` : 'Add Notes'}</span>
+                                            <span className="sm:hidden">Notes</span>
                                           </Button>
                                         </div>
                                       ) : slot.blocked ? (
                                         <div className="relative">
                                           <DropdownMenu>
                                             <DropdownMenuTrigger>
-                                                                                             <Badge
-                                                 variant="destructive"
-                                                 className="text-sm shrink-0 min-w-[80px] justify-center cursor-pointer hover:bg-red-500/20"
-                                               >
-                                                 Blocked
-                                               </Badge>
+                                              <Badge
+                                                variant="destructive"
+                                                className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center cursor-pointer hover:bg-red-500/20"
+                                              >
+                                                Blocked
+                                              </Badge>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent 
                                               align="end" 
@@ -414,14 +415,14 @@ const Admin = () => {
                                       ) : (
                                         <div className="relative">
                                           <DropdownMenu>
-                                                                                         <DropdownMenuTrigger>
-                                               <Badge
-                                                 variant="outline"
-                                                 className="text-sm shrink-0 min-w-[80px] justify-center cursor-pointer bg-green-500/20 !text-green-700 border-green-500/30 hover:bg-green-500/30"
-                                               >
-                                                 Available
-                                               </Badge>
-                                             </DropdownMenuTrigger>
+                                            <DropdownMenuTrigger>
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center cursor-pointer bg-green-500/20 !text-green-700 border-green-500/30 hover:bg-green-500/30"
+                                              >
+                                                Available
+                                              </Badge>
+                                            </DropdownMenuTrigger>
                                             <DropdownMenuContent 
                                               align="end" 
                                               className="z-[9999]"
@@ -466,14 +467,14 @@ const Admin = () => {
           </TabsContent>
           
           <TabsContent value="courts" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Courts
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80">Add Court</Button>
+              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base">Add Court</Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {courts.map(court => (
                 <Card key={court.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10">
                   <CardHeader>
@@ -487,16 +488,16 @@ const Admin = () => {
                     </div>
                     <CardDescription>{court.location}</CardDescription>
                   </CardHeader>
-                  <CardContent className="flex justify-between items-center">
+                  <CardContent className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                     <div className="text-sm text-muted-foreground">
                       ID: {court.id}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => setEditingCourt(court)}
-                        className="border-primary/20 hover:bg-primary/10"
+                        className="border-primary/20 hover:bg-primary/10 text-xs sm:text-sm"
                       >
                         Edit
                       </Button>
@@ -504,7 +505,7 @@ const Admin = () => {
                         variant="outline" 
                         size="sm"
                         onClick={() => setSchedulingCourt(court)}
-                        className="border-primary/20 hover:bg-primary/10"
+                        className="border-primary/20 hover:bg-primary/10 text-xs sm:text-sm"
                       >
                         Schedule
                       </Button>
@@ -516,21 +517,21 @@ const Admin = () => {
           </TabsContent>
           
           <TabsContent value="users" className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div>
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                   Users
                 </h2>
                 <div className="text-sm text-muted-foreground mt-1">
                   {users.filter(u => u.comments && u.comments.length > 0).length} user{users.filter(u => u.comments && u.comments.length > 0).length !== 1 ? 's' : ''} with notes
                 </div>
               </div>
-              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddUser(true)}>
+              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddUser(true)}>
                 Add User
               </Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {users.map(user => (
                 <Card key={user.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
                   <CardHeader>
@@ -573,10 +574,11 @@ const Admin = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => setEditingUserComments(user)}
-                        className="border-yellow-300 hover:bg-yellow-50"
+                        className="border-yellow-300 hover:bg-yellow-50 text-xs sm:text-sm"
                       >
-                        <StickyNote className="h-4 w-4 mr-2" />
-                        {user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}
+                        <StickyNote className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                        <span className="hidden sm:inline">{user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}</span>
+                        <span className="sm:hidden">Comments</span>
                       </Button>
                     </div>
                   </CardContent>
@@ -586,16 +588,16 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="coaches" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Coaches
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddCoach(true)}>
+              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddCoach(true)}>
                 Add Coach
               </Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {coaches.map(coach => (
                 <Card key={coach.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
                   <CardHeader>
@@ -629,16 +631,16 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="clinics" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 Clinics
               </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80" onClick={() => setShowAddClinic(true)}>
+              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddClinic(true)}>
                 Add Clinic
               </Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {clinics.map(clinic => {
                 const coach = coaches.find(c => c.id === clinic.coachId);
                 const court = courts.find(c => c.id === clinic.courtId);

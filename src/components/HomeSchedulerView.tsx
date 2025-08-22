@@ -426,8 +426,22 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
           {viewDays === 0 ? (
             // Calendar View
             <CourtCalendar onSelectTimeSlot={onSelectTimeSlot} selectedDate={currentDate} />
+          ) : viewDays === 1 ? (
+            // Day View - show all courts horizontally for single day
+            <DayView
+              selectedDate={currentDate}
+              onClose={() => {}} // No close needed for inline view
+              courts={courts}
+              timeSlots={timeSlots}
+              reservations={reservations}
+              clinics={clinics}
+              coaches={coaches}
+              isOpen={true}
+              isModal={false}
+              onSelectTimeSlot={onSelectTimeSlot}
+            />
           ) : (
-            // Schedule View
+            // Schedule View (Week view)
             <div className="overflow-x-auto">
               <div className="min-w-max relative">
                 {/* Court rows with date headers over each column */}

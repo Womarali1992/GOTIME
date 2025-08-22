@@ -29,9 +29,9 @@ export default function AddUserForm({ isOpen, onClose, onSave }: AddUserFormProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Add New User</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -75,11 +75,11 @@ export default function AddUserForm({ isOpen, onClose, onSave }: AddUserFormProp
               </SelectContent>
             </Select>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="text-sm sm:text-base">
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" className="text-sm sm:text-base">
               Add User
             </Button>
           </div>

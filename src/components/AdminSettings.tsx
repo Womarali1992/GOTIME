@@ -110,29 +110,29 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Reservation Settings
           </h2>
           <p className="text-muted-foreground">
             Configure how the reservation system operates
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} className="bg-primary hover:bg-primary/90">
+            <Button onClick={() => setIsEditing(true)} className="bg-primary hover:bg-primary/90 text-sm sm:text-base">
               Edit Settings
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={handleCancel}>
+              <Button variant="outline" onClick={handleCancel} className="text-sm sm:text-base">
                 Cancel
               </Button>
               <Button 
                 onClick={handleSave} 
                 disabled={!hasChanges}
-                className="bg-primary hover:bg-primary/90"
+                className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
               >
                 <Save className="h-4 w-4 mr-2" />
                 Save Changes
@@ -224,8 +224,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
 
           <Separator />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 gap-6">
+            <div className="flex items-center justify-between p-4 border border-border/30 rounded-lg">
               <div className="space-y-0.5">
                 <Label htmlFor="allowWalkIns">Allow Walk-ins</Label>
                 <p className="text-sm text-muted-foreground">
@@ -240,7 +240,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 border border-border/30 rounded-lg">
               <div className="space-y-0.5">
                 <Label htmlFor="requirePayment">Require Payment</Label>
                 <p className="text-sm text-muted-foreground">
@@ -289,7 +289,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
               </div>
 
               {day.isOpen && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label>Start Time</Label>
                     <Select
@@ -385,21 +385,21 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-2xl font-bold text-primary">
+              <div className="text-xl sm:text-2xl font-bold text-primary">
                 {settings.operatingHours.filter(day => day.isOpen).length}
               </div>
               <div className="text-sm text-muted-foreground">Days Open</div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-2xl font-bold text-primary">
+              <div className="text-xl sm:text-2xl font-bold text-primary">
                 {settings.advanceBookingLimit}h
               </div>
               <div className="text-sm text-muted-foreground">Advance Booking</div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-2xl font-bold text-primary">
+              <div className="text-xl sm:text-2xl font-bold text-primary">
                 {settings.maxPlayersPerSlot}
               </div>
               <div className="text-sm text-muted-foreground">Max Players</div>
@@ -416,18 +416,18 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
 
       {/* Action Buttons */}
       {isEditing && (
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={handleReset}>
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={handleReset} className="text-sm sm:text-base">
             <RefreshCw className="h-4 w-4 mr-2" />
             Reset to Defaults
           </Button>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel} className="text-sm sm:text-base">
             Cancel
           </Button>
           <Button 
             onClick={handleSave} 
             disabled={!hasChanges}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
           >
             <Save className="h-4 w-4 mr-2" />
             Save Changes

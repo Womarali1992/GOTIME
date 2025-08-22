@@ -58,9 +58,9 @@ export default function AddCoachForm({ isOpen, onClose, onSave }: AddCoachFormPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Coach</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Add New Coach</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -113,15 +113,16 @@ export default function AddCoachForm({ isOpen, onClose, onSave }: AddCoachFormPr
           </div>
           <div>
             <Label htmlFor="specialties">Specialties</Label>
-            <div className="flex gap-2 mb-2">
+            <div className="flex flex-col sm:flex-row gap-2 mb-2">
               <Input
                 id="specialties"
                 value={newSpecialty}
                 onChange={(e) => setNewSpecialty(e.target.value)}
                 placeholder="e.g., Beginner Lessons"
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSpecialty())}
+                className="flex-1"
               />
-              <Button type="button" onClick={addSpecialty}>Add</Button>
+              <Button type="button" onClick={addSpecialty} className="text-sm sm:text-base">Add</Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {formData.specialties.map((specialty) => (
@@ -135,11 +136,11 @@ export default function AddCoachForm({ isOpen, onClose, onSave }: AddCoachFormPr
               ))}
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} className="text-sm sm:text-base">
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" className="text-sm sm:text-base">
               Add Coach
             </Button>
           </div>
