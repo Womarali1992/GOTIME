@@ -52,32 +52,7 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
 
   return (
     <div className="mb-3 sm:mb-4 space-y-3">
-      {/* Week Navigation */}
-      {onWeekChange && (
-        <div className="flex items-center justify-between px-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrevWeek}
-            className="h-8 w-8 p-0 rounded-full hover:bg-muted/80 transition-all duration-200 shadow-sm"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          
-          <div className="text-sm font-medium text-muted-foreground">
-            {format(tabDays[0], "MMM d")} - {format(tabDays[6], "MMM d, yyyy")}
-          </div>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNextWeek}
-            className="h-8 w-8 p-0 rounded-full hover:bg-muted/80 transition-all duration-200 shadow-sm"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+
 
       {/* Enhanced Day Tabs */}
       <div className="bg-gradient-to-br from-white to-gray-50/80 dark:from-slate-900 dark:to-slate-800/80 rounded-xl border border-border/50 shadow-lg backdrop-blur-sm p-4">

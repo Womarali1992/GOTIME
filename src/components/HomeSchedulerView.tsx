@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { format, addDays, subDays, startOfDay, startOfWeek } from "date-fns";
 import { TimeSlot, Court, Clinic } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -22,18 +22,45 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
-  const [showLegendModal, setShowLegendModal] = useState<boolean>(false);
-  const [legendModalType, setLegendModalType] = useState<string>("");
+  const [selectedReservation, setSelectedReservation] = useState<{
+    reservation: any;
+    timeSlot: TimeSlot;
+    court: any;
+  } | null>(null);
+  
+  // Legend filter states
+  const [legendFilters, setLegendFilters] = useState<{
+    available: boolean;
+    reserved: boolean;
+    clinic: boolean;
+    myReservations: boolean;
+  }>({
+    available: true,
+    reserved: true,
+    clinic: true,
+    myReservations: true,
+  });
+
   const [weekOffset, setWeekOffset] = useState<number>(0);
+  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(courts[0]?.id);
   const isMobile = useMediaQuery("(max-width: 768px)");
   
   // Refs for click-outside functionality
-  const legendModalRef = useRef<HTMLDivElement>(null);
+
   const myReservationsModalRef = useRef<HTMLDivElement>(null);
   const dayViewModalRef = useRef<HTMLDivElement>(null);
+  const reservationPopupRef = useRef<HTMLDivElement>(null);
 
   // Mock current user - in a real app this would come from authentication context
   const currentUserEmail = "john@example.com"; // This would be the logged-in user's email
+
+  // Toggle legend filter
+  const toggleLegendFilter = (filterType: keyof typeof legendFilters) => {
+    setLegendFilters(prev => ({
+      ...prev,
+      [filterType]: !prev[filterType]
+    }));
+  };
 
   // Update current time every minute
   useEffect(() => {
@@ -173,8 +200,22 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         parseInt(slot.startTime.split(":")[0]) === hour
     );
 
-    if (relevantSlots.length > 0 && relevantSlots[0].available) {
-      onSelectTimeSlot(relevantSlots[0]);
+    if (relevantSlots.length > 0) {
+      const slot = relevantSlots[0];
+      // Check if this is a reservation
+      const reservation = reservations.find(res => res.timeSlotId === slot.id);
+      
+      if (reservation) {
+        // Show reservation popup
+        setSelectedReservation({
+          reservation,
+          timeSlot: slot,
+          court
+        });
+      } else if (slot.available) {
+        // Handle available slot booking
+        onSelectTimeSlot(slot);
+      }
     }
   };
 
@@ -198,93 +239,27 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
     return null;
   };
 
-  // Helper function to get all items of a specific type for the current day
-  const getItemsByType = (type: string) => {
-    const formattedDate = format(currentDate, "yyyy-MM-dd");
-    const items: Array<{
-      court: Court;
-      timeSlot: TimeSlot;
-      clinic?: Clinic;
-      coach?: any;
-      reservation?: any;
-      startHour: number;
-      endHour: number;
-    }> = [];
 
-    courts.forEach(court => {
-      hours.forEach(hour => {
-        const relevantSlots = timeSlots.filter(
-          slot =>
-            slot.courtId === court.id &&
-            slot.date === formattedDate &&
-            parseInt(slot.startTime.split(":")[0]) === hour
-        );
 
-        if (relevantSlots.length > 0) {
-          const slot = relevantSlots[0];
-          const status = getTimeSlotStatus(slot);
-          const clinic = slot.clinicId ? getClinicById(slot.clinicId) : null;
-          const coach = clinic ? coaches.find(c => c.id === clinic.coachId) : null;
-          const reservation = reservations.find(res => res.timeSlotId === slot.id);
 
-          let shouldInclude = false;
-          switch (type) {
-            case 'available':
-              shouldInclude = status.available && !status.reserved && !status.blocked && !status.isClinic;
-              break;
-            case 'clinic':
-              shouldInclude = status.isClinic;
-              break;
-            case 'reserved':
-              shouldInclude = status.reserved && !status.isClinic;
-              break;
-            case 'blocked':
-              shouldInclude = status.blocked;
-              break;
-            case 'myReservations':
-              shouldInclude = reservation?.playerEmail === currentUserEmail;
-              break;
-          }
-
-          if (shouldInclude) {
-            items.push({
-              court,
-              timeSlot: slot,
-              clinic,
-              coach,
-              reservation,
-              startHour: hour,
-              endHour: hour + 1
-            });
-          }
-        }
-      });
-    });
-
-    return items;
-  };
-
-  // Handle legend item click
-  const handleLegendItemClick = (type: string) => {
-    setLegendModalType(type);
-    setShowLegendModal(true);
-  };
 
   // Click outside handlers and keyboard shortcuts
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (legendModalRef.current && !legendModalRef.current.contains(event.target as Node)) {
-        setShowLegendModal(false);
-      }
+
       if (myReservationsModalRef.current && !myReservationsModalRef.current.contains(event.target as Node)) {
         setShowMyReservations(false);
+      }
+      if (reservationPopupRef.current && !reservationPopupRef.current.contains(event.target as Node)) {
+        setSelectedReservation(null);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setShowLegendModal(false);
+
         setShowMyReservations(false);
+        setSelectedReservation(null);
       }
     };
 
@@ -298,21 +273,28 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
 
   // Handle background click to close modals
   const handleBackgroundClick = (modalType: string) => {
-    if (modalType === 'legend') {
-      setShowLegendModal(false);
-    } else if (modalType === 'myReservations') {
+    if (modalType === 'myReservations') {
       setShowMyReservations(false);
+    } else if (modalType === 'reservationPopup') {
+      setSelectedReservation(null);
     }
   };
 
   return (
     <>
       <Card className="gradient-card overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5">
           <div className="flex flex-col space-y-1">
             <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
               Court Scheduler
             </CardTitle>
+          </div>
+          
+          {/* Date Display moved from DayOfWeekTabs */}
+          <div className="text-center flex-1">
+            <div className="text-lg sm:text-xl font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+              {format(currentDate, "EEEE, MMMM d, yyyy")}
+            </div>
           </div>
           
           {/* View Toggle Navigation moved to header */}
@@ -347,49 +329,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
 
         
         <CardContent className="px-1 md:px-4 pb-2">
-          {/* Legend */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 text-xs text-muted-foreground justify-center">
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-green-100/50 hover:shadow-sm px-2 py-1 rounded transition-all duration-200"
-              onClick={() => handleLegendItemClick('available')}
-              title="Click to view all available time slots"
-            >
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500/20 border border-green-500/30 rounded"></div>
-              <span className="text-xs sm:text-xs">Available</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-yellow-100/50 hover:shadow-sm px-2 py-1 rounded transition-all duration-200"
-              onClick={() => handleLegendItemClick('clinic')}
-              title="Click to view all clinic sessions"
-            >
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-yellow-500/30 border-2 border-yellow-500/50 rounded"></div>
-              <span className="text-xs sm:text-xs">Clinic</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-secondary/20 hover:shadow-sm px-2 py-1 rounded transition-all duration-200"
-              onClick={() => handleLegendItemClick('reserved')}
-              title="Click to view all reserved time slots"
-            >
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-secondary/20 border border-secondary/30 rounded"></div>
-              <span className="text-xs sm:text-xs">Reserved</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-gray-100/50 hover:shadow-sm px-2 py-1 rounded transition-all duration-200"
-              onClick={() => handleLegendItemClick('blocked')}
-              title="Click to view all blocked time slots"
-            >
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-gray-500/30 border border-gray-500/30 rounded"></div>
-              <span className="text-xs sm:text-xs">Blocked</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/50 hover:shadow-sm px-2 py-1 rounded transition-all duration-200"
-              onClick={() => handleLegendItemClick('myReservations')}
-              title="Click to view all my reservations"
-            >
-              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-purple-500/20 border border-purple-500/30 rounded"></div>
-              <span className="text-xs sm:text-xs">My Reservations</span>
-            </div>
-          </div>
+
           
           {/* Day-of-week tabs */}
           <DayOfWeekTabs 
@@ -399,28 +339,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
             onWeekChange={setWeekOffset}
           />
           
-          {/* Week View Header with Gradient Background - Only show for week view */}
-          {viewDays !== 0 && (
-            <div className="mb-6 sm:mb-8 text-center px-2">
-              <div className="p-4 sm:p-6 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 rounded-xl border-0 shadow-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="text-center sm:text-left">
-                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent mb-2">
-                      {format(currentDate, "EEEE, MMMM d, yyyy")}
-                    </h2>
-                    <p className="text-muted-foreground text-sm sm:text-base">Available courts and time slots</p>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-clock h-4 w-4">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    <span>All times shown in local timezone</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
           
                     {/* Show schedule view or calendar view based on viewDays */}
           {viewDays === 0 ? (
@@ -439,36 +358,110 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
               isOpen={true}
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
+              onDateChange={setCurrentDate}
             />
           ) : (
             // Schedule View (Week view)
             <div className="overflow-x-auto">
               <div className="min-w-max relative">
                 {/* Court rows with date headers over each column */}
-                {courts.map((court) => (
+                {courts.filter(court => court.id === selectedCourt).map((court) => (
                   <div key={court.id} className="mb-8">
                     {/* Court name header above the columns */}
                     <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 sm:p-6 border-b border-border/20 rounded-t-lg mb-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg sm:text-xl font-bold text-foreground">{court.name}</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex-1 flex justify-start">
+                          <h3 className="text-lg sm:text-xl font-bold text-foreground text-center sm:text-left">{court.name}</h3>
+                        </div>
+                        
+                        {/* Court Navigation Tabs - Perfectly Centered */}
+                        <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
+                          {courts.map(courtOption => (
+                            <Button
+                              key={courtOption.id}
+                              variant={selectedCourt === courtOption.id ? "default" : "outline"}
+                              onClick={() => setSelectedCourt(courtOption.id)}
+                              className={`h-10 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-base ${
+                                selectedCourt === courtOption.id 
+                                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
+                                  : 'hover:bg-primary/10 hover:border-primary/30'
+                              }`}
+                            >
+                              <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                              {courtOption.name}
+                            </Button>
+                          ))}
+                        </div>
                         
                         {/* Day navigation controls for each court */}
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={previousDay}
-                            disabled={subDays(currentDate, 1) < startOfDay(new Date())}
-                            className="h-8 px-2"
+                        <div className="flex-1 flex justify-end">
+                          <div className="flex items-center space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={previousDay}
+                              disabled={subDays(currentDate, 1) < startOfDay(new Date())}
+                              className="h-8 px-2"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={today} className="h-8 px-3 text-xs">
+                              Today
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={nextDay} className="h-8 px-2">
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Legend */}
+                      <div className="mt-4 px-4 sm:px-6">
+                        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm">
+                          <button
+                            onClick={() => toggleLegendFilter('available')}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              legendFilters.available ? "opacity-100" : "opacity-40 hover:opacity-60"
+                            )}
+                            title="Click to toggle Available slots visibility"
                           >
-                            <ChevronLeft className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={today} className="h-8 px-3 text-xs">
-                            Today
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={nextDay} className="h-8 px-2">
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
+                            <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30"></div>
+                            <span className="text-muted-foreground font-medium">Available</span>
+                          </button>
+                          <button
+                            onClick={() => toggleLegendFilter('reserved')}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              legendFilters.reserved ? "opacity-100" : "opacity-40 hover:opacity-60"
+                            )}
+                            title="Click to toggle Reserved slots visibility"
+                          >
+                            <div className="w-4 h-4 rounded bg-secondary/20 border border-secondary/30"></div>
+                            <span className="text-muted-foreground font-medium">Reserved</span>
+                          </button>
+                          <button
+                            onClick={() => toggleLegendFilter('clinic')}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              legendFilters.clinic ? "opacity-100" : "opacity-40 hover:opacity-60"
+                            )}
+                            title="Click to toggle Clinic slots visibility"
+                          >
+                            <div className="w-4 h-4 rounded bg-yellow-500/20 border border-yellow-500/30"></div>
+                            <span className="text-muted-foreground font-medium">Clinic</span>
+                          </button>
+                          <button
+                            onClick={() => toggleLegendFilter('myReservations')}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              legendFilters.myReservations ? "opacity-100" : "opacity-40 hover:opacity-60"
+                            )}
+                            title="Click to toggle My Reservations visibility"
+                          >
+                            <div className="w-4 h-4 rounded bg-purple-500/20 border border-purple-500/30"></div>
+                            <span className="text-muted-foreground font-medium">My Reservations</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -525,6 +518,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                 const { available, reserved, isClinic, slot } = getSlotStatus(court, day, hour);
                                 const clinic = slot?.clinicId ? getClinicById(slot.clinicId) : null;
                                 
+                                // Check if this is the current user's reservation
+                                const reservation = slot ? reservations.find(res => res.timeSlotId === slot.id) : null;
+                                const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
+                                
                                 if (isClinic && clinic) {
                                   // If this is a clinic and it's the same clinic as the previous hour
                                   if (currentBlock && 
@@ -547,7 +544,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                       available,
                                       reserved,
                                       blocked: false, // Blocked status is not directly available from getSlotStatus
-                                      isMyReservation: false // My reservation status is not directly available from getSlotStatus
+                                      isMyReservation
                                     };
                                   }
                                 } else {
@@ -566,7 +563,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                     available,
                                     reserved,
                                     blocked: false, // Blocked status is not directly available from getSlotStatus
-                                    isMyReservation: false // My reservation status is not directly available from getSlotStatus
+                                    isMyReservation
                                   });
                                 }
                               }
@@ -576,7 +573,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                 timeSlotBlocks.push(currentBlock);
                               }
                               
-                              return timeSlotBlocks.map((block, blockIndex) => {
+                              return timeSlotBlocks
+                                .filter((block) => {
+                                  // Apply legend filters
+                                  if (block.isClinic && !legendFilters.clinic) return false;
+                                  if (block.available && !block.reserved && !block.blocked && !legendFilters.available) return false;
+                                  if (block.reserved && !block.isMyReservation && !legendFilters.reserved) return false;
+                                  if (block.isMyReservation && !legendFilters.myReservations) return false;
+                                  return true;
+                                })
+                                .map((block, blockIndex) => {
                                 const isPast = isTimeSlotInPast(day, block.startHour);
                                 const duration = block.endHour - block.startHour;
                                 const isMultiHour = duration > 1;
@@ -685,103 +691,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         />
       )}
 
-             {/* Legend Modal */}
-       {showLegendModal && (
-         <div 
-           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-           onClick={() => handleBackgroundClick('legend')}
-         >
-           <div 
-             ref={legendModalRef} 
-             className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto"
-             onClick={(e) => e.stopPropagation()}
-           >
-             <div className="p-6">
-               <div className="flex items-center justify-between mb-4">
-                 <h2 className="text-xl font-semibold text-foreground">
-                   {legendModalType === 'available' && 'Available Time Slots'}
-                   {legendModalType === 'clinic' && 'Clinic Sessions'}
-                   {legendModalType === 'reserved' && 'Reserved Time Slots'}
-                   {legendModalType === 'blocked' && 'Blocked Time Slots'}
-                   {legendModalType === 'myReservations' && 'My Reservations'}
-                 </h2>
-                 <button
-                   onClick={() => setShowLegendModal(false)}
-                   className="text-gray-500 hover:text-gray-700 text-2xl"
-                 >
-                   ×
-                 </button>
-               </div>
-               
-               <div className="space-y-4">
-                 {getItemsByType(legendModalType).map((item, index) => (
-                   <div 
-                     key={`${item.court.id}-${item.timeSlot.id}-${index}`} 
-                     className={cn(
-                       "border rounded-lg p-4 transition-colors",
-                       legendModalType === 'available' && "border-green-200 bg-green-50",
-                       legendModalType === 'clinic' && "border-yellow-200 bg-yellow-50",
-                       legendModalType === 'reserved' && "border-secondary-200 bg-secondary-50",
-                       legendModalType === 'blocked' && "border-gray-200 bg-gray-50",
-                       legendModalType === 'myReservations' && "border-purple-200 bg-purple-50"
-                     )}
-                   >
-                     <div className="flex items-center justify-between">
-                       <div className="flex-1">
-                         <h3 className="font-semibold text-foreground">
-                           {item.court.name} - {format(currentDate, "EEEE, MMMM d, yyyy")}
-                         </h3>
-                         <p className="text-muted-foreground">
-                           {item.startHour}:00 - {item.endHour}:00
-                         </p>
-                         
-                         {item.clinic && (
-                           <div className="mt-2">
-                             <p className="font-medium text-yellow-800">{item.clinic.name}</p>
-                             <p className="text-sm text-yellow-600">{item.clinic.description}</p>
-                             <p className="text-sm text-yellow-600">Coach: {item.coach?.name}</p>
-                             <p className="text-sm text-yellow-600">Price: ${item.clinic.price}</p>
-                           </div>
-                         )}
-                         
-                         {item.reservation && (
-                           <div className="mt-2">
-                             <p className="font-medium text-secondary-800">Player: {item.reservation.playerName}</p>
-                             <p className="text-sm text-secondary-600">
-                               {item.reservation.players} player{item.reservation.players !== 1 ? 's' : ''}
-                             </p>
-                           </div>
-                         )}
-                       </div>
-                       
-                       <div className={cn(
-                         "w-4 h-4 rounded border",
-                         legendModalType === 'available' && "bg-green-500/20 border-green-500/30",
-                         legendModalType === 'clinic' && "bg-yellow-500/30 border-yellow-500/50",
-                         legendModalType === 'reserved' && "bg-secondary/20 border-secondary/30",
-                         legendModalType === 'blocked' && "bg-gray-500/30 border-gray-500/30",
-                         legendModalType === 'myReservations' && "bg-purple-500/20 border-purple-500/30"
-                       )}></div>
-                     </div>
-                   </div>
-                 ))}
-                 
-                 {getItemsByType(legendModalType).length === 0 && (
-                   <div className="text-center py-8 text-gray-500">
-                     <p>
-                       {legendModalType === 'available' && 'No available time slots for this day.'}
-                       {legendModalType === 'clinic' && 'No clinic sessions scheduled for this day.'}
-                       {legendModalType === 'reserved' && 'No reserved time slots for this day.'}
-                       {legendModalType === 'blocked' && 'No blocked time slots for this day.'}
-                       {legendModalType === 'myReservations' && 'You don\'t have any reservations for this day.'}
-                     </p>
-                   </div>
-                 )}
-               </div>
-             </div>
-           </div>
-         </div>
-       )}
+
 
        {/* My Reservations Modal */}
        {showMyReservations && (
@@ -838,6 +748,105 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                      <p>You don't have any reservations yet.</p>
                    </div>
                    )}
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Reservation Details Popup */}
+       {selectedReservation && (
+         <div 
+           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+           onClick={() => handleBackgroundClick('reservationPopup')}
+         >
+           <div 
+             ref={reservationPopupRef} 
+             className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+             onClick={(e) => e.stopPropagation()}
+           >
+             <div className="p-6">
+               <div className="flex items-center justify-between mb-4">
+                 <h2 className="text-xl font-semibold text-foreground">Reservation Details</h2>
+                 <button
+                   onClick={() => setSelectedReservation(null)}
+                   className="text-gray-500 hover:text-gray-700 text-2xl"
+                 >
+                   ×
+                 </button>
+               </div>
+               
+               <div className="space-y-4">
+                 <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                   <div className="space-y-3">
+                     <div>
+                       <h3 className="font-semibold text-blue-800 text-lg">
+                         {selectedReservation.court?.name}
+                       </h3>
+                       <p className="text-blue-600">
+                         {format(new Date(selectedReservation.timeSlot.date), "EEEE, MMMM d, yyyy")}
+                       </p>
+                     </div>
+                     
+                     <div className="flex items-center gap-4">
+                       <div className="flex items-center gap-2">
+                         <Clock className="h-4 w-4 text-blue-600" />
+                         <span className="text-blue-700 font-medium">
+                           {selectedReservation.timeSlot.startTime} - {selectedReservation.timeSlot.endTime}
+                         </span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <MapPin className="h-4 w-4 text-blue-600" />
+                         <span className="text-blue-700">
+                           {selectedReservation.court?.location}
+                         </span>
+                       </div>
+                     </div>
+                     
+                     <div className="border-t border-blue-200 pt-3">
+                       <div className="grid grid-cols-2 gap-4 text-sm">
+                         <div>
+                           <span className="text-blue-600 font-medium">Player:</span>
+                           <p className="text-blue-800">{selectedReservation.reservation.playerName}</p>
+                         </div>
+                         <div>
+                           <span className="text-blue-600 font-medium">Players:</span>
+                           <p className="text-blue-800">{selectedReservation.reservation.players}</p>
+                         </div>
+                         <div>
+                           <span className="text-blue-600 font-medium">Email:</span>
+                           <p className="text-blue-800 text-xs">{selectedReservation.reservation.playerEmail}</p>
+                         </div>
+                         <div>
+                           <span className="text-blue-600 font-medium">Phone:</span>
+                           <p className="text-blue-800">{selectedReservation.reservation.playerPhone}</p>
+                         </div>
+                       </div>
+                     </div>
+                     
+                     {selectedReservation.reservation.comments && selectedReservation.reservation.comments.length > 0 && (
+                       <div className="border-t border-blue-200 pt-3">
+                         <span className="text-blue-600 font-medium">Comments:</span>
+                         <div className="mt-2 space-y-2">
+                           {selectedReservation.reservation.comments.map((comment: any, index: number) => (
+                             <div key={comment.id || index} className="bg-blue-100 rounded p-2">
+                               <p className="text-blue-800 text-sm">{comment.text}</p>
+                               <p className="text-blue-600 text-xs mt-1">
+                                 - {comment.authorName} ({format(new Date(comment.createdAt), "MMM d, yyyy")})
+                               </p>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+                     
+                     <div className="border-t border-blue-200 pt-3">
+                       <p className="text-blue-600 text-xs">
+                         Reserved on {format(new Date(selectedReservation.reservation.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                       </p>
+                     </div>
+                   </div>
+                 </div>
                </div>
              </div>
            </div>

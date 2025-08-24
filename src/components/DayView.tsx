@@ -1,13 +1,13 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Star } from "lucide-react";
-import { format } from "date-fns";
+import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Star, Calendar } from "lucide-react";
+import { format, addDays } from "date-fns";
 import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getTimeSlotsWithStatusForDate, getReservationsForDate } from "@/lib/data";
+import { getTimeSlotsWithStatusForDate, getReservationsForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
 
 interface DayViewProps {
   selectedDate: Date;
@@ -20,6 +20,7 @@ interface DayViewProps {
   isOpen: boolean;
   isModal?: boolean; // New prop to control modal vs inline display
   onSelectTimeSlot?: (timeSlot: TimeSlot) => void; // Add slot selection callback
+  onDateChange?: (date: Date) => void; // Add date change callback
 }
 
 const DayView = ({ 
@@ -32,15 +33,53 @@ const DayView = ({
   coaches,
   isOpen,
   isModal = true,
-  onSelectTimeSlot
+  onSelectTimeSlot,
+  onDateChange
 }: DayViewProps) => {
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
   const displayDate = format(selectedDate, "EEEE, MMMM d, yyyy");
+  
+  // Time focus mode state
+  const [isTimeFocusMode, setIsTimeFocusMode] = useState(false);
+  const [focusedTime, setFocusedTime] = useState<number | null>(null);
   
   // Time range to display (8am to 9pm)
   const startHour = 8;
   const endHour = 21;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+
+  // Generate next 13 days for time focus mode
+  const next13Days = Array.from({ length: 13 }, (_, i) => addDays(new Date(), i));
+
+  // ESC key handler for exiting time focus mode
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isTimeFocusMode) {
+        setIsTimeFocusMode(false);
+        setFocusedTime(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [isTimeFocusMode]);
+
+  // Function to enter time focus mode
+  const enterTimeFocusMode = (hour: number) => {
+    setFocusedTime(hour);
+    setIsTimeFocusMode(true);
+  };
+
+  // Function to exit time focus mode
+  const exitTimeFocusMode = () => {
+    setIsTimeFocusMode(false);
+    setFocusedTime(null);
+  };
+
+  // Use centralized function for getting slot status
+  const getSlotStatusForDate = (court: Court, date: Date, hour: number) => {
+    return getSlotStatusForCourtDateTimeObj(court, date, hour);
+  };
 
   // Get all time slots for the selected date
   const dateTimeSlots = timeSlots.filter(slot => slot.date === formattedDate);
@@ -96,177 +135,305 @@ const DayView = ({
   };
 
   // Handle time slot click
-  const handleTimeSlotClick = (court: Court, hour: number) => {
-    if (!onSelectTimeSlot) return;
-    
+  const handleTimeSlotClick = (court: Court, hour: number, date?: Date) => {
+    const targetDate = date ? format(date, "yyyy-MM-dd") : formattedDate;
     const relevantSlots = timeSlots.filter(
       slot =>
         slot.courtId === court.id &&
-        slot.date === formattedDate &&
+        slot.date === targetDate &&
         parseInt(slot.startTime.split(":")[0]) === hour
     );
 
-    if (relevantSlots.length > 0 && relevantSlots[0].available) {
-      onSelectTimeSlot(relevantSlots[0]);
+    if (relevantSlots.length > 0) {
+      const slot = relevantSlots[0];
+      // Check if this is a reservation
+      const reservation = reservations.find(res => res.timeSlotId === slot.id);
+      
+      if (reservation) {
+        // Show reservation popup
+        setSelectedReservation({
+          reservation,
+          timeSlot: slot,
+          court
+        });
+      } else if (slot.available && onSelectTimeSlot) {
+        // Handle available slot booking
+        onSelectTimeSlot(slot);
+      }
     }
   };
 
-  const dayViewContent = (
-    <div className={isModal ? "p-6 overflow-y-auto max-h-[calc(90vh-120px)]" : "p-4"}>
-      {/* Court Headers - Week View Style */}
-      <div className="mb-6 grid grid-cols-4 gap-4">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            <span className="text-lg font-semibold">Time</span>
+  // Handle time header click to enter time focus mode
+  const handleTimeHeaderClick = (hour: number) => {
+    enterTimeFocusMode(hour);
+  };
+
+  // Handle day header click to switch to that day's view
+  const handleDayHeaderClick = (date: Date) => {
+    if (onDateChange) {
+      onDateChange(date);
+      exitTimeFocusMode(); // Exit time focus mode and go to regular day view
+    }
+  };
+
+  // Get the data to display in rows (either hours or days based on mode)
+  const getRowData = () => {
+    if (isTimeFocusMode && focusedTime) {
+      // In time focus mode, rows are the next 13 days
+      return next13Days.map(day => ({
+        type: 'day' as const,
+        value: day,
+        label: format(day, "EEE d"), // Shorter format: "Wed 15"
+        fullLabel: format(day, "EEE, MMM d"), // Full format for tooltips
+        timeString: format(day, "yyyy-MM-dd")
+      }));
+    } else {
+      // In default mode, rows are time slots
+      return hours.map(hour => ({
+        type: 'hour' as const,
+        value: hour,
+        label: `${hour.toString().padStart(2, '0')}:00`,
+        fullLabel: `${hour.toString().padStart(2, '0')}:00`,
+        timeString: `${hour.toString().padStart(2, '0')}:00`
+      }));
+    }
+  };
+
+  // Unified grid view that works for both modes
+  const renderUnifiedGridView = () => {
+    const rowData = getRowData();
+    
+    return (
+      <div className={isModal ? "p-6 overflow-y-auto max-h-[calc(90vh-120px)]" : "p-4"}>
+        {/* Back button for time focus mode */}
+        {isTimeFocusMode && (
+          <div className="mb-6 flex items-center justify-center">
+            <Button 
+              variant="outline" 
+              onClick={exitTimeFocusMode}
+              className="flex items-center gap-2 hover:bg-primary/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Day View
+            </Button>
           </div>
-        </div>
-        {courts.map((court) => (
-          <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <div className="p-1 bg-primary/20 rounded">
-                  <MapPin className="h-4 w-4 text-primary" />
-                </div>
-                <h3 className="text-lg font-bold text-foreground">
-                  {court.name}
-                </h3>
-              </div>
-              <p className="text-muted-foreground text-sm mb-2">
-                {court.location}
-              </p>
-              <div className="flex items-center justify-center gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  court.indoor 
-                    ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                    : 'bg-green-100 text-green-800 border border-green-200'
-                }`}>
-                  {court.indoor ? "Indoor" : "Outdoor"}
-                </span>
-                <div className="flex items-center gap-1 text-yellow-600">
-                  <Star className="h-3 w-3 fill-current" />
-                  <span className="text-xs font-medium">Premium</span>
-                </div>
-              </div>
+        )}
+
+        {/* Court Headers - Week View Style */}
+        <div className="mb-6 grid grid-cols-4 gap-4">
+          <div className="flex items-center justify-center">
+            <div className="flex items-center gap-2">
+              {isTimeFocusMode ? (
+                <>
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Days</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Time</span>
+                </>
+              )}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Time Slots Grid - Week View Style */}
-      <div className="space-y-3">
-        {hours.map((hour) => {
-          const timeString = `${hour.toString().padStart(2, '0')}:00`;
-          
-          return (
-            <div key={hour} className="border border-border/30 rounded-lg overflow-hidden bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="grid grid-cols-4 gap-0">
-                {/* Time Column */}
-                <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-r border-border/20">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-semibold text-foreground">
-                      {timeString}
-                    </span>
+          {courts.map((court) => (
+            <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20 min-h-[120px]">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="p-1 bg-primary/20 rounded">
+                    <MapPin className="h-4 w-4 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground">
+                    {court.name}
+                  </h3>
+                </div>
+                <p className="text-muted-foreground text-sm mb-2">
+                  {court.location}
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    court.indoor 
+                      ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                      : 'bg-green-100 text-green-800 border border-green-200'
+                  }`}>
+                    {court.indoor ? "Indoor" : "Outdoor"}
+                  </span>
+                  <div className="flex items-center gap-1 text-yellow-600">
+                    <Star className="h-3 w-3 fill-current" />
+                    <span className="text-xs font-medium">Premium</span>
                   </div>
                 </div>
-                
-                {/* Court Columns - Week View Style Blocks */}
-                {courts.map((court, index) => {
-                  const { available, reserved, blocked, slot, reservation, clinic } = getSlotStatus(court, hour);
-                  const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
-                  const isPast = isTimeSlotInPast(selectedDate, hour);
-                  
-                  return (
-                    <div
-                      key={court.id}
-                      className={cn(
-                        "p-2 min-h-[3rem] flex items-center justify-center transition-all duration-200 hover:scale-105 relative",
-                        index < courts.length - 1 ? "border-r border-border/20" : "",
-                        isClickable ? "cursor-pointer" : "cursor-default"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-2",
-                          clinic
-                            ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
-                            : blocked
-                            ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
-                            : reservation
-                            ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
-                            : available
-                            ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed",
-                          isPast && "opacity-50"
-                        )}
-                        onClick={() => isClickable && handleTimeSlotClick(court, hour)}
-                        title={
-                          clinic 
-                            ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
-                            : reservation
-                            ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})`
-                            : blocked
-                            ? "Blocked"
-                            : available
-                            ? "Available - Click to book"
-                            : "Unavailable"
-                        }
-                      >
-                        {clinic ? (
-                          <div className="flex flex-col items-center">
-                            <GraduationCap className="h-3 w-3 mb-1" />
-                            <span className="font-medium text-xs">Clinic</span>
-                          </div>
-                        ) : reservation ? (
-                          <div className="flex flex-col items-center">
-                            <User className="h-3 w-3 mb-1" />
-                            <span className="font-medium text-xs">Reserved</span>
-                          </div>
-                        ) : blocked ? (
-                          <div className="flex flex-col items-center">
-                            <span className="font-medium text-xs">Blocked</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center">
-                            <span className="font-medium text-xs">
-                              {available ? "Available" : "N/A"}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
 
-      {/* Legend */}
-      <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500/20 rounded-sm border border-green-500/30"></div>
-            <span>Available</span>
+        {/* Dynamic Grid - Changes based on mode */}
+        <div className="space-y-3">
+          {rowData.map((row, rowIndex) => {
+            return (
+              <div key={rowIndex} className="border border-border/30 rounded-lg overflow-hidden bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 min-h-[3rem]">
+                <div className="grid grid-cols-4 gap-0">
+                  {/* Row Header Column - Time or Day */}
+                  <div 
+                    className={cn(
+                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] min-w-[120px]",
+                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:bg-primary/10" : "",
+                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:bg-primary/10" : ""
+                    )}
+                    onClick={() => {
+                      if (row.type === 'hour') {
+                        handleTimeHeaderClick(row.value as number);
+                      } else if (row.type === 'day' && onDateChange) {
+                        handleDayHeaderClick(row.value as Date);
+                      }
+                    }}
+                    title={
+                      row.type === 'hour' 
+                        ? `Click to view ${row.label} across next 13 days`
+                        : row.type === 'day' && onDateChange
+                        ? `Click to view full day schedule for ${row.fullLabel}`
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {row.type === 'hour' ? (
+                        <Clock className="h-4 w-4 text-primary flex-shrink-0" />
+                      ) : (
+                        <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
+                      )}
+                      <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                        {row.label}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Court Columns */}
+                  {courts.map((court, courtIndex) => {
+                    // Get slot status based on current mode
+                    let slotData;
+                    if (row.type === 'hour') {
+                      // Default mode: get status for this court and hour on selected date
+                      slotData = getSlotStatus(court, row.value as number);
+                    } else {
+                      // Time focus mode: get status for this court and focused time on this day
+                      slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
+                    }
+                    
+                    const { available, reserved, blocked, slot, reservation, clinic } = slotData;
+                    const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
+                    const isPast = row.type === 'hour' 
+                      ? isTimeSlotInPast(selectedDate, row.value as number)
+                      : isTimeSlotInPast(row.value as Date, focusedTime!);
+                    
+                    return (
+                      <div
+                        key={court.id}
+                        className={cn(
+                          "p-2 min-h-[3rem] flex items-center justify-center transition-all duration-200 hover:scale-105 relative",
+                          courtIndex < courts.length - 1 ? "border-r border-border/20" : "",
+                          isClickable ? "cursor-pointer" : "cursor-default"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-2",
+                            clinic
+                              ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+                              : blocked
+                              ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
+                              : reservation
+                              ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+                              : available
+                              ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
+                              : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                            isPast && "opacity-50"
+                          )}
+                          onClick={() => {
+                            if (isClickable) {
+                              if (row.type === 'hour') {
+                                handleTimeSlotClick(court, row.value as number);
+                              } else {
+                                handleTimeSlotClick(court, focusedTime!, row.value as Date);
+                              }
+                            }
+                          }}
+                          title={
+                            clinic 
+                              ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
+                              : reservation
+                              ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})`
+                              : blocked
+                              ? "Blocked"
+                              : available
+                              ? "Available - Click to book"
+                              : "Unavailable"
+                          }
+                        >
+                          {clinic ? (
+                            <div className="flex flex-col items-center">
+                              <GraduationCap className="h-3 w-3 mb-1" />
+                              <span className="font-medium text-xs">Clinic</span>
+                            </div>
+                          ) : reservation ? (
+                            <div className="flex flex-col items-center">
+                              <User className="h-3 w-3 mb-1" />
+                              <span className="font-medium text-xs">Reserved</span>
+                            </div>
+                          ) : blocked ? (
+                            <div className="flex flex-col items-center">
+                              <span className="font-medium text-xs">Blocked</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center">
+                              <span className="font-medium text-xs">
+                                {available ? "Available" : "N/A"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500/20 rounded-sm border border-green-500/30"></div>
+              <span>Available</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
+              <span>Reserved</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-yellow-500/20 rounded-sm border border-yellow-500/30"></div>
+              <span>Clinic</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-gray-500/20 rounded-sm border border-gray-500/30"></div>
+              <span>Blocked</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
-            <span>Reserved</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-yellow-500/20 rounded-sm border border-yellow-500/30"></div>
-            <span>Clinic</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-gray-500/20 rounded-sm border border-gray-500/30"></div>
-            <span>Blocked</span>
-          </div>
+          <p className="text-center text-xs text-muted-foreground mt-2">
+            {isTimeFocusMode 
+              ? "Click on any day (left column) to view that day's schedule, or press ESC / 'Back to Day View' to return"
+              : "Click on any time (left column) to view that time across the next 13 days"
+            }
+          </p>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  // Main content - unified grid view
+  const dayViewContent = renderUnifiedGridView();
 
   // Return inline content for non-modal usage
   if (!isModal) {
@@ -275,10 +442,16 @@ const DayView = ({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="flex flex-col space-y-1">
             <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              {displayDate}
+              {isTimeFocusMode && focusedTime 
+                ? `${focusedTime.toString().padStart(2, '0')}:00 - Next 13 Days`
+                : displayDate
+              }
             </CardTitle>
             <p className="text-muted-foreground">
-              Full day schedule for all courts
+              {isTimeFocusMode 
+                ? "Time focus view - showing the same time across multiple days"
+                : "Full day schedule for all courts"
+              }
             </p>
           </div>
         </CardHeader>
@@ -302,10 +475,16 @@ const DayView = ({
               </Button>
               <div>
                 <DialogTitle className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                  {displayDate}
+                  {isTimeFocusMode && focusedTime 
+                    ? `${focusedTime.toString().padStart(2, '0')}:00 - Next 13 Days`
+                    : displayDate
+                  }
                 </DialogTitle>
                 <p className="text-muted-foreground">
-                  Full day schedule for all courts
+                  {isTimeFocusMode 
+                    ? "Time focus view - showing the same time across multiple days"
+                    : "Full day schedule for all courts"
+                  }
                 </p>
               </div>
             </div>
@@ -315,6 +494,104 @@ const DayView = ({
           </div>
         </DialogHeader>
         {dayViewContent}
+        
+        {/* Reservation Details Popup */}
+        {selectedReservation && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+            onClick={() => setSelectedReservation(null)}
+          >
+            <div 
+              className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-foreground">Reservation Details</h2>
+                  <button
+                    onClick={() => setSelectedReservation(null)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-semibold text-blue-800 text-lg">
+                          {selectedReservation.court?.name}
+                        </h3>
+                        <p className="text-blue-600">
+                          {format(new Date(selectedReservation.timeSlot.date), "EEEE, MMMM d, yyyy")}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-blue-600" />
+                          <span className="text-blue-700 font-medium">
+                            {selectedReservation.timeSlot.startTime} - {selectedReservation.timeSlot.endTime}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-blue-600" />
+                          <span className="text-blue-700">
+                            {selectedReservation.court?.location}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t border-blue-200 pt-3">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-blue-600 font-medium">Player:</span>
+                            <p className="text-blue-800">{selectedReservation.reservation.playerName}</p>
+                          </div>
+                          <div>
+                            <span className="text-blue-600 font-medium">Players:</span>
+                            <p className="text-blue-800">{selectedReservation.reservation.players}</p>
+                          </div>
+                          <div>
+                            <span className="text-blue-600 font-medium">Email:</span>
+                            <p className="text-blue-800 text-xs">{selectedReservation.reservation.playerEmail}</p>
+                          </div>
+                          <div>
+                            <span className="text-blue-600 font-medium">Phone:</span>
+                            <p className="text-blue-800">{selectedReservation.reservation.playerPhone}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {selectedReservation.reservation.comments && selectedReservation.reservation.comments.length > 0 && (
+                        <div className="border-t border-blue-200 pt-3">
+                          <span className="text-blue-600 font-medium">Comments:</span>
+                          <div className="mt-2 space-y-2">
+                            {selectedReservation.reservation.comments.map((comment: any, index: number) => (
+                              <div key={comment.id || index} className="bg-blue-100 rounded p-2">
+                                <p className="text-blue-800 text-sm">{comment.text}</p>
+                                <p className="text-blue-600 text-xs mt-1">
+                                  - {comment.authorName} ({format(new Date(comment.createdAt), "MMM d, yyyy")})
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="border-t border-blue-200 pt-3">
+                        <p className="text-blue-600 text-xs">
+                          Reserved on {format(new Date(selectedReservation.reservation.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

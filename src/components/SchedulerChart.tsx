@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import DayView from "./DayView";
-import { reservations, clinics, coaches, getTimeSlotsWithStatusForDate } from "@/lib/data";
+import { reservations, clinics, coaches, getTimeSlotsWithStatusForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
 
 interface SchedulerChartProps {
   courts: Court[];
@@ -55,25 +55,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
 
   // Get availability for a specific court, day and hour - now uses centralized function
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
-    const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(formattedDate);
-    
-    const relevantSlots = timeSlotsWithStatus.filter(
-      slot =>
-        slot.courtId === court.id &&
-        parseInt(slot.startTime.split(":")[0]) === hour
-    );
-
-    if (relevantSlots.length === 0) return { available: false, reserved: false, isClinic: false };
-
-    const slotWithStatus = relevantSlots[0];
-    
-    return {
-      available: slotWithStatus.isAvailable,
-      reserved: slotWithStatus.isReserved,
-      isClinic: slotWithStatus.isClinic,
-      slot: slotWithStatus,
-    };
+    return getSlotStatusForCourtDateTimeObj(court, day, hour);
   };
 
   return (
@@ -132,11 +114,13 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
                   <div key={`${court.id}-${day.toString()}`} className="border-b border-border/30 p-2">
                     {/* Date header */}
                     <div
-                      className="text-center font-medium text-foreground cursor-pointer hover:bg-muted/50 transition-colors duration-200 p-2 mb-2 rounded"
+                      className="text-center cursor-pointer transition-colors duration-200 p-3 mb-2 rounded-xl bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-0 shadow-lg hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10"
                       onClick={() => handleDateHeaderClick(day)}
                       title="Click to view full day schedule"
                     >
-                      {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                      <div className="font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                        {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                      </div>
                     </div>
                     
                     {/* Time slots */}
@@ -209,6 +193,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
           clinics={clinics}
           coaches={coaches}
           isOpen={selectedDateForDayView !== null}
+          onDateChange={setSelectedDateForDayView}
         />
       )}
     </>
