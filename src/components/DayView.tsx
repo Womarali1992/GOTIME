@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Star, Calendar } from "lucide-react";
+import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Calendar } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getTimeSlotsWithStatusForDate, getReservationsForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
+import { dataService } from "@/lib/services/data-service";
+import { getReservationsForDate, getTimeSlotsWithStatusForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
 
 interface DayViewProps {
   selectedDate: Date;
@@ -211,7 +212,7 @@ const DayView = ({
     const rowData = getRowData();
     
     return (
-      <div className={isModal ? "p-6 overflow-y-auto max-h-[calc(90vh-120px)]" : "p-4"}>
+      <div className={isModal ? "p-5 md:p-6 overflow-y-auto max-h-[calc(95vh-100px)]" : "p-3 md:p-4"}>
         {/* Back button for time focus mode */}
         {isTimeFocusMode && (
           <div className="mb-6 flex items-center justify-center">
@@ -262,16 +263,12 @@ const DayView = ({
                     </p>
                     <div className="flex items-center justify-center gap-2">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        court.indoor 
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                        court.indoor
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
                           : 'bg-green-100 text-green-800 border border-green-200'
                       }`}>
                         {court.indoor ? "Indoor" : "Outdoor"}
                       </span>
-                      <div className="flex items-center gap-1 text-yellow-600">
-                        <Star className="h-3 w-3 fill-current" />
-                        <span className="text-xs font-medium">Premium</span>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -312,16 +309,12 @@ const DayView = ({
                   </p>
                   <div className="flex items-center justify-center gap-2">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      court.indoor 
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                      court.indoor
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
                         : 'bg-green-100 text-green-800 border border-green-200'
                     }`}>
                       {court.indoor ? "Indoor" : "Outdoor"}
                     </span>
-                    <div className="flex items-center gap-1 text-yellow-600">
-                      <Star className="h-3 w-3 fill-current" />
-                      <span className="text-xs font-medium">Premium</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -397,7 +390,7 @@ const DayView = ({
                           </div>
                           <div
                             className={cn(
-                              "w-full h-12 rounded text-sm text-center flex items-center justify-center transition-all duration-200 font-medium",
+                              "w-full h-12 rounded text-base text-center flex items-center justify-center transition-all duration-200 font-medium",
                               isClickable ? "cursor-pointer" : "cursor-default",
                               clinic
                                 ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
@@ -423,7 +416,7 @@ const DayView = ({
                               clinic 
                                 ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                                 : reservation
-                                ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})`
+                                ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
                                 : blocked
                                 ? "Blocked"
                                 : available
@@ -458,9 +451,9 @@ const DayView = ({
                   {/* Row Header Column - Time or Day */}
                   <div 
                     className={cn(
-                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] min-w-[120px]",
-                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:bg-primary/10" : "",
-                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:bg-primary/10" : ""
+                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] min-w-[120px] rounded-l-xl shadow-lg",
+                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : "",
+                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : ""
                     )}
                     onClick={() => {
                       if (row.type === 'hour') {
@@ -483,7 +476,7 @@ const DayView = ({
                       ) : (
                         <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
                       )}
-                      <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                      <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent whitespace-nowrap">
                         {row.label}
                       </span>
                     </div>
@@ -518,7 +511,7 @@ const DayView = ({
                       >
                         <div
                           className={cn(
-                            "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-2",
+                            "w-full h-full rounded text-sm md:text-base text-center flex items-center justify-center transition-all duration-200 p-2",
                             clinic
                               ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
                               : blocked
@@ -543,7 +536,7 @@ const DayView = ({
                             clinic 
                               ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                               : reservation
-                              ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})`
+                              ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
                               : blocked
                               ? "Blocked"
                               : available
@@ -554,20 +547,20 @@ const DayView = ({
                           {clinic ? (
                             <div className="flex flex-col items-center">
                               <GraduationCap className="h-3 w-3 mb-1" />
-                              <span className="font-medium text-xs">Clinic</span>
+                              <span className="font-semibold text-sm">{clinic.name}</span>
                             </div>
                           ) : reservation ? (
                             <div className="flex flex-col items-center">
                               <User className="h-3 w-3 mb-1" />
-                              <span className="font-medium text-xs">Reserved</span>
+                              <span className="font-semibold text-sm">Reserved</span>
                             </div>
                           ) : blocked ? (
                             <div className="flex flex-col items-center">
-                              <span className="font-medium text-xs">Blocked</span>
+                              <span className="font-semibold text-sm">Blocked</span>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center">
-                              <span className="font-medium text-xs">
+                              <span className="font-semibold text-sm">
                                 {available ? "Available" : "N/A"}
                               </span>
                             </div>
@@ -586,19 +579,15 @@ const DayView = ({
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500/20 rounded-sm border border-green-500/30"></div>
+              <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
               <span>Available</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
-              <span>Reserved</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-yellow-500/20 rounded-sm border border-yellow-500/30"></div>
+              <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
               <span>Clinic</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-gray-500/20 rounded-sm border border-gray-500/30"></div>
+              <div className="w-3 h-3 bg-gray-500/20 border border-gray-500/30"></div>
               <span>Blocked</span>
             </div>
           </div>
@@ -646,7 +635,7 @@ const DayView = ({
   // Return modal version
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-6xl max-h-[90vh] overflow-hidden p-0 bg-gradient-to-br from-background via-muted/30 to-background">
+      <DialogContent className="w-[calc(100%-1rem)] max-w-7xl max-h-[95vh] overflow-hidden p-0 bg-gradient-to-br from-background via-muted/30 to-background">
         <DialogHeader className="px-6 py-6 border-b border-border bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
@@ -9,19 +9,31 @@ import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import DayView from "./DayView";
-import { reservations, clinics, coaches, getTimeSlotsWithStatusForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
+import { dataService } from "@/lib/services/data-service";
+import { getSlotStatusForCourtDateTimeObj } from "@/lib/data";
 
 interface SchedulerChartProps {
   courts: Court[];
   timeSlots: TimeSlot[];
   onScheduleCourt: (court: Court) => void;
+  onDateChange?: (date: Date) => void;
 }
 
-const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartProps) => {
+const SchedulerChart = ({ courts, timeSlots, onScheduleCourt, onDateChange }: SchedulerChartProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
   const [viewDays, setViewDays] = useState<number>(3);
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const reservations = dataService.reservationService.getAllReservations();
+  const clinics = dataService.clinicService.getAllClinics();
+  const coaches = dataService.coachService.getAllCoaches();
+
+  // Call onDateChange when currentDate changes
+  useEffect(() => {
+    if (onDateChange) {
+      onDateChange(currentDate);
+    }
+  }, [currentDate, onDateChange]);
 
   // Time range to display (8am to 10pm)
   const startHour = 8;
@@ -136,7 +148,7 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
                           <div
                             key={`${court.id}-${day.toString()}-${hour}`}
                             className={cn(
-                              "h-6 rounded-sm flex items-center px-1 text-xs court-slot",
+                              "h-6 rounded-sm flex items-center px-1 text-sm sm:text-xs court-slot",
                               isClinic ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50" :
                               available ? "bg-primary/20 text-primary" :
                               reserved ? "bg-secondary/20 text-secondary" :

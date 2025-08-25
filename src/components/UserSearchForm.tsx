@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Search, X, User, StickyNote } from 'lucide-react';
 import { User as UserType } from '@/lib/types';
+import DuprRatingBadge from './DuprRatingBadge';
 
 interface UserSearchFormProps {
   users: UserType[];
@@ -21,7 +22,8 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [membershipFilter, setMembershipFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'email' | 'membershipType' | 'createdAt'>('name');
+  const [duprFilter, setDuprFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'email' | 'membershipType' | 'createdAt' | 'duprRating'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filter and search logic
@@ -36,7 +38,14 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
       // Membership filter
       const matchesMembership = membershipFilter === 'all' || user.membershipType === membershipFilter;
 
-      return matchesSearch && matchesMembership;
+      // DUPR filter
+      const matchesDupr = duprFilter === 'all' || 
+        (duprFilter === 'none' && !user.duprRating) ||
+        (duprFilter === 'beginner' && user.duprRating && user.duprRating < 3.0) ||
+        (duprFilter === 'intermediate' && user.duprRating && user.duprRating >= 3.0 && user.duprRating < 5.0) ||
+        (duprFilter === 'advanced' && user.duprRating && user.duprRating >= 5.0);
+
+      return matchesSearch && matchesMembership && matchesDupr;
     });
 
     // Sort users
@@ -61,6 +70,10 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
           aValue = new Date(a.createdAt).getTime();
           bValue = new Date(b.createdAt).getTime();
           break;
+        case 'duprRating':
+          aValue = a.duprRating || 0;
+          bValue = b.duprRating || 0;
+          break;
         default:
           aValue = a.name.toLowerCase();
           bValue = b.name.toLowerCase();
@@ -72,16 +85,17 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
     });
 
     return filtered;
-  }, [users, searchTerm, membershipFilter, sortBy, sortOrder]);
+  }, [users, searchTerm, membershipFilter, duprFilter, sortBy, sortOrder]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setMembershipFilter('all');
+    setDuprFilter('all');
     setSortBy('name');
     setSortOrder('asc');
   };
 
-  const hasActiveFilters = searchTerm !== '' || membershipFilter !== 'all' || sortBy !== 'name' || sortOrder !== 'asc';
+  const hasActiveFilters = searchTerm !== '' || membershipFilter !== 'all' || duprFilter !== 'all' || sortBy !== 'name' || sortOrder !== 'asc';
 
   return (
     <div className="space-y-6">
@@ -98,7 +112,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Search Input */}
               <div className="space-y-2">
                 <Label htmlFor="search">Search</Label>
@@ -140,6 +154,23 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* DUPR Rating Filter */}
+              <div className="space-y-2">
+                <Label htmlFor="duprFilter">DUPR Rating</Label>
+                <Select value={duprFilter} onValueChange={setDuprFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All ratings" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Ratings</SelectItem>
+                    <SelectItem value="none">No Rating</SelectItem>
+                    <SelectItem value="beginner">Beginner (&lt; 3.0)</SelectItem>
+                    <SelectItem value="intermediate">Intermediate (3.0 - 4.9)</SelectItem>
+                    <SelectItem value="advanced">Advanced (5.0+)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -154,6 +185,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
                     <SelectItem value="name">Name</SelectItem>
                     <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="membershipType">Membership</SelectItem>
+                    <SelectItem value="duprRating">DUPR Rating</SelectItem>
                     <SelectItem value="createdAt">Join Date</SelectItem>
                   </SelectContent>
                 </Select>
@@ -235,23 +267,34 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
             >
               <CardHeader>
                 <div className="flex justify-between items-start">
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    {user.name}
-                  </CardTitle>
-                  <Badge variant={user.membershipType === 'premium' ? 'default' : user.membershipType === 'admin' ? 'secondary' : 'outline'}>
-                    {user.membershipType}
-                  </Badge>
-                </div>
-                <CardDescription>
-                  <div className="space-y-1">
-                    <div className="text-sm">{user.email}</div>
-                    <div className="text-sm">{user.phone}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Joined: {new Date(user.createdAt).toLocaleDateString()}
-                    </div>
+                  <div className="flex-1">
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      {user.name}
+                    </CardTitle>
+                    <CardDescription>
+                      <div className="space-y-1 mt-2">
+                        <div className="text-sm">{user.email}</div>
+                        <div className="text-sm">{user.phone}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Joined: {new Date(user.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </CardDescription>
                   </div>
-                </CardDescription>
+                  
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant={user.membershipType === 'premium' ? 'default' : user.membershipType === 'admin' ? 'secondary' : 'outline'}>
+                      {user.membershipType}
+                    </Badge>
+                    {user.duprRating && (
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground mb-1">DUPR:</div>
+                        <DuprRatingBadge rating={user.duprRating} className="flex-col items-end gap-1" />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {user.comments && user.comments.length > 0 && (

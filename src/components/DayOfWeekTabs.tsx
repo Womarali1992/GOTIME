@@ -4,6 +4,7 @@ import { format, addDays, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { dataService } from "@/lib/services/data-service";
 
 interface DayOfWeekTabsProps {
   centeredDate: Date;
@@ -20,43 +21,82 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
     const days = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const maxDate = addDays(today, dataService.getTimeSlotVisibilityDays() - 1);
     
     // Calculate the start of the week based on today + weekOffset
     const baseDate = addDays(today, weekOffset * 7);
     const weekStart = startOfWeek(baseDate, { weekStartsOn: 0 }); // Sunday start
     
-    // Generate 7 days starting from the week start
+    // Generate 7 days starting from the week start, but only include days within the visibility period
     for (let i = 0; i < 7; i++) {
       const date = addDays(weekStart, i);
-      days.push(date);
+      if (date <= maxDate) {
+        days.push(date);
+      }
     }
     return days;
   };
 
   const tabDays = generateTabDays();
 
-  const handlePrevWeek = () => {
-    if (onWeekChange) {
-      onWeekChange(weekOffset - 1);
+  const handlePrevDay = () => {
+    const prevDate = addDays(centeredDate, -1);
+    const todayLocal = new Date();
+    todayLocal.setHours(0, 0, 0, 0);
+    if (prevDate >= todayLocal) {
+      onDateSelect(prevDate);
+      if (onWeekChange) {
+        const baseStart = startOfWeek(todayLocal, { weekStartsOn: 0 });
+        const prevStart = startOfWeek(prevDate, { weekStartsOn: 0 });
+        const diffWeeks = Math.round((prevStart.getTime() - baseStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        onWeekChange(diffWeeks);
+      }
     }
   };
 
-  const handleNextWeek = () => {
-    if (onWeekChange) {
-      onWeekChange(weekOffset + 1);
+  const handleNextDay = () => {
+    const todayLocal = new Date();
+    todayLocal.setHours(0, 0, 0, 0);
+    const maxVisibleDate = addDays(todayLocal, dataService.getTimeSlotVisibilityDays() - 1);
+    const nextDate = addDays(centeredDate, 1);
+    if (nextDate <= maxVisibleDate) {
+      onDateSelect(nextDate);
+      if (onWeekChange) {
+        const baseStart = startOfWeek(todayLocal, { weekStartsOn: 0 });
+        const nextStart = startOfWeek(nextDate, { weekStartsOn: 0 });
+        const diffWeeks = Math.round((nextStart.getTime() - baseStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        onWeekChange(diffWeeks);
+      }
     }
   };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const maxDate = addDays(today, dataService.getTimeSlotVisibilityDays() - 1);
+  const prevDay = addDays(centeredDate, -1);
+  const nextDay = addDays(centeredDate, 1);
+  const canGoPrev = prevDay >= today;
+  const canGoNext = nextDay <= maxDate;
 
   return (
     <div className="mb-3 sm:mb-4 space-y-3">
 
 
       {/* Enhanced Day Tabs */}
-      <div className="bg-gradient-to-br from-white to-gray-50/80 dark:from-slate-900 dark:to-slate-800/80 rounded-xl border border-border/50 shadow-lg backdrop-blur-sm p-4">
-        <div className="grid grid-cols-7 gap-3">
+      <div className="bg-gradient-to-br from-white to-gray-50/80 dark:from-slate-900 dark:to-slate-800/80 rounded-xl border border-border/50 shadow-lg backdrop-blur-sm p-4 relative">
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePrevDay}
+            aria-label="Previous day"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-6 w-6 p-0"
+            disabled={!canGoPrev}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+
+          <div className="grid grid-cols-7 gap-3 w-full px-8">
           {tabDays.map((date, index) => {
             const isCentered = date.getTime() === centeredDate.getTime();
             const isPast = date < today;
@@ -214,6 +254,18 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
               </Button>
             );
           })}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleNextDay}
+            aria-label="Next day"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-6 w-6 p-0"
+            disabled={!canGoNext}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Calendar, Users, CreditCard, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import { ReservationSettings, DaySettings } from '@/lib/types';
-import { reservationSettings, updateReservationSettings } from '@/lib/data';
+import { dataService } from '@/lib/services/data-service';
 import { validateReservationSettings, validateDaySettings } from '@/lib/utils';
 
 interface AdminSettingsProps {
@@ -17,12 +17,12 @@ interface AdminSettingsProps {
 }
 
 const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
-  const [settings, setSettings] = useState<ReservationSettings>(reservationSettings);
+  const [settings, setSettings] = useState<ReservationSettings>(dataService.getReservationSettings());
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    setSettings(reservationSettings);
+    setSettings(dataService.getReservationSettings());
   }, []);
 
   const handleSettingChange = (key: keyof ReservationSettings, value: any) => {
@@ -57,7 +57,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
         return;
       }
       
-      const updatedSettings = updateReservationSettings(settings);
+      const updatedSettings = dataService.updateReservationSettings(settings);
       setSettings(updatedSettings);
       setIsEditing(false);
       setHasChanges(false);
@@ -219,6 +219,29 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                 onChange={(e) => handleSettingChange('minPlayersPerSlot', parseInt(e.target.value))}
                 disabled={!isEditing}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="timeSlotVisibilityPeriod">Time Slot Visibility Period</Label>
+              <Select
+                value={settings.timeSlotVisibilityPeriod}
+                onValueChange={(value) => handleSettingChange('timeSlotVisibilityPeriod', value)}
+                disabled={!isEditing}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1_week">1 Week</SelectItem>
+                  <SelectItem value="2_weeks">2 Weeks</SelectItem>
+                  <SelectItem value="4_weeks">4 Weeks</SelectItem>
+                  <SelectItem value="6_weeks">6 Weeks</SelectItem>
+                  <SelectItem value="8_weeks">8 Weeks</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                How far in advance users can view and book time slots
+              </p>
             </div>
           </div>
 
@@ -385,7 +408,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-xl sm:text-2xl font-bold text-primary">
                 {settings.operatingHours.filter(day => day.isOpen).length}
@@ -403,6 +426,12 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                 {settings.maxPlayersPerSlot}
               </div>
               <div className="text-sm text-muted-foreground">Max Players</div>
+            </div>
+            <div className="text-center p-4 bg-muted/30 rounded-lg">
+              <div className="text-xl sm:text-2xl font-bold text-primary">
+                {settings.timeSlotVisibilityPeriod.replace('_', ' ').replace('weeks', 'wks').replace('week', 'wk')}
+              </div>
+              <div className="text-sm text-muted-foreground">Visibility Period</div>
             </div>
           </div>
           

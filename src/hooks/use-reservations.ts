@@ -1,59 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  reservations, 
-  timeSlots, 
-  clinics, 
-  getTimeSlotsWithStatusForDate, 
-  getReservationsForDate,
-  refreshReservationData,
-  ensureReservationConsistency
-} from '@/lib/data';
+import { dataService } from '@/lib/services/data-service';
 import { TimeSlot, Reservation, Clinic } from '@/lib/types';
 
 export const useReservations = () => {
-  const [reservationData, setReservationData] = useState({
-    reservations: [...reservations],
-    timeSlots: [...timeSlots],
-    clinics: [...clinics]
-  });
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Function to refresh data
   const refreshData = useCallback(() => {
-    ensureReservationConsistency();
-    setReservationData({
-      reservations: [...reservations],
-      timeSlots: [...timeSlots],
-      clinics: [...clinics]
-    });
+    dataService.ensureDataConsistency();
+    setRefreshKey(prev => prev + 1);
   }, []);
 
   // Function to get time slots with status for a specific date
   const getTimeSlotsForDate = useCallback((date: string, courtId?: string) => {
-    // Ensure consistency before returning data
-    ensureReservationConsistency();
-    return getTimeSlotsWithStatusForDate(date, courtId);
+    return dataService.timeSlotService.getTimeSlotsForDate(date, courtId);
   }, []);
 
   // Function to get reservations for a specific date
   const getReservationsForDateHook = useCallback((date: string) => {
-    // Ensure consistency before returning data
-    ensureReservationConsistency();
-    return getReservationsForDate(date);
+    return dataService.reservationService.getAllReservations().filter(reservation => {
+      const slot = dataService.timeSlotService.getTimeSlotById(reservation.timeSlotId);
+      return slot && slot.date === date;
+    });
   }, []);
 
   // Function to get all reservations
   const getAllReservations = useCallback(() => {
-    return [...reservations];
+    return dataService.reservationService.getAllReservations();
   }, []);
 
   // Function to get all time slots
   const getAllTimeSlots = useCallback(() => {
-    return [...timeSlots];
+    return dataService.timeSlotService.getAllTimeSlots();
   }, []);
 
   // Function to get all clinics
   const getAllClinics = useCallback(() => {
-    return [...clinics];
+    return dataService.clinicService.getAllClinics();
   }, []);
 
   // Refresh data when component mounts
@@ -71,12 +54,15 @@ export const useReservations = () => {
   }, [refreshData]);
 
   return {
-    ...reservationData,
+    reservations: getAllReservations(),
+    timeSlots: getAllTimeSlots(),
+    clinics: getAllClinics(),
     refreshData,
     getTimeSlotsForDate,
     getReservationsForDate: getReservationsForDateHook,
     getAllReservations,
     getAllTimeSlots,
-    getAllClinics
+    getAllClinics,
+    refreshKey
   };
 };

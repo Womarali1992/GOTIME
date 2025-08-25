@@ -1,5 +1,5 @@
 
-import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings, Comment } from './types';
+import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings, Comment, Participant } from './types';
 
 export const courts: Court[] = [
   {
@@ -24,7 +24,7 @@ export const courts: Court[] = [
 
 // Default reservation settings
 export const defaultDaySettings: DaySettings[] = [
-  { dayOfWeek: 'monday', isOpen: true, startTime: '08:00', endTime: '22:00', timeSlotDuration: 60, breakTime: 15 },
+  { dayOfWeek: 'monday', isOpen: false, startTime: '08:00', endTime: '22:00', timeSlotDuration: 60, breakTime: 15 },
   { dayOfWeek: 'tuesday', isOpen: true, startTime: '08:00', endTime: '22:00', timeSlotDuration: 60, breakTime: 15 },
   { dayOfWeek: 'wednesday', isOpen: true, startTime: '08:00', endTime: '22:00', timeSlotDuration: 60, breakTime: 15 },
   { dayOfWeek: 'thursday', isOpen: true, startTime: '08:00', endTime: '22:00', timeSlotDuration: 60, breakTime: 15 },
@@ -41,6 +41,7 @@ export const reservationSettings: ReservationSettings = {
   minPlayersPerSlot: 1,
   allowWalkIns: true,
   requirePayment: false,
+  timeSlotVisibilityPeriod: '2_weeks',
   operatingHours: defaultDaySettings,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -162,7 +163,7 @@ export const generateTimeSlotsForDateRange = (startDate: Date, endDate: Date): T
         const slotDate = new Date(currentDate);
         slotDate.setHours(hour, 0, 0, 0);
         const isPast = slotDate < now;
-        
+
         timeSlots.push({
           id,
           courtId: court.id,
@@ -183,20 +184,64 @@ export const generateTimeSlotsForDateRange = (startDate: Date, endDate: Date): T
 // Get or generate time slots for a specific date
 export const getTimeSlotsForDate = (date: Date): TimeSlot[] => {
   const dateString = date.toISOString().split('T')[0];
-  
+
   // Check if we already have slots for this date
   const existingSlots = timeSlots.filter(slot => slot.date === dateString);
   if (existingSlots.length > 0) {
     return existingSlots;
   }
-  
+
   // Generate slots for this date if they don't exist
   const newSlots = generateTimeSlotsForDateRange(date, date);
-  
+
   // Add new slots to the global timeSlots array
   timeSlots.push(...newSlots);
-  
+
   return newSlots;
+};
+
+// Ensure time slots exist for a specific date (alias for getTimeSlotsForDate for clarity)
+export const ensureTimeSlotsForDate = (date: Date): TimeSlot[] => {
+  return getTimeSlotsForDate(date);
+};
+
+// Ensure time slots exist for a date range
+export const ensureTimeSlotsForDateRange = (startDate: Date, endDate: Date): TimeSlot[] => {
+  const startString = startDate.toISOString().split('T')[0];
+  const endString = endDate.toISOString().split('T')[0];
+
+  // Check which dates we already have slots for
+  const existingDates = new Set(timeSlots.map(slot => slot.date));
+  const missingDates: Date[] = [];
+
+  for (let day = 0; day <= Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)); day++) {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + day);
+    const dateString = currentDate.toISOString().split('T')[0];
+
+    if (!existingDates.has(dateString)) {
+      missingDates.push(currentDate);
+    }
+  }
+
+  // Generate slots for missing dates
+  if (missingDates.length > 0) {
+    const newSlots = generateTimeSlotsForDateRange(
+      new Date(Math.min(...missingDates.map(d => d.getTime()))),
+      new Date(Math.max(...missingDates.map(d => d.getTime())))
+    );
+
+    // Add new slots to the global timeSlots array
+    timeSlots.push(...newSlots);
+
+    return newSlots;
+  }
+
+  // Return all slots in the date range
+  return timeSlots.filter(slot => {
+    const slotDate = new Date(slot.date);
+    return slotDate >= startDate && slotDate <= endDate;
+  });
 };
 
 // Get or generate time slots for a date range
@@ -245,14 +290,14 @@ export const debugTimeSlots = () => {
   timeSlots.slice(0, 20).forEach((slot, index) => {
     console.log(`${index}: ${slot.date} ${slot.startTime}-${slot.endTime} Court ${slot.courtId} Available: ${slot.available} Blocked: ${slot.blocked} Type: ${slot.type || 'none'}`);
   });
-  
+
   const availableCount = timeSlots.filter(s => s.available).length;
   const blockedCount = timeSlots.filter(s => s.blocked).length;
   const reservedCount = timeSlots.filter(s => !s.available && !s.blocked).length;
   const clinicCount = timeSlots.filter(s => s.type === 'clinic').length;
-  
+
   console.log(`Available: ${availableCount}, Blocked: ${blockedCount}, Reserved: ${reservedCount}, Clinics: ${clinicCount}`);
-  
+
   // Check for patterns in availability
   const today = new Date().toISOString().split('T')[0];
   const todaySlots = timeSlots.filter(s => s.date === today);
@@ -260,10 +305,46 @@ export const debugTimeSlots = () => {
   todaySlots.forEach(slot => {
     console.log(`  ${slot.startTime}-${slot.endTime} Court ${slot.courtId}: Available=${slot.available}, Blocked=${slot.blocked}`);
   });
+
+  // Check September 1st specifically
+  const sept1 = '2025-09-01';
+  const sept1Slots = timeSlots.filter(s => s.date === sept1);
+  console.log(`September 1st slots (${sept1}):`, sept1Slots.length);
+  if (sept1Slots.length > 0) {
+    sept1Slots.slice(0, 10).forEach(slot => {
+      console.log(`  ${slot.startTime}-${slot.endTime} Court ${slot.courtId}: Available=${slot.available}, Blocked=${slot.blocked}`);
+    });
+  } else {
+    console.log('  No slots found for September 1st!');
+  }
+};
+
+// Test function to specifically check September 1st
+export const testSept1Slots = () => {
+  console.log('=== TESTING SEPTEMBER 1st SLOTS ===');
+  const sept1 = new Date('2025-09-01');
+  console.log('Generating slots for September 1st...');
+  const slots = getTimeSlotsForDate(sept1);
+  console.log(`Generated ${slots.length} slots for September 1st`);
+
+  if (slots.length > 0) {
+    console.log('First 5 slots:');
+    slots.slice(0, 5).forEach(slot => {
+      console.log(`  ${slot.date} ${slot.startTime}-${slot.endTime} Court ${slot.courtId}: Available=${slot.available}`);
+    });
+  }
+
+  // Check total slots for September 1st
+  const allSept1Slots = timeSlots.filter(s => s.date === '2025-09-01');
+  console.log(`Total September 1st slots in global array: ${allSept1Slots.length}`);
+  console.log('=== END TEST ===');
 };
 
 // Uncomment the line below to debug time slot generation
 // debugTimeSlots();
+
+// Test September 1st slots
+// testSept1Slots();
 
 // Create some sample reservations after time slots are generated
 export const createSampleReservations = (): Reservation[] => {
@@ -410,7 +491,8 @@ export const mockCreateReservation = (
   playerName: string,
   playerEmail: string,
   playerPhone: string,
-  players: number
+  players: number,
+  participants: Participant[] = []
 ): Reservation => {
   const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
   
@@ -429,6 +511,15 @@ export const mockCreateReservation = (
     timeSlots[slotIndex].type = 'reservation';
   }
   
+  // Create organizer participant
+  const organizerParticipant: Participant = {
+    id: `organizer-${Date.now()}`,
+    name: playerName,
+    email: playerEmail,
+    phone: playerPhone,
+    isOrganizer: true
+  };
+  
   const newReservation: Reservation = {
     id: `res-${Date.now()}`,
     timeSlotId,
@@ -437,6 +528,7 @@ export const mockCreateReservation = (
     playerEmail,
     playerPhone,
     players,
+    participants: [organizerParticipant, ...participants],
     createdAt: new Date().toISOString(),
     comments: [],
   };
@@ -491,11 +583,12 @@ export const users: User[] = [
     email: 'john@example.com',
     phone: '555-123-4567',
     membershipType: 'premium',
+    duprRating: 5.2,
     createdAt: new Date().toISOString(),
     comments: [
       {
         id: '1',
-        text: 'Premium member since 2022. Excellent player, helps with new member orientation.',
+        text: 'Premium member since 2022. Excellent player, helps with new member orientation. Advanced level player.',
         authorId: 'admin',
         authorName: 'Admin',
         createdAt: new Date().toISOString(),
@@ -508,11 +601,49 @@ export const users: User[] = [
     email: 'jane@example.com',
     phone: '555-987-6543',
     membershipType: 'basic',
+    duprRating: 2.8,
     createdAt: new Date().toISOString(),
     comments: [
       {
         id: '2',
-        text: 'Basic member, interested in upgrading to premium. Has requested private lessons.',
+        text: 'Basic member, interested in upgrading to premium. Has requested private lessons. Beginner level player.',
+        authorId: 'admin',
+        authorName: 'Admin',
+        createdAt: new Date().toISOString(),
+      }
+    ],
+  },
+  {
+    id: '3',
+    name: 'Mike Johnson',
+    email: 'mike@example.com',
+    phone: '555-456-7890',
+    membershipType: 'premium',
+    duprRating: 4.1,
+    createdAt: new Date().toISOString(),
+    comments: [],
+  },
+  {
+    id: '4',
+    name: 'Sarah Wilson',
+    email: 'sarah@example.com',
+    phone: '555-321-0987',
+    membershipType: 'basic',
+    createdAt: new Date().toISOString(),
+    comments: [],
+  },
+  {
+    id: '5',
+    name: 'Alex Rodriguez',
+    email: 'alex@example.com',
+    phone: '555-654-3210',
+    membershipType: 'admin',
+    duprRating: 6.5,
+    createdAt: new Date().toISOString(),
+    comments: [
+      {
+        id: '3',
+        text: 'Admin user with extensive pickleball experience. Expert level player.',
         authorId: 'admin',
         authorName: 'Admin',
         createdAt: new Date().toISOString(),
@@ -538,7 +669,7 @@ export const coaches: Coach[] = [
     name: 'David Wilson',
     email: 'david@example.com',
     phone: '555-333-4444',
-    specialties: ['Junior Programs', 'Competition Prep'],
+    specialties: ['Junior Programs', 'Advanced Training'],
     bio: 'Former professional player specializing in youth development.',
     hourlyRate: 95,
     createdAt: new Date().toISOString(),
@@ -880,6 +1011,19 @@ export const getReservationsForDate = (date: string) => {
 
 // Centralized function to get all time slots with their reservation status for a date
 export const getTimeSlotsWithStatusForDate = (date: string, courtId?: string) => {
+  // First check if the day is open according to current settings
+  const slotDate = new Date(date);
+  const dayOfWeek = slotDate.getDay();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = dayNames[dayOfWeek];
+  
+  const daySettings = getDaySettings(dayName);
+  
+  // If the day is closed, return empty array
+  if (!daySettings || !daySettings.isOpen) {
+    return [];
+  }
+  
   const dateSlots = timeSlots.filter(
     slot => slot.date === date && (!courtId || slot.courtId === courtId)
   );
@@ -922,6 +1066,31 @@ export const getTimeSlotsWithStatusForDate = (date: string, courtId?: string) =>
 
 // Centralized function to get slot status for a specific court, date, and hour
 export const getSlotStatusForCourtDateTime = (courtId: string, date: string, hour: number) => {
+  // Check if the day is open according to current settings
+  const slotDate = new Date(date);
+  const dayOfWeek = slotDate.getDay();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = dayNames[dayOfWeek];
+  
+  const daySettings = getDaySettings(dayName);
+  
+  // If the day is closed, return unavailable status
+  if (!daySettings || !daySettings.isOpen) {
+    return {
+      available: false,
+      reserved: false,
+      blocked: false,
+      isClinic: false,
+      slot: null,
+      reservation: null,
+      clinic: null,
+      isAvailable: false,
+      isReserved: false,
+      isBlocked: false,
+      status: 'unavailable' as const
+    };
+  }
+  
   const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(date);
   
   const relevantSlots = timeSlotsWithStatus.filter(

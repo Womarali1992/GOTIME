@@ -1,12 +1,12 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TimeSlot, Court } from "@/lib/types";
-import { timeSlots, courts, clinics, coaches, getTimeSlotsForDate, getTimeSlotsWithStatusForDate, getTimeSlotReservationStatus } from "@/lib/data";
+import { dataService } from "@/lib/services/data-service";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { CalendarIcon, Clock, MapPin, Users, Star } from "lucide-react";
+import { CalendarIcon, Clock, MapPin, Users } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-mobile";
 
 interface CourtCalendarProps {
@@ -27,29 +27,37 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
   }, [propSelectedDate]);
 
   // Generate time slots for the selected date when it changes
+  const [currentDateSlots, setCurrentDateSlots] = useState<TimeSlot[]>([]);
+
   useEffect(() => {
     if (selectedDate) {
-      getTimeSlotsForDate(selectedDate);
+      const formattedDate = format(selectedDate, "yyyy-MM-dd");
+      const slots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate);
+      setCurrentDateSlots(slots);
     }
   }, [selectedDate]);
-  
+
   // Format the date as YYYY-MM-DD for our data functions
-  const formattedDate = selectedDate 
-    ? format(selectedDate, "yyyy-MM-dd") 
+  const formattedDate = selectedDate
+    ? format(selectedDate, "yyyy-MM-dd")
     : format(new Date(), "yyyy-MM-dd");
-  
+
   // Get all time slots for the selected date and court (not just available ones)
   const getAllTimeSlots = (date: string, courtId?: string): TimeSlot[] => {
-    return timeSlots.filter(
+    // Use currentDateSlots if available, otherwise get from service
+    const slotsToFilter = currentDateSlots.length > 0 
+      ? currentDateSlots 
+      : dataService.timeSlotService.getTimeSlotsForDate(date);
+    return slotsToFilter.filter(
       slot => slot.date === date && (!courtId || slot.courtId === courtId)
     );
   };
-  
+
   // Get all time slots with reservation status for the selected date and court
   const getTimeSlotsWithStatus = (date: string, courtId?: string) => {
-    return getTimeSlotsWithStatusForDate(date, courtId);
+    return dataService.timeSlotService.getTimeSlotsForDate(date, courtId);
   };
-  
+
   // Get all time slots for the selected date and court
   const allSlots = getAllTimeSlots(formattedDate, selectedCourt);
   
@@ -160,7 +168,7 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                     All Courts
                   </Button>
                   
-                  {courts.map(court => (
+                  {dataService.getAllCourts().map(court => (
                     <Button
                       key={court.id}
                       variant={selectedCourt === court.id ? "default" : "outline"}
@@ -182,7 +190,7 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
             {/* Court Time Slots */}
             <div className="space-y-4 sm:space-y-6">
               {Object.entries(slotsByCourtId).map(([courtId, slots]) => {
-                const court = courts.find(c => c.id === courtId);
+                const court = dataService.getCourtById(courtId);
                 return (
                   <Card key={courtId} className="overflow-hidden bg-card/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
                     <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 sm:p-6 border-b border-border/20">
@@ -202,46 +210,43 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                         </div>
                         <div className="flex items-center gap-2 justify-center sm:justify-end">
                           <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
-                            court?.indoor 
-                              ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                            court?.indoor
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200'
                               : 'bg-green-100 text-green-800 border border-green-200'
                           }`}>
                             {court?.indoor ? "Indoor" : "Outdoor"}
                           </span>
-                          <div className="flex items-center gap-1 text-yellow-600">
-                            <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-current" />
-                            <span className="text-xs sm:text-sm font-medium">Premium</span>
-                          </div>
                         </div>
                       </div>
                     </div>
                     
                     <CardContent className="p-4 sm:p-6">
                       <div className="space-y-2 sm:space-y-3">
-                        {slots.map(slot => {
-                          const isClinic = slot.type === 'clinic';
-                          const clinic = isClinic ? clinics.find(c => c.id === slot.clinicId) : null;
-                          const coach = clinic ? coaches.find(c => c.id === clinic.coachId) : null;
-                          
-                          // Use centralized status determination
-                          const slotStatus = getTimeSlotReservationStatus(slot.id);
+                                              {slots.map(slot => {
+                        const isClinic = slot.type === 'clinic';
+                        const clinic = isClinic ? dataService.clinicService.getClinicById(slot.clinicId!) : null;
+                        const coach = clinic ? dataService.coachService.getCoachById(clinic.coachId) : null;
+                        
+                        // Use centralized status determination - get the enriched slot with status
+                        const enrichedSlot = dataService.timeSlotService.getTimeSlotsForDate(slot.date, slot.courtId)
+                          .find(s => s.id === slot.id);
                           
                           let statusText = "Available";
                           let statusClass = "bg-green-500/20 text-green-700 border border-green-500/30";
                           let isClickable = true;
                           let statusIcon = "🎾";
                           
-                          if (slotStatus) {
-                            statusText = slotStatus.status.charAt(0).toUpperCase() + slotStatus.status.slice(1);
+                          if (enrichedSlot) {
+                            statusText = enrichedSlot.status.charAt(0).toUpperCase() + enrichedSlot.status.slice(1);
                             
-                            if (slotStatus.isBlocked) {
+                            if (enrichedSlot.isBlocked) {
                               statusClass = "bg-gray-500/30 text-gray-100 border border-gray-500/50";
                               isClickable = false;
                               statusIcon = "🚫";
-                            } else if (slotStatus.isClinic) {
+                            } else if (enrichedSlot.isClinic) {
                               statusClass = "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50";
                               statusIcon = "🏆";
-                            } else if (slotStatus.isReserved) {
+                            } else if (enrichedSlot.isReserved) {
                               statusClass = "bg-blue-500/20 text-blue-700 border border-blue-500/30";
                               isClickable = false;
                               statusIcon = "✅";
@@ -276,7 +281,7 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                                 
                                 <div className="flex items-center gap-2 justify-center">
                                   <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
-                                  <span className="text-base sm:text-lg font-semibold whitespace-nowrap">
+                                  <span className="text-lg sm:text-xl font-bold whitespace-nowrap">
                                     {slot.startTime} - {slot.endTime}
                                   </span>
                                 </div>
@@ -315,19 +320,15 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                   <h4 className="text-base sm:text-lg font-semibold text-center mb-4">Legend</h4>
                   <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                     <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500/20 rounded-sm border border-green-500/30"></div>
+                      <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
                       <span>Available</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-blue-500/20 rounded-sm border border-blue-500/30"></div>
-                      <span>Reserved</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-yellow-500/30 rounded-sm border border-yellow-500/50"></div>
+                      <div className="w-3 h-3 bg-yellow-500/30 border border-yellow-500/50"></div>
                       <span>Clinic</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-gray-500/30 rounded-sm border border-gray-500/50"></div>
+                      <div className="w-3 h-3 bg-gray-500/30 border border-gray-500/50"></div>
                       <span>Blocked</span>
                     </div>
                   </div>

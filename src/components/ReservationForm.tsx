@@ -1,14 +1,19 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TimeSlot, Court } from "@/lib/types";
-import { getCourtById, mockCreateReservation, getClinicById, getCoachById } from "@/lib/data";
+import { TimeSlot, Court, Participant } from "@/lib/types";
+import { dataService } from "@/lib/services/data-service";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useUser } from "@/contexts/UserContext";
+import { Badge } from "@/components/ui/badge";
+import { User, AlertCircle, CheckCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import FriendSelector from "./FriendSelector";
 
 interface ReservationFormProps {
   selectedTimeSlot: TimeSlot;
@@ -17,42 +22,86 @@ interface ReservationFormProps {
   isOpen: boolean;
 }
 
+type ReservationStep = 'details';
+
 const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: ReservationFormProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [players, setPlayers] = useState("2");
+  const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const court = getCourtById(selectedTimeSlot.courtId);
+  const [useProfileInfo, setUseProfileInfo] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<ReservationStep>('details');
+
+  const { currentUser, isAuthenticated } = useUser();
+  const users = dataService.userService.getAllUsers();
+  const court = dataService.getCourtById(selectedTimeSlot.courtId);
   const date = new Date(selectedTimeSlot.date);
-  const clinic = selectedTimeSlot.clinicId ? getClinicById(selectedTimeSlot.clinicId) : null;
-  const coach = clinic ? getCoachById(clinic.coachId) : null;
+  const clinic = selectedTimeSlot.clinicId ? dataService.clinicService.getClinicById(selectedTimeSlot.clinicId) : null;
+  const coach = clinic ? dataService.coachService.getCoachById(clinic.coachId) : null;
+
+  // Auto-populate form fields from user profile when component mounts or user changes
+  useEffect(() => {
+    if (isAuthenticated && currentUser && useProfileInfo) {
+      setName(currentUser.name || "");
+      setEmail(currentUser.email || "");
+      setPhone(currentUser.phone || "");
+    }
+  }, [currentUser, isAuthenticated, useProfileInfo]);
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+    setError(null);
+    setSuccess(null);
+
     try {
-      // In a real app this would be an API call
-      const reservation = mockCreateReservation(
-        selectedTimeSlot.id,
-        name,
-        email,
-        phone,
-        parseInt(players)
-      );
-      
-      // Simulate API delay
+      // Calculate total players (organizer + selected participants)
+      const totalPlayers = 1 + selectedParticipants.length;
+
+      // Validate form data
+      if (!name.trim()) {
+        throw new Error("Name is required");
+      }
+      if (!email.trim()) {
+        throw new Error("Email is required");
+      }
+      if (!phone.trim()) {
+        throw new Error("Phone number is required");
+      }
+
+      // Create the reservation directly (all clinics are now free)
+      const result = dataService.reservationService.createReservation({
+        timeSlotId: selectedTimeSlot.id,
+        courtId: selectedTimeSlot.courtId,
+        playerName: name.trim(),
+        playerEmail: email.trim(),
+        playerPhone: phone.trim(),
+        players: totalPlayers,
+        participants: selectedParticipants
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create reservation");
+      }
+
+      setSuccess("Reservation created successfully!");
       setTimeout(() => {
-        onComplete(reservation.id);
+        onComplete(result.reservation!.id);
         setIsSubmitting(false);
       }, 800);
+
     } catch (error) {
       console.error("Error creating reservation", error);
+      setError(error instanceof Error ? error.message : "An unexpected error occurred");
       setIsSubmitting(false);
     }
   };
+
+
 
   const handleClose = () => {
     // Reset form when closing
@@ -60,8 +109,30 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
     setEmail("");
     setPhone("");
     setPlayers("2");
+    setSelectedParticipants([]);
+    setUseProfileInfo(true);
+    setError(null);
+    setSuccess(null);
+    setCurrentStep('details');
     onCancel();
   };
+
+  const toggleUseProfileInfo = () => {
+    setUseProfileInfo(!useProfileInfo);
+    if (!useProfileInfo && isAuthenticated && currentUser) {
+      // Re-populate with profile info
+      setName(currentUser.name || "");
+      setEmail(currentUser.email || "");
+      setPhone(currentUser.phone || "");
+    } else if (useProfileInfo) {
+      // Clear fields for manual entry
+      setName("");
+      setEmail("");
+      setPhone("");
+    }
+  };
+
+
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -79,6 +150,21 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
         </DialogHeader>
         
         <div className="px-2 sm:px-0">
+          {/* Error and Success Messages */}
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert className="mb-4 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">{success}</AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <h3 className="font-medium text-sm sm:text-base">
@@ -93,7 +179,6 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                   <div className="mt-2 pt-2 border-t border-border/30 space-y-1">
                     <p className="break-words"><span className="font-medium">Clinic:</span> {clinic.name}</p>
                     <p className="break-words text-muted-foreground">{clinic.description}</p>
-                    <p className="break-words"><span className="font-medium">Price:</span> ${clinic.price}</p>
                     <p className="break-words"><span className="font-medium">Max Participants:</span> {clinic.maxParticipants}</p>
                     {coach && (
                       <div className="mt-2 pt-2 border-t border-border/30 space-y-1">
@@ -106,79 +191,113 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               </div>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm">Full Name</Label>
-              <Input
-                id="name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
-                className="text-sm"
-              />
-            </div>
+            {/* Profile Information Section */}
+            {isAuthenticated && currentUser && (
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    <h3 className="font-medium text-sm">Profile Information</h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {currentUser.membershipType}
+                    </Badge>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleUseProfileInfo}
+                    className="text-xs"
+                  >
+                    {useProfileInfo ? "Enter Manually" : "Use Profile"}
+                  </Button>
+                </div>
+                {useProfileInfo && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>✓ Using your profile information:</p>
+                    <p><span className="font-medium">Name:</span> {currentUser.name}</p>
+                    <p><span className="font-medium">Email:</span> {currentUser.email}</p>
+                    <p><span className="font-medium">Phone:</span> {currentUser.phone}</p>
+                    {currentUser.duprRating && (
+                      <p><span className="font-medium">DUPR Rating:</span> {currentUser.duprRating}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@example.com"
-                className="text-sm"
-              />
-            </div>
+{/* Only show form fields when NOT using profile info */}
+            {(!useProfileInfo || !isAuthenticated || !currentUser) && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm">Full Name</Label>
+                  <Input
+                    id="name"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="John Doe"
+                    className="text-sm"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="john@example.com"
+                    className="text-sm"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="555-123-4567"
+                    className="text-sm"
+                  />
+                </div>
+              </>
+            )}
             
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm">Phone Number</Label>
-              <Input
-                id="phone"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="555-123-4567"
-                className="text-sm"
+            {/* Friend Selection for Regular Reservations */}
+            {!clinic && (
+              <FriendSelector
+                users={users}
+                selectedParticipants={selectedParticipants}
+                onParticipantsChange={setSelectedParticipants}
+                maxParticipants={4}
+                className="border rounded-lg p-4 bg-muted/20"
               />
-            </div>
+            )}
             
+            {/* Player count display */}
             <div className="space-y-2">
-              <Label htmlFor="players" className="text-sm">
-                {clinic ? "Number of Participants" : "Number of Players"}
+              <Label className="text-sm">
+                {clinic ? "Participants" : "Total Players"}
               </Label>
               {clinic ? (
-                <div className="space-y-2">
-                  <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
-                    <p className="break-words"><span className="font-medium">Current Participants:</span> {clinic.maxParticipants - 2} / {clinic.maxParticipants}</p>
-                    <p className="text-muted-foreground">You'll be joining as 1 participant</p>
-                  </div>
-                  <Select 
-                    value={players} 
-                    onValueChange={setPlayers}
-                  >
-                    <SelectTrigger id="players" className="text-sm">
-                      <SelectValue placeholder="Select number of participants" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 Participant</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
+                  <p className="break-words"><span className="font-medium">Current Participants:</span> {clinic.maxParticipants - 2} / {clinic.maxParticipants}</p>
+                  <p className="text-muted-foreground">You'll be joining as 1 participant</p>
                 </div>
               ) : (
-                <Select 
-                  value={players} 
-                  onValueChange={setPlayers}
-                >
-                  <SelectTrigger id="players" className="text-sm">
-                    <SelectValue placeholder="Select number of players" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 Player</SelectItem>
-                    <SelectItem value="2">2 Players</SelectItem>
-                    <SelectItem value="4">4 Players</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
+                  <p className="break-words">
+                    <span className="font-medium">Total Players:</span> {1 + selectedParticipants.length}
+                  </p>
+                  <p className="text-muted-foreground">
+                    You + {selectedParticipants.length} friend{selectedParticipants.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
               )}
             </div>
             
@@ -188,8 +307,8 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               </Button>
               <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto text-sm">
                 {isSubmitting 
-                  ? (clinic ? "Booking..." : "Booking...") 
-                  : (clinic ? "Book Clinic" : "Complete Booking")
+                  ? (clinic ? "Processing..." : "Booking...") 
+                  : (clinic ? "Book Clinic" : `Book for ${1 + selectedParticipants.length} Player${1 + selectedParticipants.length !== 1 ? 's' : ''}`)
                 }
               </Button>
             </div>

@@ -6,26 +6,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { reservations, courts, timeSlots, users, coaches, clinics, addUser, addCoach, addClinic, addUserToReservation, blockTimeSlot, unblockTimeSlot, updateReservationComments, updateUserComments, updateTimeSlotComments, getAllItemsWithComments, getTimeSlotsWithNotes } from "@/lib/data";
+import { useDataService } from "@/hooks/use-data-service";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import { useState } from "react";
-import EditCourtForm from "@/components/EditCourtForm";
-import ScheduleCourtForm from "@/components/ScheduleCourtForm";
 import SchedulerChart from "@/components/SchedulerChart";
-import AddUserForm from "@/components/AddUserForm";
-import AddCoachForm from "@/components/AddCoachForm";
-import AddClinicForm from "@/components/AddClinicForm";
-import AddUserToReservationForm from "@/components/AddUserToReservationForm";
-import CommentForm from "@/components/CommentForm";
 import AdminSettings from "@/components/AdminSettings";
 import UserSearchForm from "@/components/UserSearchForm";
 // import EditNotesForm from "@/components/EditNotesForm"; // Deprecated - using CommentForm instead
 import { Clock, User, GraduationCap, StickyNote } from "lucide-react";
 import { ReservationSettings } from "@/lib/types";
 import type { Comment as AppComment } from "@/lib/types";
+import CourtTimeSlots from "@/components/CourtTimeSlots";
+import CourtsSection from "@/components/CourtsSection";
+import UsersSection from "@/components/UsersSection";
+import CoachesSection from "@/components/CoachesSection";
+import ClinicsSection from "@/components/ClinicsSection";
+import NotesSection from "@/components/NotesSection";
+import AdminModalsController from "@/components/AdminModalsController";
 
 const Admin = () => {
+  const dataService = useDataService();
   const [editingCourt, setEditingCourt] = useState<any>(null);
   const [schedulingCourt, setSchedulingCourt] = useState<any>(null);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -33,12 +34,22 @@ const Admin = () => {
   const [showAddClinic, setShowAddClinic] = useState(false);
   const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
   const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
-  const [refreshKey, setRefreshKey] = useState(0);
   
   // Comments editing state
   const [editingReservationComments, setEditingReservationComments] = useState<any>(null);
   const [editingUserComments, setEditingUserComments] = useState<any>(null);
   const [editingTimeSlotComments, setEditingTimeSlotComments] = useState<any>(null);
+
+  // Destructure data from the service
+  const { 
+    courts, 
+    timeSlots, 
+    reservations, 
+    users, 
+    coaches, 
+    clinics,
+    refreshKey
+  } = dataService;
   
 
   
@@ -53,33 +64,36 @@ const Admin = () => {
   };
 
   const handleAddUser = (userData: any) => {
-    addUser(userData);
+    dataService.addUser(userData);
     console.log("Added user:", userData);
   };
 
   const handleAddCoach = (coachData: any) => {
-    addCoach(coachData);
+    dataService.addCoach(coachData);
     console.log("Added coach:", coachData);
   };
 
   const handleAddClinic = (clinicData: any) => {
-    addClinic(clinicData);
-    setRefreshKey(prev => prev + 1); // Force re-render
+    dataService.addClinic(clinicData);
     console.log("Added clinic:", clinicData);
   };
 
   const handleAddUserToReservation = (reservationData: any) => {
     try {
-      addUserToReservation(
-        reservationData.timeSlotId,
-        reservationData.courtId,
-        reservationData.playerName,
-        reservationData.playerEmail,
-        reservationData.playerPhone,
-        reservationData.players
-      );
-      setRefreshKey(prev => prev + 1); // Force re-render
-      console.log("Added user to reservation:", reservationData);
+      const result = dataService.reservationService.createReservation({
+        timeSlotId: reservationData.timeSlotId,
+        courtId: reservationData.courtId,
+        playerName: reservationData.playerName,
+        playerEmail: reservationData.playerEmail,
+        playerPhone: reservationData.playerPhone,
+        players: reservationData.players,
+      });
+      if (!result.success) {
+        console.error("Error creating reservation:", result.error);
+      } else {
+        console.log("Added user to reservation:", result.reservation);
+      }
+      dataService.refresh();
     } catch (error) {
       console.error("Error adding user to reservation:", error);
       // In a real app, you'd show a toast notification here
@@ -87,36 +101,39 @@ const Admin = () => {
   };
 
   const handleBlockTimeSlot = (timeSlotId: string) => {
-    if (blockTimeSlot(timeSlotId)) {
-      setRefreshKey(prev => prev + 1); // Force re-render
-      console.log("Blocked time slot:", timeSlotId);
+    const result = dataService.timeSlotService.blockTimeSlot(timeSlotId);
+    if (!result.success) {
+      console.error("Failed to block time slot:", result.error);
     }
   };
 
   const handleUnblockTimeSlot = (timeSlotId: string) => {
-    if (unblockTimeSlot(timeSlotId)) {
-      setRefreshKey(prev => prev + 1); // Force re-render
-      console.log("Unblocked time slot:", timeSlotId);
+    const result = dataService.timeSlotService.unblockTimeSlot(timeSlotId);
+    if (!result.success) {
+      console.error("Failed to unblock time slot:", result.error);
     }
   };
 
   const handleUpdateReservationComments = (comments: AppComment[]) => {
-    if (editingReservationComments && updateReservationComments(editingReservationComments.id, comments)) {
-      setRefreshKey(prev => prev + 1); // Force re-render
+    if (editingReservationComments) {
+      dataService.reservationService.updateReservationComments(editingReservationComments.id, comments);
+      dataService.refresh();
       console.log("Updated reservation comments:", comments);
     }
   };
 
   const handleUpdateUserComments = (comments: AppComment[]) => {
-    if (editingUserComments && updateUserComments(editingUserComments.id, comments)) {
-      setRefreshKey(prev => prev + 1); // Force re-render
+    if (editingUserComments) {
+      dataService.userService.updateUserComments(editingUserComments.id, comments);
+      dataService.refresh();
       console.log("Updated user comments:", comments);
     }
   };
 
   const handleUpdateTimeSlotComments = (comments: AppComment[]) => {
-    if (editingTimeSlotComments && updateTimeSlotComments(editingTimeSlotComments.id, comments)) {
-      setRefreshKey(prev => prev + 1); // Force re-render
+    if (editingTimeSlotComments) {
+      dataService.timeSlotService.updateTimeSlotComments(editingTimeSlotComments.id, comments);
+      dataService.refresh();
       console.log("Updated time slot comments:", comments);
     }
   };
@@ -124,12 +141,15 @@ const Admin = () => {
 
 
   const handleCreateClinic = (timeSlotId: string) => {
-    // In a real app, this would open a clinic creation form
-    console.log("Creating clinic for time slot:", timeSlotId);
-    // For now, just block the slot to simulate clinic creation
-    if (blockTimeSlot(timeSlotId)) {
-      setRefreshKey(prev => prev + 1);
-      console.log("Created clinic (blocked slot):", timeSlotId);
+    // Placeholder clinic id to mark this slot as clinic; in real app, create clinic first
+    const clinicId = dataService.clinicService.getAllClinics()[0]?.id;
+    if (!clinicId) {
+      console.error("No clinic available to assign to time slot");
+      return;
+    }
+    const result = dataService.timeSlotService.setTimeSlotAsClinic(timeSlotId, clinicId);
+    if (!result.success) {
+      console.error("Failed to set time slot as clinic:", result.error);
     }
   };
 
@@ -169,7 +189,7 @@ const Admin = () => {
         </div>
         
         <Tabs defaultValue="scheduler" className="space-y-6">
-          <div className="mb-6 overflow-x-auto scrollbar-hide">
+          <div className="mb-6 overflow-x-auto scrollbar-hide flex justify-center">
             <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
               <TabsTrigger value="scheduler" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
               <TabsTrigger value="calendar" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
@@ -184,11 +204,18 @@ const Admin = () => {
           </div>
           
           <TabsContent value="scheduler" className="space-y-6">
-            <SchedulerChart 
+            <SchedulerChart
               key={refreshKey}
-              courts={courts} 
-              timeSlots={timeSlots} 
-              onScheduleCourt={setSchedulingCourt} 
+              courts={courts}
+              timeSlots={timeSlots}
+              onScheduleCourt={setSchedulingCourt}
+              onDateChange={(date) => {
+                // Ensure time slots exist for the selected date range
+                const startDate = date;
+                const endDate = new Date(date);
+                endDate.setDate(endDate.getDate() + 6); // Generate slots for a week
+                dataService.ensureTimeSlotsForDateRange(startDate, endDate);
+              }}
             />
           </TabsContent>
           
@@ -196,625 +223,67 @@ const Admin = () => {
             <AdminCalendarView />
           </TabsContent>
 
+
+
           <TabsContent value="reservations" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground">
-                  Time Slots Overview
-                </h2>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {reservations.filter(r => r.comments && r.comments.length > 0).length} reservation{reservations.filter(r => r.comments && r.comments.length > 0).length !== 1 ? 's' : ''} with notes
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <Button 
-                  className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
-                  onClick={() => {
-                    setSelectedTimeSlotForForm("");
-                    setShowAddUserToReservation(true);
-                  }}
-                >
-                  Add User to Reservation
-                </Button>
-                <Button className="bg-primary hover:bg-primary/90 text-sm sm:text-base">Add Time Slot</Button>
-              </div>
-            </div>
-            
-                         <div className="text-sm text-muted-foreground mb-4">
-               💡 Click on available time slots or clinics to add users to them. You can also use the "Add User to Reservation" button above.
-             </div>
-            
-            {courts.map((court) => (
-              <Card key={court.id} className="border border-input bg-card shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-foreground">{court.name}</CardTitle>
-                  <CardDescription>
-                    <Badge
-                      variant={court.indoor ? "secondary" : "outline"}
-                      className={court.indoor ? "bg-secondary/20" : "border-primary/20"}
-                    >
-                      {court.indoor ? "Indoor" : "Outdoor"}
-                    </Badge>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {sortedDates.map((date) => {
-                      const courtSlots = slotsByDate[date].filter(
-                        (slot) => slot.courtId === court.id
-                      );
-
-                      if (courtSlots.length === 0) return null;
-
-                      return (
-                        <div key={date} className="space-y-3">
-                          <h3 className="text-base font-semibold text-foreground mb-2">
-                            {format(new Date(date), "EEEE, MMMM d, yyyy")}
-                          </h3>
-                          <div className="space-y-2">
-                            {courtSlots.map((slot) => {
-                              const reservation = reservations.find(
-                                (r) => r.timeSlotId === slot.id
-                              );
-                              const clinic = getClinicForSlot(slot);
-
-                              return (
-                                                                <div
-                                  key={slot.id}
-                                  className={`min-h-[4rem] rounded-lg p-3 sm:p-4 transition-all duration-300 hover:scale-[1.01] ${
-                                    clinic
-                                      ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
-                                      : reservation
-                                      ? "bg-secondary/20 text-secondary-foreground"
-                                      : slot.blocked
-                                      ? "bg-red-500/20 text-red-800 border border-red-500/50"
-                                      : slot.available
-                                      ? "bg-primary/20 text-primary-foreground cursor-pointer"
-                                      : "bg-muted/80 text-muted-foreground"
-                                  }`}
-                                  onClick={() => {
-                                     if (slot.available && !slot.blocked) {
-                                       setSelectedTimeSlotForForm(slot.id);
-                                       setShowAddUserToReservation(true);
-                                     }
-                                   }}
-                                >
-                                  {/* Mobile-first layout */}
-                                  <div className="space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
-                                    {/* Time - prominently displayed on mobile */}
-                                    <div className="flex items-center gap-2 sm:order-2 sm:flex-1 sm:justify-center">
-                                      <Clock className="h-4 w-4 text-foreground" />
-                                      <span className="text-base sm:text-lg font-bold text-foreground">
-                                        {slot.startTime} - {slot.endTime}
-                                      </span>
-                                    </div>
-
-                                    {/* Content - Name/Status */}
-                                    <div className="sm:order-1 sm:flex-1">
-                                      {clinic ? (
-                                        <div>
-                                          <span className="font-semibold text-base">
-                                            {clinic.name}
-                                          </span>
-                                          <div className="text-sm text-muted-foreground">
-                                            Coach: {coaches.find(c => c.id === clinic.coachId)?.name}
-                                          </div>
-                                        </div>
-                                      ) : reservation ? (
-                                        <div>
-                                          <span className="font-semibold text-base">
-                                            {reservation.playerName}
-                                          </span>
-                                          <div className="text-sm text-muted-foreground">
-                                            ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
-                                          </div>
-                                        </div>
-                                      ) : (
-                                         <div>
-                                           <span className="text-base font-medium text-foreground">
-                                             {slot.available ? "Available" : "Blocked"}
-                                           </span>
-                                           {slot.comments && slot.comments.length > 0 && (
-                                             <div className="text-sm text-muted-foreground mt-1">
-                                               <span className="text-xs font-medium text-blue-600">
-                                                 {slot.comments.length} comment{slot.comments.length !== 1 ? 's' : ''}:
-                                               </span>
-                                               <span className="ml-1 break-words">{slot.comments[slot.comments.length - 1].text}</span>
-                                             </div>
-                                           )}
-                                         </div>
-                                       )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex flex-wrap items-center gap-2 sm:order-3 sm:flex-shrink-0">
-                                      {clinic ? (
-                                        <Badge
-                                          variant="default"
-                                          className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
-                                        >
-                                          Clinic
-                                        </Badge>
-                                      ) : reservation ? (
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          {(!reservation.comments || reservation.comments.length === 0) && (
-                                            <Badge
-                                              variant="outline"
-                                              className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
-                                            >
-                                              Reserved
-                                            </Badge>
-                                          )}
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const court = courts.find(c => c.id === reservation.courtId);
-                                              const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
-                                              setEditingReservationComments({
-                                                ...reservation,
-                                                court: court?.name,
-                                                date: timeSlot?.date,
-                                                time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
-                                              });
-                                            }}
-                                            className={`h-8 px-2 sm:px-3 text-xs min-w-[60px] ${
-                                              reservation.comments && reservation.comments.length > 0
-                                                ? 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800 bg-yellow-100' 
-                                                : 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800'
-                                            }`}
-                                          >
-                                            <StickyNote className="h-3 w-3 mr-1" />
-                                            <span className="hidden sm:inline">{reservation.comments && reservation.comments.length > 0 ? `Notes (${reservation.comments.length})` : 'Add Notes'}</span>
-                                            <span className="sm:hidden">
-                                              {reservation.comments && reservation.comments.length > 0 ? `(${reservation.comments.length})` : 'Notes'}
-                                            </span>
-                                          </Button>
-                                        </div>
-                                      ) : slot.blocked ? (
-                                        <div className="relative">
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger>
-                                              <Badge
-                                                variant="destructive"
-                                                className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center cursor-pointer hover:bg-red-500/20"
-                                              >
-                                                Blocked
-                                              </Badge>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent 
-                                              align="end" 
-                                              className="z-[9999]"
-                                              sideOffset={5}
-                                            >
-                                              <DropdownMenuItem
-                                                onClick={() => handleUnblockTimeSlot(slot.id)}
-                                                className="text-green-600 focus:text-green-600"
-                                              >
-                                                Unblock
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem
-                                                onClick={() => {
-                                                  const court = courts.find(c => c.id === slot.courtId);
-                                                  setEditingTimeSlotComments({
-                                                    id: slot.id,
-                                                    comments: slot.comments || [],
-                                                    court: court?.name,
-                                                    date: slot.date,
-                                                    time: `${slot.startTime} - ${slot.endTime}`,
-                                                  });
-                                                }}
-                                                className="text-blue-600 focus:text-blue-600"
-                                              >
-                                                <StickyNote className="h-3 w-3 mr-1" />
-                                                Add Note
-                                              </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
-                                          {slot.comments && slot.comments.length > 0 && (
-                                            <div className="text-sm text-muted-foreground mt-1">
-                                              <span className="text-xs font-medium text-blue-600">
-                                                {slot.comments.length} comment{slot.comments.length !== 1 ? 's' : ''}:
-                                              </span>
-                                              <span className="ml-1">{slot.comments[slot.comments.length - 1].text}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div className="relative">
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger>
-                                              <Badge
-                                                variant="outline"
-                                                className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center cursor-pointer bg-green-500/20 !text-green-700 border-green-500/30 hover:bg-green-500/30"
-                                              >
-                                                Available
-                                              </Badge>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent 
-                                              align="end" 
-                                              className="z-[9999]"
-                                              sideOffset={5}
-                                            >
-                                              <DropdownMenuItem
-                                                onClick={() => {
-                                                  setSelectedTimeSlotForForm(slot.id);
-                                                  setShowAddUserToReservation(true);
-                                                }}
-                                              >
-                                                Book
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem
-                                                onClick={() => handleCreateClinic(slot.id)}
-                                              >
-                                                Create Clinic
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem
-                                                onClick={() => handleBlockTimeSlot(slot.id)}
-                                                className="text-red-600 focus:text-red-600"
-                                              >
-                                                Block
-                                              </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            <CourtTimeSlots
+              courts={courts}
+              timeSlots={timeSlots}
+              reservations={reservations}
+              coaches={coaches}
+              clinics={clinics}
+              onAddUserToReservationRequested={(timeSlotId) => {
+                setSelectedTimeSlotForForm(timeSlotId || "");
+                setShowAddUserToReservation(true);
+              }}
+              onOpenReservationComments={(context) => {
+                setEditingReservationComments(context);
+              }}
+              onOpenTimeSlotComments={(context) => {
+                setEditingTimeSlotComments(context);
+              }}
+              onBlockTimeSlot={handleBlockTimeSlot}
+              onUnblockTimeSlot={handleUnblockTimeSlot}
+              onCreateClinicForTimeSlot={handleCreateClinic}
+            />
           </TabsContent>
           
           <TabsContent value="courts" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Courts
-              </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base">Add Court</Button>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              {courts.map(court => (
-                <Card key={court.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                        {court.name}
-                      </CardTitle>
-                      <Badge variant={court.indoor ? "secondary" : "outline"} className={court.indoor ? "bg-secondary/20" : "border-primary/20"}>
-                        {court.indoor ? "Indoor" : "Outdoor"}
-                      </Badge>
-                    </div>
-                    <CardDescription>{court.location}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      ID: {court.id}
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setEditingCourt(court)}
-                        className="border-primary/20 hover:bg-primary/10 text-xs sm:text-sm"
-                      >
-                        Edit
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setSchedulingCourt(court)}
-                        className="border-primary/20 hover:bg-primary/10 text-xs sm:text-sm"
-                      >
-                        Schedule
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <CourtsSection 
+              courts={courts} 
+              onEditCourt={(court) => setEditingCourt(court)} 
+              onScheduleCourt={(court) => setSchedulingCourt(court)} 
+            />
           </TabsContent>
           
           <TabsContent value="users" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  Users
-                </h2>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Manage and search through all users
-                </div>
-              </div>
-              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddUser(true)}>
-                Add User
-              </Button>
-            </div>
-            
-            <UserSearchForm 
-              users={users}
-              onEditComments={(user) => setEditingUserComments(user)}
+            <UsersSection 
+              users={users} 
+              onAddUser={() => setShowAddUser(true)} 
+              onEditUserComments={(user) => setEditingUserComments(user)} 
             />
           </TabsContent>
 
           <TabsContent value="coaches" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Coaches
-              </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddCoach(true)}>
-                Add Coach
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              {coaches.map(coach => (
-                <Card key={coach.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="flex items-center gap-2">
-                        <GraduationCap className="h-5 w-5" />
-                        {coach.name}
-                      </CardTitle>
-                      <Badge variant="secondary">${coach.hourlyRate}/hr</Badge>
-                    </div>
-                    <CardDescription>
-                      <div className="space-y-2">
-                        <div>{coach.email}</div>
-                        <div>{coach.phone}</div>
-                        <div className="text-sm">{coach.bio}</div>
-                      </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-1">
-                      {coach.specialties.map((specialty) => (
-                        <Badge key={specialty} variant="outline" className="text-xs">
-                          {specialty}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <CoachesSection coaches={coaches} onAddCoach={() => setShowAddCoach(true)} />
           </TabsContent>
 
           <TabsContent value="clinics" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Clinics
-              </h2>
-              <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddClinic(true)}>
-                Add Clinic
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              {clinics.map(clinic => {
-                const coach = coaches.find(c => c.id === clinic.coachId);
-                const court = courts.find(c => c.id === clinic.courtId);
-                
-                return (
-                  <Card key={clinic.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-                    <CardHeader>
-                      <CardTitle className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                        {clinic.name}
-                      </CardTitle>
-                      <CardDescription>
-                        <div className="space-y-1">
-                          <div className="font-medium">Coach: {coach?.name}</div>
-                          <div>Court: {court?.name}</div>
-                          <div>{clinic.date} • {clinic.startTime} - {clinic.endTime}</div>
-                        </div>
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">{clinic.description}</p>
-                        <div className="flex justify-between items-center">
-                          <Badge variant="outline">Max: {clinic.maxParticipants} players</Badge>
-                          <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">${clinic.price}</Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+            <ClinicsSection clinics={clinics} coaches={coaches} courts={courts} onAddClinic={() => setShowAddClinic(true)} />
           </TabsContent>
 
           <TabsContent value="notes" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">
-                  Notes Overview
-                </h2>
-                <div className="text-sm text-muted-foreground mt-1">
-                  All items with admin notes and time slots with blocked/clinic status
-                </div>
-              </div>
-            </div>
-            
-            {/* Time Slots with Notes Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-foreground">Time Slots with Special Status</h3>
-              {getTimeSlotsWithNotes().map((slot) => (
-                <Card key={slot.id} className="border border-input bg-card shadow-sm">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg font-semibold text-foreground">
-                          {slot.courtName} - {format(new Date(slot.date), 'MMM d, yyyy')}
-                        </CardTitle>
-                        <CardDescription className="flex items-center gap-2 mt-1">
-                          <Badge
-                            variant={slot.status === 'blocked' ? 'destructive' : slot.status === 'clinic' ? 'default' : 'secondary'}
-                            className={
-                              slot.status === 'blocked' ? 'bg-red-500/20 text-red-700 border-red-500/30' : 
-                              slot.status === 'clinic' ? 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30' :
-                              'bg-blue-500/20 text-blue-700 border-blue-500/30'
-                            }
-                          >
-                            {slot.status.charAt(0).toUpperCase() + slot.status.slice(1)}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {slot.startTime} - {slot.endTime}
-                          </span>
-                          {slot.reservation && (
-                            <span className="text-sm text-muted-foreground">
-                              Player: {slot.reservation.playerName}
-                            </span>
-                          )}
-                          {slot.clinic && (
-                            <span className="text-sm text-muted-foreground">
-                              Coach: {coaches.find(c => c.id === slot.clinic.coachId)?.name}
-                            </span>
-                          )}
-                        </CardDescription>
-                      </div>
-
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className={`border rounded-md p-4 ${
-                      slot.status === 'blocked' ? 'bg-red-50 border-red-200' :
-                      slot.status === 'clinic' ? 'bg-yellow-50 border-yellow-200' :
-                      'bg-blue-50 border-blue-200'
-                    }`}>
-                      <p className={`text-sm whitespace-pre-wrap ${
-                        slot.status === 'blocked' ? 'text-red-800' :
-                        slot.status === 'clinic' ? 'text-yellow-800' :
-                        'text-blue-800'
-                      }`}>
-                        {slot.notes}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              
-              {getTimeSlotsWithNotes().length === 0 && (
-                <Card className="border border-input bg-card shadow-sm">
-                  <CardContent className="py-8">
-                    <div className="text-center text-muted-foreground">
-                      <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p className="text-lg font-medium">No time slots with notes</p>
-                      <p className="text-sm">Time slots will appear here when they are blocked or have clinics.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Other Items with Notes Section */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-foreground">Other Items with Notes</h3>
-              {getAllItemsWithComments().filter(item => item.type !== 'timeSlot').map((item) => (
-                <Card key={item.id} className="border border-input bg-card shadow-sm">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg font-semibold text-foreground">
-                          {item.title}
-                        </CardTitle>
-                        <CardDescription className="flex items-center gap-2 mt-1">
-                          <Badge
-                            variant={item.type === 'reservation' ? 'secondary' : 'outline'}
-                            className={
-                              item.type === 'reservation' ? 'bg-blue-500/20 text-blue-700 border-blue-500/30' : 
-                              'bg-green-500/20 text-green-700 border-green-500/30'
-                            }
-                          >
-                            {item.type === 'reservation' ? 'Notes' : 'User'}
-                          </Badge>
-                          <span>{item.subtitle}</span>
-                          {item.court && (
-                            <span className="text-sm text-muted-foreground">
-                              Court: {item.court}
-                            </span>
-                          )}
-                          {item.date && (
-                            <span className="text-sm text-muted-foreground">
-                              {format(new Date(item.date), 'MMM d, yyyy')}
-                            </span>
-                          )}
-                          {item.time && (
-                            <span className="text-sm text-muted-foreground">
-                              {item.time}
-                            </span>
-                          )}
-                        </CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (item.type === 'reservation') {
-                            const reservation = reservations.find(r => r.id === item.id);
-                            if (reservation) {
-                              const court = courts.find(c => c.id === reservation.courtId);
-                              const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
-                              setEditingReservationComments({
-                                ...reservation,
-                                court: court?.name,
-                                date: timeSlot?.date,
-                                time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
-                              });
-                            }
-                          } else if (item.type === 'user') {
-                            const user = users.find(u => u.id === item.id);
-                            if (user) {
-                              setEditingUserComments(user);
-                            }
-                          }
-                        }}
-                        className="h-8 px-3 text-sm border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800"
-                      >
-                        <StickyNote className="h-4 w-4 mr-2" />
-                        {item.commentCount > 0 ? `Edit Comments (${item.commentCount})` : 'Add Comments'}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-yellow-700 font-medium">
-                          {item.commentCount} comment{item.commentCount !== 1 ? 's' : ''}
-                        </span>
-                        <span className="text-xs text-yellow-600">
-                          Latest: {new Date(item.comments[item.comments.length - 1].createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-yellow-800 whitespace-pre-wrap">
-                        {item.latestComment}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              
-              {getAllItemsWithComments().filter(item => item.type !== 'timeSlot').length === 0 && (
-                <Card className="border border-input bg-card shadow-sm">
-                  <CardContent className="py-8">
-                    <div className="text-center text-muted-foreground">
-                      <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p className="text-lg font-medium">No other items with notes</p>
-                      <p className="text-sm">Notes will appear here when you add them to reservations or users.</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            <NotesSection 
+              enrichedTimeSlots={dataService.getTimeSlotsWithNotes()}
+              itemsWithComments={dataService.getAllItemsWithComments()}
+              courts={courts}
+              timeSlots={timeSlots}
+              reservations={reservations}
+              users={users}
+              coaches={coaches}
+              onOpenReservationComments={(ctx) => setEditingReservationComments(ctx)}
+              onOpenUserComments={(user) => setEditingUserComments(user)}
+            />
           </TabsContent>
 
           <TabsContent value="settings">
@@ -828,119 +297,43 @@ const Admin = () => {
       
       <Footer />
 
-      {/* Forms */}
-      {editingCourt && (
-        <EditCourtForm
-          court={editingCourt}
-          isOpen={!!editingCourt}
-          onClose={() => setEditingCourt(null)}
-          onSave={handleEditCourt}
-        />
-      )}
-
-      {schedulingCourt && (
-        <ScheduleCourtForm
-          court={schedulingCourt}
-          isOpen={!!schedulingCourt}
-          onClose={() => setSchedulingCourt(null)}
-          onSave={handleScheduleCourt}
-        />
-      )}
-
-      {showAddUser && (
-        <AddUserForm
-          isOpen={showAddUser}
-          onClose={() => setShowAddUser(false)}
-          onSave={handleAddUser}
-        />
-      )}
-
-      {showAddCoach && (
-        <AddCoachForm
-          isOpen={showAddCoach}
-          onClose={() => setShowAddCoach(false)}
-          onSave={handleAddCoach}
-        />
-      )}
-
-      {showAddClinic && (
-        <AddClinicForm
-          isOpen={showAddClinic}
-          onClose={() => setShowAddClinic(false)}
-          onSave={handleAddClinic}
-        />
-      )}
-
-             {showAddUserToReservation && (
-         <AddUserToReservationForm
-           isOpen={showAddUserToReservation}
-           onClose={() => {
-             setShowAddUserToReservation(false);
-             setSelectedTimeSlotForForm("");
-           }}
-           onSave={handleAddUserToReservation}
-           timeSlots={timeSlots}
-           users={users}
-           clinics={clinics}
-           courts={courts}
-           preSelectedTimeSlot={selectedTimeSlotForForm}
-         />
-       )}
-
-      {/* Comments Forms */}
-      {editingReservationComments && (
-        <CommentForm
-          isOpen={!!editingReservationComments}
-          onClose={() => setEditingReservationComments(null)}
-          onSave={handleUpdateReservationComments}
-          currentComments={editingReservationComments.comments || []}
-          title="Edit Reservation Comments"
-          description="Add or update admin comments for this reservation. These comments are only visible to administrators."
-          type="reservation"
-          data={{
-            name: editingReservationComments.playerName,
-            email: editingReservationComments.playerEmail,
-            date: editingReservationComments.date,
-            time: editingReservationComments.time,
-            court: editingReservationComments.court,
-          }}
-        />
-      )}
-
-      {editingUserComments && (
-        <CommentForm
-          isOpen={!!editingUserComments}
-          onClose={() => setEditingUserComments(null)}
-          onSave={handleUpdateUserComments}
-          currentComments={editingUserComments.comments || []}
-          title="Edit User Comments"
-          description="Add or update admin comments for this user. These comments are only visible to administrators."
-          type="user"
-          data={{
-            name: editingUserComments.name,
-            email: editingUserComments.email,
-            membershipType: editingUserComments.membershipType,
-          }}
-        />
-      )}
-
-      {editingTimeSlotComments && (
-        <CommentForm
-          isOpen={!!editingTimeSlotComments}
-          onClose={() => setEditingTimeSlotComments(null)}
-          onSave={handleUpdateTimeSlotComments}
-          currentComments={editingTimeSlotComments.comments || []}
-          title="Edit Time Slot Comments"
-          description="Add or update admin comments for this time slot. These comments are only visible to administrators."
-          type="timeSlot"
-          data={{
-            name: "Time Slot",
-            date: editingTimeSlotComments.date,
-            time: editingTimeSlotComments.time,
-            court: editingTimeSlotComments.court,
-          }}
-        />
-       )}
+      <AdminModalsController
+        editingCourt={editingCourt}
+        onCloseEditCourt={() => setEditingCourt(null)}
+        onSaveEditCourt={handleEditCourt}
+        schedulingCourt={schedulingCourt}
+        onCloseScheduleCourt={() => setSchedulingCourt(null)}
+        onSaveScheduleCourt={handleScheduleCourt}
+        showAddUser={showAddUser}
+        onCloseAddUser={() => setShowAddUser(false)}
+        onSaveAddUser={handleAddUser}
+        showAddCoach={showAddCoach}
+        onCloseAddCoach={() => setShowAddCoach(false)}
+        onSaveAddCoach={handleAddCoach}
+        showAddClinic={showAddClinic}
+        onCloseAddClinic={() => setShowAddClinic(false)}
+        onSaveAddClinic={handleAddClinic}
+        showAddUserToReservation={showAddUserToReservation}
+        onCloseAddUserToReservation={() => {
+          setShowAddUserToReservation(false);
+          setSelectedTimeSlotForForm("");
+        }}
+        onSaveAddUserToReservation={handleAddUserToReservation}
+        timeSlots={timeSlots}
+        users={users}
+        clinics={clinics}
+        courts={courts}
+        preSelectedTimeSlot={selectedTimeSlotForForm}
+        editingReservationComments={editingReservationComments}
+        onCloseReservationComments={() => setEditingReservationComments(null)}
+        onSaveReservationComments={handleUpdateReservationComments}
+        editingUserComments={editingUserComments}
+        onCloseUserComments={() => setEditingUserComments(null)}
+        onSaveUserComments={handleUpdateUserComments}
+        editingTimeSlotComments={editingTimeSlotComments}
+        onCloseTimeSlotComments={() => setEditingTimeSlotComments(null)}
+        onSaveTimeSlotComments={handleUpdateTimeSlotComments}
+      />
 
 
     </div>

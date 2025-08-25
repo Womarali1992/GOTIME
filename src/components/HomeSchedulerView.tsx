@@ -1,20 +1,151 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, addDays, subDays, startOfDay, startOfWeek } from "date-fns";
-import { TimeSlot, Court, Clinic } from "@/lib/types";
+import { TimeSlot, Court, Clinic, Reservation, Comment } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
-import { courts, timeSlots, reservations, clinics, coaches, getTimeSlotsForDateRange, getClinicById, getTimeSlotsWithStatusForDate } from "@/lib/data";
+import { useUser } from "@/contexts/UserContext";
+import { dataService } from "@/lib/services/data-service";
 import DayOfWeekTabs from "./DayOfWeekTabs";
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
 
+// Type definitions for time slot blocks
+interface TimeSlotBlockData {
+  startHour: number;
+  endHour: number;
+  isClinic: boolean;
+  clinic: Clinic | null;
+  slot: TimeSlot | null;
+  available: boolean;
+  reserved: boolean;
+  blocked: boolean;
+  isMyReservation: boolean;
+}
+
+interface ReservationWithDetails {
+  reservation: Reservation;
+  timeSlot: TimeSlot;
+  court: Court;
+}
+
 interface HomeSchedulerViewProps {
   onSelectTimeSlot: (timeSlot: TimeSlot) => void;
 }
+
+// Memoized component for time slot blocks to prevent unnecessary re-renders
+const TimeSlotBlock = React.memo(({
+  court,
+  day,
+  block,
+  isTimeSlotInPast,
+  handleTimeSlotClick,
+  getFirstAvailableSlotForBlock,
+  legendFilters,
+  currentUserEmail,
+  isMobile
+}: {
+  court: Court;
+  day: Date;
+  block: TimeSlotBlockData;
+  isTimeSlotInPast: (day: Date, hour: number) => boolean;
+  handleTimeSlotClick: (court: Court, day: Date, hour: number) => void;
+  getFirstAvailableSlotForBlock: (court: Court, day: Date, startHour: number, endHour: number) => TimeSlot | null;
+  legendFilters: {
+    available: boolean;
+    clinic: boolean;
+    myReservations: boolean;
+  };
+  currentUserEmail: string;
+  isMobile: boolean;
+}) => {
+  const isPast = isTimeSlotInPast(day, block.startHour);
+  const duration = block.endHour - block.startHour;
+  const isMultiHour = duration > 1;
+
+  return (
+    <div
+      key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
+      className={cn(
+        "text-sm sm:text-base text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative",
+        isMobile ? "p-2" : "p-3",
+        block.isMyReservation
+          ? "bg-purple-500/20 text-purple-800 border border-purple-500/30 hover:bg-purple-500/30"
+          : block.isClinic
+          ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+          : block.available && !block.blocked && !block.reserved
+          ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
+          : block.reserved
+          ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+          : block.blocked
+          ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
+          : "bg-gray-100 text-gray-400 cursor-not-allowed",
+        isMultiHour && "flex items-center justify-center border-2 shadow-sm",
+        isMultiHour && block.isClinic && "border-yellow-500/50 bg-gradient-to-br from-yellow-500/20 to-yellow-500/30 hover:from-yellow-500/30 hover:to-yellow-500/40",
+        isMultiHour && block.isMyReservation && "border-purple-500/50 bg-gradient-to-br from-purple-500/20 to-purple-500/30 hover:from-purple-500/30 hover:to-purple-500/40",
+        isMultiHour && block.available && !block.isClinic && !block.isMyReservation && "border-green-500/50 bg-gradient-to-br from-green-500/20 to-green-500/30 hover:from-green-500/30 hover:to-green-500/40"
+      )}
+      style={{
+        height: isMultiHour ? `${duration * (isMobile ? 3 : 3.5)}rem` : undefined,
+        minHeight: isMultiHour ? undefined : isMobile ? "3rem" : "3.5rem",
+        marginBottom: isMultiHour ? "0.5rem" : undefined
+      }}
+      onClick={() => {
+        if (block.isClinic && isMultiHour) {
+          const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
+          if (slot) {
+            handleTimeSlotClick(court, day, block.startHour);
+          }
+        } else {
+          handleTimeSlotClick(court, day, block.startHour);
+        }
+      }}
+      title={
+        block.isMyReservation
+          ? `My Reservation: ${block.startHour}:00 - ${block.endHour}:00`
+          : block.clinic
+          ? `${block.clinic.name}: ${block.clinic.description} ($${block.clinic.price})`
+          : `${block.startHour}:00 - ${block.endHour}:00`
+      }
+    >
+      {isMultiHour ? (
+        <div className="flex flex-col items-center">
+          <span className="font-semibold text-xl sm:text-lg">{block.startHour}:00</span>
+          <span className="text-sm opacity-75">to</span>
+          <span className="font-semibold text-xl sm:text-lg">{block.endHour}:00</span>
+          {block.isClinic && block.clinic && (
+            <span className="text-sm mt-2 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium">
+              {block.clinic.name}
+            </span>
+          )}
+          {block.isMyReservation && (
+            <span className="text-sm mt-2 px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium">
+              My Reservation
+            </span>
+          )}
+        </div>
+      ) : (
+        <span className="text-xl sm:text-lg font-semibold">{block.startHour}:00</span>
+      )}
+
+      {block.isClinic && block.clinic && (
+        <div className="absolute -top-1 -right-1">
+          <div className="w-2 h-2 bg-yellow-500 border border-white"></div>
+        </div>
+      )}
+      {block.isMyReservation && (
+        <div className="absolute -top-1 -left-1">
+          <div className="w-2 h-2 bg-purple-500 border border-white"></div>
+        </div>
+      )}
+    </div>
+  );
+});
 
 const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
@@ -22,27 +153,21 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
-  const [selectedReservation, setSelectedReservation] = useState<{
-    reservation: any;
-    timeSlot: TimeSlot;
-    court: any;
-  } | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null);
   
   // Legend filter states
   const [legendFilters, setLegendFilters] = useState<{
     available: boolean;
-    reserved: boolean;
     clinic: boolean;
     myReservations: boolean;
   }>({
     available: true,
-    reserved: true,
     clinic: true,
     myReservations: true,
   });
 
   const [weekOffset, setWeekOffset] = useState<number>(0);
-  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(courts[0]?.id);
+  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(dataService.getAllCourts()[0]?.id);
   const isMobile = useMediaQuery("(max-width: 768px)");
   
   // Refs for click-outside functionality
@@ -51,16 +176,47 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const dayViewModalRef = useRef<HTMLDivElement>(null);
   const reservationPopupRef = useRef<HTMLDivElement>(null);
 
-  // Mock current user - in a real app this would come from authentication context
-  const currentUserEmail = "john@example.com"; // This would be the logged-in user's email
+  // Get current user from context
+  const { currentUser } = useUser();
+  const currentUserEmail = currentUser?.email || "";
+
+  const activeFilterLabel = useMemo(() => {
+    if (legendFilters.available && legendFilters.clinic && legendFilters.myReservations) return "All";
+    if (legendFilters.available) return "Available";
+    if (legendFilters.clinic) return "Clinic";
+    if (legendFilters.myReservations) return "My Reservations";
+    return "All";
+  }, [legendFilters]);
+
+  const isAllOn = useMemo(() => (
+    legendFilters.available && legendFilters.clinic && legendFilters.myReservations
+  ), [legendFilters]);
 
   // Toggle legend filter
-  const toggleLegendFilter = (filterType: keyof typeof legendFilters) => {
-    setLegendFilters(prev => ({
-      ...prev,
-      [filterType]: !prev[filterType]
-    }));
-  };
+  // Behavior:
+  // - Click on a filter when all are on -> enable exclusive mode for that filter
+  // - Click again on the active exclusive filter -> turn all filters back on (show all)
+  // - Click on a different filter while in exclusive mode -> switch exclusive filter
+  const toggleLegendFilter = useCallback((filterType: keyof typeof legendFilters) => {
+    setLegendFilters((prev) => {
+      const allOn = prev.available && prev.clinic && prev.myReservations;
+      const entries = Object.entries(prev) as Array<[keyof typeof prev, boolean]>;
+      const numOn = entries.reduce((count, [, value]) => count + (value ? 1 : 0), 0);
+      const isExclusive = numOn === 1 && prev[filterType];
+
+      if (isExclusive) {
+        // Turning off the active exclusive filter -> show all
+        return { available: true, clinic: true, myReservations: true };
+      }
+
+      // Otherwise switch to exclusive mode for the selected filter
+      return {
+        available: filterType === 'available',
+        clinic: filterType === 'clinic',
+        myReservations: filterType === 'myReservations',
+      };
+    });
+  }, []);
 
   // Update current time every minute
   useEffect(() => {
@@ -74,7 +230,8 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   // Generate time slots for the current view when dates change
   useEffect(() => {
     const endDate = addDays(currentDate, viewDays - 1);
-    getTimeSlotsForDateRange(currentDate, endDate);
+    // Note: time slots are now generated in the data service initialization
+    // This effect is kept for future dynamic loading if needed
   }, [currentDate, viewDays]);
 
   // Time range to display (8am to 9pm)
@@ -84,13 +241,12 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
 
   // Calculate days to display based on current date
   // Show viewDays starting from the current date, no past days
-  const daysToShow = Array.from({ length: viewDays }, (_, i) => {
-    return addDays(currentDate, i);
-  }).filter(day => {
-    // Filter out any days that are in the past
+  const daysToShow = useMemo(() => {
     const today = startOfDay(new Date());
-    return day >= today;
-  });
+    return Array.from({ length: viewDays }, (_, i) => {
+      return addDays(currentDate, i);
+    }).filter(day => day >= today);
+  }, [currentDate, viewDays]);
 
   // Helper function to calculate week offset for a given date
   const calculateWeekOffset = (targetDate: Date) => {
@@ -106,105 +262,113 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   };
 
   // Navigate through dates - prevent going to past dates and sync week offset
-  const previousDay = () => {
+  const previousDay = useCallback(() => {
     const newDate = subDays(currentDate, 1);
     const today = startOfDay(new Date());
     if (newDate >= today) {
       setCurrentDate(newDate);
-      
+
       // Update week offset to match the new date's week
       const newWeekOffset = calculateWeekOffset(newDate);
       if (newWeekOffset !== weekOffset) {
         setWeekOffset(newWeekOffset);
       }
     }
-  };
-  
-  const nextDay = () => {
+  }, [currentDate, weekOffset]);
+
+  const nextDay = useCallback(() => {
     const newDate = addDays(currentDate, 1);
-    setCurrentDate(newDate);
+    const today = startOfDay(new Date());
+    const maxDate = addDays(today, dataService.getTimeSlotVisibilityDays() - 1);
     
-    // Update week offset to match the new date's week
-    const newWeekOffset = calculateWeekOffset(newDate);
-    if (newWeekOffset !== weekOffset) {
-      setWeekOffset(newWeekOffset);
+    if (newDate <= maxDate) {
+      setCurrentDate(newDate);
+
+      // Update week offset to match the new date's week
+      const newWeekOffset = calculateWeekOffset(newDate);
+      if (newWeekOffset !== weekOffset) {
+        setWeekOffset(newWeekOffset);
+      }
     }
-  };
-  
-  const today = () => {
+  }, [currentDate, weekOffset]);
+
+  const today = useCallback(() => {
     const todayDate = startOfDay(new Date());
     setCurrentDate(todayDate);
-    
+
     // Reset week offset to current week (0)
     setWeekOffset(0);
-  };
+  }, []);
   
   // Handle date selection from day-of-week tabs
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = useCallback((date: Date) => {
     // Only allow selecting current or future dates
     const today = startOfDay(new Date());
     if (date >= today) {
       const selectedDate = startOfDay(date);
       setCurrentDate(selectedDate);
-      
+
       // Update week offset to match the selected date's week (in case of edge cases)
       const newWeekOffset = calculateWeekOffset(selectedDate);
       if (newWeekOffset !== weekOffset) {
         setWeekOffset(newWeekOffset);
       }
     }
-  };
+  }, [weekOffset]);
 
   // Handle date header click to open DayView
-  const handleDateHeaderClick = (date: Date) => {
+  const handleDateHeaderClick = useCallback((date: Date) => {
     setSelectedDateForDayView(date);
-  };
+  }, []);
 
   // Check if a time slot is in the past
-  const isTimeSlotInPast = (day: Date, hour: number) => {
+  const isTimeSlotInPast = useCallback((day: Date, hour: number) => {
     const now = currentTime;
     const slotDate = new Date(day);
     slotDate.setHours(hour, 0, 0, 0);
     return slotDate < now;
-  };
+  }, [currentTime]);
 
-  // Get availability for a specific court, day and hour - now uses centralized function
+  // Get availability for a specific court, day and hour - uses data service
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(formattedDate);
-    
-    const relevantSlots = timeSlotsWithStatus.filter(
-      slot =>
-        slot.courtId === court.id &&
-        parseInt(slot.startTime.split(":")[0]) === hour
+    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+
+    const relevantSlots = timeSlots.filter(
+      slot => parseInt(slot.startTime.split(":")[0]) === hour
     );
 
     if (relevantSlots.length === 0) return { available: false, reserved: false, isClinic: false };
 
-    const slotWithStatus = relevantSlots[0];
-    
+    const slot = relevantSlots[0];
+    const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
+    const clinic = slot.type === 'clinic' && slot.clinicId
+      ? dataService.clinicService.getClinicById(slot.clinicId)
+      : null;
+
     return {
-      available: slotWithStatus.isAvailable,
-      reserved: slotWithStatus.isReserved,
-      isClinic: slotWithStatus.isClinic,
-      slot: slotWithStatus,
+      available: slot.available,
+      reserved: !!reservation,
+      isClinic: slot.type === 'clinic',
+      slot,
+      reservation,
+      clinic,
     };
   };
 
-  const handleTimeSlotClick = (court: Court, day: Date, hour: number) => {
+  const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
+    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+
     const relevantSlots = timeSlots.filter(
-      slot =>
-        slot.courtId === court.id &&
-        slot.date === formattedDate &&
-        parseInt(slot.startTime.split(":")[0]) === hour
+      slot => parseInt(slot.startTime.split(":")[0]) === hour
     );
 
     if (relevantSlots.length > 0) {
       const slot = relevantSlots[0];
       // Check if this is a reservation
-      const reservation = reservations.find(res => res.timeSlotId === slot.id);
-      
+      const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
+
       if (reservation) {
         // Show reservation popup
         setSelectedReservation({
@@ -217,27 +381,25 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         onSelectTimeSlot(slot);
       }
     }
-  };
+  }, [onSelectTimeSlot]);
 
   // Helper function to get the first available time slot for a clinic block
-  const getFirstAvailableSlotForBlock = (court: Court, day: Date, startHour: number, endHour: number) => {
+  const getFirstAvailableSlotForBlock = useCallback((court: Court, day: Date, startHour: number, endHour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    
+    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+
     for (let hour = startHour; hour < endHour; hour++) {
       const relevantSlots = timeSlots.filter(
-        slot =>
-          slot.courtId === court.id &&
-          slot.date === formattedDate &&
-          parseInt(slot.startTime.split(":")[0]) === hour
+        slot => parseInt(slot.startTime.split(":")[0]) === hour
       );
-      
+
       if (relevantSlots.length > 0 && relevantSlots[0].available) {
         return relevantSlots[0];
       }
     }
-    
+
     return null;
-  };
+  }, []);
 
 
 
@@ -272,105 +434,178 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   }, []);
 
   // Handle background click to close modals
-  const handleBackgroundClick = (modalType: string) => {
+  const handleBackgroundClick = useCallback((modalType: string) => {
     if (modalType === 'myReservations') {
       setShowMyReservations(false);
     } else if (modalType === 'reservationPopup') {
       setSelectedReservation(null);
     }
-  };
+  }, []);
 
   return (
     <>
       <Card className="gradient-card overflow-hidden">
         <CardHeader className={cn(
-          "pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
-          isMobile ? "flex flex-row items-start justify-between space-y-0" : "flex flex-row items-center justify-between space-y-0"
+          "px-2 sm:px-3 pt-0 pb-0 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
+          "flex flex-col space-y-0.5"
         )}>
-          {/* Title Section - Left Aligned */}
           <div className={cn(
-            isMobile ? "text-left flex-1" : "flex flex-col space-y-1"
+            isMobile ? "flex flex-row items-start justify-between" : "flex flex-row items-center justify-between"
           )}>
-            <CardTitle className={cn(
-              "font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent",
-              isMobile ? "text-lg leading-tight" : "text-2xl md:text-3xl"
+            {/* Left: Court selector */}
+            <div className="flex items-center justify-start gap-2 sm:gap-3">
+              <Select value={selectedCourt} onValueChange={setSelectedCourt}>
+                <SelectTrigger className="inline-flex items-center justify-center gap-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-10 sm:h-11 px-3 sm:px-4 py-2 rounded-md font-medium transition-all duration-200 text-sm sm:text-base whitespace-nowrap border border-border/60 bg-card shadow-sm w-auto">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <SelectValue placeholder="Select court" />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {dataService.getAllCourts().map((courtOption) => (
+                    <SelectItem key={courtOption.id} value={courtOption.id}>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">{courtOption.name}</span>
+                        <span className="sm:hidden">{courtOption.name.split(' ')[0]}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Center: Filter dropdown */}
+            <div className={cn(
+              isMobile ? "text-center flex-1 mx-2 min-w-0" : "text-center flex-[2] min-w-0"
             )}>
-              Court Scheduler
-            </CardTitle>
-          </div>
-          
-          {/* Date Display - Center Aligned */}
-          <div className={cn(
-            isMobile ? "text-center flex-1 mx-2" : "text-center flex-1"
-          )}>
-            {isMobile ? (
-              <div className="text-lg font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent leading-tight">
-                <div className="flex flex-col space-y-0.5">
-                  <div>{format(currentDate, "EEEE,")}</div>
-                  <div>{format(currentDate, "MMMM d,")}</div>
-                  <div>{format(currentDate, "yyyy")}</div>
-                </div>
+              <div className="flex items-center justify-center gap-3 min-w-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="inline-flex items-center gap-3 h-10 px-3 sm:h-11 sm:px-4 rounded-md shadow-sm"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {isAllOn ? (
+                          <>
+                            <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+                            <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+                            <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                          </>
+                        ) : (
+                          <>
+                            {legendFilters.available && (
+                              <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+                            )}
+                            {legendFilters.clinic && (
+                              <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+                            )}
+                            {legendFilters.myReservations && (
+                              <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <span className="text-sm sm:text-base">Show: {activeFilterLabel}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center">
+                    <DropdownMenuLabel>Filter slots</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setLegendFilters({ available: true, clinic: true, myReservations: true })}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+                        <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+                        <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                        <span className="text-sm">All</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => toggleLegendFilter('available')}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+                        <span className="text-sm">Available only</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => toggleLegendFilter('clinic')}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+                        <span className="text-sm">Clinic only</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => toggleLegendFilter('myReservations')}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                        <span className="text-sm whitespace-nowrap">My Reservations only</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Removed inline label; moved to DayOfWeekTabs topRightLabel */}
               </div>
-            ) : (
-              <div className="text-lg sm:text-xl font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-                {format(currentDate, "EEEE, MMMM d, yyyy")}
-              </div>
-            )}
+            </div>
+            
+            {/* View Toggle Navigation - Right Aligned */}
+            <div className={cn(
+              "bg-muted/50 rounded-lg flex-none shrink-0",
+              isMobile ? "flex flex-row space-x-0.5 p-0.5" : "flex items-center space-x-1 p-1"
+            )}>
+              <Button
+                variant={viewDays === 1 ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewDays(1)}
+                className={cn(
+                  "text-xs",
+                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+                )}
+              >
+                Day
+              </Button>
+              <Button
+                variant={viewDays === 3 ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewDays(3)}
+                className={cn(
+                  "text-xs",
+                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+                )}
+              >
+                Week
+              </Button>
+              <Button
+                variant={viewDays === 0 ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewDays(0)}
+                className={cn(
+                  "text-xs",
+                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+                )}
+              >
+                Calendar
+              </Button>
+            </div>
           </div>
+
           
-          {/* View Toggle Navigation - Right Aligned */}
-          <div className={cn(
-            "bg-muted/50 rounded-lg",
-            isMobile ? "flex flex-row space-x-0.5 p-0.5" : "flex items-center space-x-1 p-1"
-          )}>
-            <Button
-              variant={viewDays === 1 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewDays(1)}
-              className={cn(
-                "text-xs",
-                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-              )}
-            >
-              Day
-            </Button>
-            <Button
-              variant={viewDays === 3 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewDays(3)}
-              className={cn(
-                "text-xs",
-                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-              )}
-            >
-              Week
-            </Button>
-            <Button
-              variant={viewDays === 0 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewDays(0)}
-              className={cn(
-                "text-xs",
-                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-              )}
-            >
-              Calendar
-            </Button>
-          </div>
         </CardHeader>
         
 
         
-        <CardContent className="px-1 md:px-4 pb-2">
+        <CardContent className="p-0 px-1 md:px-4 pb-2">
 
           
-          {/* Day-of-week tabs */}
-          <DayOfWeekTabs 
-            centeredDate={currentDate} 
-            onDateSelect={handleDateSelect}
-            weekOffset={weekOffset}
-            onWeekChange={setWeekOffset}
-          />
+
+          
+          {/* Day-of-week tabs with label above (flush right) */}
+          <div className="relative">
+            <span className="hidden sm:inline absolute left-1/2 -translate-x-1/2 top-0 -translate-y-full z-10 pointer-events-none truncate font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-base sm:text-lg max-w-[50vw]">
+              {`${format(currentDate, "EEEE MMMM d")} ${dataService.getCourtById(selectedCourt || "")?.name ?? ""}`}
+            </span>
+            <DayOfWeekTabs 
+              centeredDate={currentDate} 
+              onDateSelect={handleDateSelect}
+              weekOffset={weekOffset}
+              onWeekChange={setWeekOffset}
+            />
+          </div>
           
 
           
@@ -383,11 +618,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
             <DayView
               selectedDate={currentDate}
               onClose={() => {}} // No close needed for inline view
-              courts={courts}
-              timeSlots={timeSlots}
-              reservations={reservations}
-              clinics={clinics}
-              coaches={coaches}
+              courts={dataService.getAllCourts()}
+              timeSlots={dataService.timeSlotService.getAllTimeSlots()}
+              reservations={dataService.reservationService.getAllReservations()}
+              clinics={dataService.clinicService.getAllClinics()}
+              coaches={dataService.coachService.getAllCoaches()}
               isOpen={true}
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
@@ -396,113 +631,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
           ) : (
             // Schedule View (Week view)
             <div className={cn(isMobile ? "overflow-x-hidden w-full max-w-full" : "overflow-x-auto")}>
-              <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}>
+              <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}> 
                 {/* Court rows with date headers over each column */}
-                {courts.filter(court => court.id === selectedCourt).map((court) => (
-                  <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
-                    {/* Court name header above the columns */}
-                    <div className={cn("bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 border-b border-border/20 rounded-t-lg mb-4", isMobile ? "p-2" : "p-4 sm:p-6")}>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="flex-1 flex justify-start">
-                          <h3 className="text-xl sm:text-2xl font-bold text-foreground text-center sm:text-left">{court.name}</h3>
-                        </div>
-                        
-                        {/* Court Navigation Tabs - Mobile Optimized */}
-                        <div className="flex-1 flex justify-center">
-                          <div className={cn("w-full max-w-2xl", isMobile ? "overflow-x-hidden" : "overflow-x-auto scrollbar-hide")}>
-                            <div className={cn("flex gap-2 sm:gap-4 justify-center", isMobile ? "px-2" : "min-w-max px-4")}>
-                              {courts.map(courtOption => (
-                                <Button
-                                  key={courtOption.id}
-                                  variant={selectedCourt === courtOption.id ? "default" : "outline"}
-                                  onClick={() => setSelectedCourt(courtOption.id)}
-                                  className={`h-12 px-4 sm:px-6 py-3 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-lg whitespace-nowrap ${
-                                    selectedCourt === courtOption.id 
-                                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
-                                      : 'hover:bg-primary/10 hover:border-primary/30'
-                                  }`}
-                                >
-                                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                  <span className="hidden sm:inline">{courtOption.name}</span>
-                                  <span className="sm:hidden">{courtOption.name.split(' ')[0]}</span>
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Day navigation controls for each court */}
-                        <div className="flex-1 flex justify-end">
-                          <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={previousDay}
-                              disabled={subDays(currentDate, 1) < startOfDay(new Date())}
-                              className="h-10 px-3"
-                            >
-                              <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={today} className="h-10 px-4 text-sm">
-                              Today
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={nextDay} className="h-10 px-3">
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Legend - Mobile Optimized */}
-                      <div className="mt-4 px-2 sm:px-6">
-                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-3 sm:gap-6 text-sm sm:text-base">
-                          <button
-                            onClick={() => toggleLegendFilter('available')}
-                            className={cn(
-                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
-                              legendFilters.available ? "opacity-100" : "opacity-40 hover:opacity-60"
-                            )}
-                            title="Click to toggle Available slots visibility"
-                          >
-                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-green-500/20 border border-green-500/30"></div>
-                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Available</span>
-                          </button>
-                          <button
-                            onClick={() => toggleLegendFilter('reserved')}
-                            className={cn(
-                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
-                              legendFilters.reserved ? "opacity-100" : "opacity-40 hover:opacity-60"
-                            )}
-                            title="Click to toggle Reserved slots visibility"
-                          >
-                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-secondary/20 border border-secondary/30"></div>
-                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Reserved</span>
-                          </button>
-                          <button
-                            onClick={() => toggleLegendFilter('clinic')}
-                            className={cn(
-                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
-                              legendFilters.clinic ? "opacity-100" : "opacity-40 hover:opacity-60"
-                            )}
-                            title="Click to toggle Clinic slots visibility"
-                          >
-                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-yellow-500/20 border border-yellow-500/30"></div>
-                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Clinic</span>
-                          </button>
-                          <button
-                            onClick={() => toggleLegendFilter('myReservations')}
-                            className={cn(
-                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
-                              legendFilters.myReservations ? "opacity-100" : "opacity-40 hover:opacity-60"
-                            )}
-                            title="Click to toggle My Reservations visibility"
-                          >
-                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-purple-500/20 border border-purple-500/30"></div>
-                            <span className="text-muted-foreground font-medium text-sm sm:text-base">My Reservations</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                {dataService.getAllCourts().filter(court => court.id === selectedCourt).map((court) => (
+                  <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}> 
                     
                     {/* Time slots grid */}
                     <div
@@ -519,15 +651,39 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                       }}
                     >
                       {/* Date headers over each column */}
-                      {daysToShow.map((day) => (
+                      {daysToShow.map((day, dayIndex) => (
                         <div key={`${court.id}-${day.toString()}`} className={cn("border border-border/30 rounded-lg overflow-hidden", isMobile && "min-w-0")}>
                           {/* Date header */}
                           <div
-                            className="text-center font-medium text-foreground cursor-pointer hover:bg-muted/50 transition-colors duration-200 p-3 mb-3 bg-muted/20 text-base sm:text-lg"
+                            className="relative flex items-center justify-center text-center cursor-pointer transition-colors duration-200 p-3 mb-3 rounded-xl bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-0 shadow-lg hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10"
                             onClick={() => handleDateHeaderClick(day)}
                             title="Click to view full day schedule"
                           >
-                            {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                            {dayIndex === 0 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => { e.stopPropagation(); previousDay(); }}
+                                disabled={subDays(currentDate, 1) < startOfDay(new Date())}
+                                className="absolute left-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
+                              >
+                                <ChevronLeft className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <div className="font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-base sm:text-lg px-6">
+                              {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                            </div>
+                            {dayIndex === daysToShow.length - 1 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => { e.stopPropagation(); nextDay(); }}
+                                disabled={addDays(currentDate, 1) > addDays(startOfDay(new Date()), dataService.getTimeSlotVisibilityDays() - 1)}
+                                className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
+                              >
+                                <ChevronRight className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                           
                           {/* Time slots */}
@@ -561,10 +717,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               for (let i = 0; i < hours.length; i++) {
                                 const hour = hours[i];
                                 const { available, reserved, isClinic, slot } = getSlotStatus(court, day, hour);
-                                const clinic = slot?.clinicId ? getClinicById(slot.clinicId) : null;
+                                const clinic = slot?.clinicId ? dataService.clinicService.getClinicById(slot.clinicId) : null;
                                 
                                 // Check if this is the current user's reservation
-                                const reservation = slot ? reservations.find(res => res.timeSlotId === slot.id) : null;
+                                const reservation = slot ? dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id) : null;
                                 const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
                                 
                                 if (isClinic && clinic) {
@@ -625,96 +781,27 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                   if (block.isClinic) {
                                     return legendFilters.clinic;
                                   }
-                                  
+
                                   // Non-clinic blocks use other filters
                                   if (block.available && !block.reserved && !block.blocked && !legendFilters.available) return false;
-                                  if (block.reserved && !block.isMyReservation && !legendFilters.reserved) return false;
+                                  // Removed reserved legend filter; reserved blocks are shown unless filtered by My Reservations
                                   if (block.isMyReservation && !legendFilters.myReservations) return false;
                                   return true;
                                 })
-                                .map((block, blockIndex) => {
-                                const isPast = isTimeSlotInPast(day, block.startHour);
-                                const duration = block.endHour - block.startHour;
-                                const isMultiHour = duration > 1;
-                                
-                                return (
-                                  <div
+                                .map((block, blockIndex) => (
+                                  <TimeSlotBlock
                                     key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
-                                    className={cn(
-                                      "text-sm sm:text-base text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative",
-                                      isMobile ? "p-2" : "p-3",
-                                      block.isMyReservation 
-                                        ? "bg-purple-500/20 text-purple-800 border border-purple-500/30 hover:bg-purple-500/30"
-                                        : block.isClinic
-                                        ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
-                                        : block.available && !block.blocked && !block.reserved
-                                        ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
-                                        : block.reserved
-                                        ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
-                                        : block.blocked
-                                        ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
-                                        : "bg-gray-100 text-gray-400 cursor-not-allowed",
-                                      isMultiHour && "flex items-center justify-center border-2 shadow-sm",
-                                      isMultiHour && block.isClinic && "border-yellow-500/50 bg-gradient-to-br from-yellow-500/20 to-yellow-500/30 hover:from-yellow-500/30 hover:to-yellow-500/40",
-                                      isMultiHour && block.isMyReservation && "border-purple-500/50 bg-gradient-to-br from-purple-500/20 to-purple-500/30 hover:from-purple-500/30 hover:to-purple-500/40",
-                                      isMultiHour && block.available && !block.isClinic && !block.isMyReservation && "border-green-500/50 bg-gradient-to-br from-green-500/20 to-green-500/30 hover:from-green-500/30 hover:to-green-500/40"
-                                    )}
-                                    style={{
-                                      height: isMultiHour ? `${duration * (isMobile ? 3 : 3.5)}rem` : undefined,
-                                      minHeight: isMultiHour ? undefined : isMobile ? "3rem" : "3.5rem",
-                                      marginBottom: isMultiHour ? "0.5rem" : undefined
-                                    }}
-                                    onClick={() => {
-                                      if (block.isClinic && isMultiHour) {
-                                        const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
-                                        if (slot) {
-                                          onSelectTimeSlot(slot);
-                                        }
-                                      } else {
-                                        handleTimeSlotClick(court, day, block.startHour);
-                                      }
-                                    }}
-                                    title={
-                                      block.isMyReservation
-                                        ? `My Reservation: ${block.startHour}:00 - ${block.endHour}:00`
-                                        : block.clinic 
-                                        ? `${block.clinic.name}: ${block.clinic.description} ($${block.clinic.price})`
-                                        : `${block.startHour}:00 - ${block.endHour}:00`
-                                    }
-                                  >
-                                    {isMultiHour ? (
-                                      <div className="flex flex-col items-center">
-                                        <span className="font-medium text-base">{block.startHour}:00</span>
-                                        <span className="text-sm opacity-75">to</span>
-                                        <span className="font-medium text-base">{block.endHour}:00</span>
-                                        {block.isClinic && (
-                                          <span className="text-sm mt-2 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium">
-                                            Clinic
-                                          </span>
-                                        )}
-                                        {block.isMyReservation && (
-                                          <span className="text-sm mt-2 px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium">
-                                            My Reservation
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-base font-medium">{block.startHour}:00</span>
-                                    )}
-                                    
-                                    {block.isClinic && block.clinic && (
-                                      <div className="absolute -top-1 -right-1">
-                                        <div className="w-2 h-2 bg-yellow-500 rounded-full border border-white"></div>
-                                      </div>
-                                    )}
-                                    {block.isMyReservation && (
-                                      <div className="absolute -top-1 -left-1">
-                                        <div className="w-2 h-2 bg-purple-500 rounded-full border border-white"></div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              });
+                                    court={court}
+                                    day={day}
+                                    block={block}
+                                    isTimeSlotInPast={isTimeSlotInPast}
+                                    handleTimeSlotClick={handleTimeSlotClick}
+                                    getFirstAvailableSlotForBlock={getFirstAvailableSlotForBlock}
+                                    legendFilters={legendFilters}
+                                    currentUserEmail={currentUserEmail}
+                                    isMobile={isMobile}
+                                  />
+                                ));
                             })()}
                           </div>
                         </div>
@@ -733,11 +820,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         <DayView
           selectedDate={selectedDateForDayView}
           onClose={() => setSelectedDateForDayView(null)}
-          courts={courts}
-          timeSlots={timeSlots}
-          reservations={reservations}
-          clinics={clinics}
-          coaches={coaches}
+          courts={dataService.getAllCourts()}
+          timeSlots={dataService.timeSlotService.getAllTimeSlots()}
+          reservations={dataService.reservationService.getAllReservations()}
+          clinics={dataService.clinicService.getAllClinics()}
+          coaches={dataService.coachService.getAllCoaches()}
           isOpen={selectedDateForDayView !== null}
         />
       )}
@@ -767,11 +854,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                </div>
                
                <div className="space-y-4">
-                 {reservations
+                 {dataService.reservationService.getAllReservations()
                    .filter(res => res.playerEmail === currentUserEmail)
                    .map(reservation => {
-                     const timeSlot = timeSlots.find(slot => slot.id === reservation.timeSlotId);
-                     const court = courts.find(c => c.id === reservation.courtId);
+                     const timeSlot = dataService.timeSlotService.getTimeSlotById(reservation.timeSlotId);
+                     const court = dataService.getCourtById(reservation.courtId);
                      const date = timeSlot ? new Date(timeSlot.date) : new Date();
                      
                      return (
@@ -784,9 +871,14 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                              <p className="text-purple-600">
                                {timeSlot?.startTime} - {timeSlot?.endTime}
                              </p>
-                             <p className="text-sm text-purple-500">
-                               {reservation.players} player{reservation.players !== 1 ? 's' : ''}
-                             </p>
+                                                         <p className="text-sm text-purple-500">
+                              {reservation.players} player{reservation.players !== 1 ? 's' : ''}
+                              {reservation.participants && reservation.participants.length > 1 && (
+                                <span className="ml-2 text-xs">
+                                  (You + {reservation.participants.length - 1} friend{reservation.participants.length - 1 !== 1 ? 's' : ''})
+                                </span>
+                              )}
+                            </p>
                            </div>
                            <div className="w-4 h-4 bg-purple-500/20 border border-purple-500/30 rounded"></div>
                          </div>
@@ -794,7 +886,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                      );
                    })}
                  
-                 {reservations.filter(res => res.playerEmail === currentUserEmail).length === 0 && (
+                 {dataService.reservationService.getAllReservations().filter(res => res.playerEmail === currentUserEmail).length === 0 && (
                    <div className="text-center py-8 text-gray-500">
                      <p>You don't have any reservations yet.</p>
                    </div>
@@ -879,7 +971,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                        <div className="border-t border-blue-200 pt-3">
                          <span className="text-blue-600 font-medium">Comments:</span>
                          <div className="mt-2 space-y-2">
-                           {selectedReservation.reservation.comments.map((comment: any, index: number) => (
+                           {selectedReservation.reservation.comments.map((comment: Comment, index: number) => (
                              <div key={comment.id || index} className="bg-blue-100 rounded p-2">
                                <p className="text-blue-800 text-sm">{comment.text}</p>
                                <p className="text-blue-600 text-xs mt-1">

@@ -1,90 +1,97 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User } from "@/lib/types";
+import BaseForm from "./BaseForm";
+import FormField from "./FormField";
+import { CreateUser } from "@/lib/types";
 
 interface AddUserFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (user: Omit<User, 'id' | 'createdAt'>) => void;
+  onSave: (user: CreateUser) => void;
 }
 
 export default function AddUserForm({ isOpen, onClose, onSave }: AddUserFormProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CreateUser>({
     name: '',
     email: '',
     phone: '',
-    membershipType: 'basic' as 'basic' | 'premium' | 'admin',
+    membershipType: 'basic',
+    duprRating: undefined,
+    comments: []
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
-    setFormData({ name: '', email: '', phone: '', membershipType: 'basic' });
+    setFormData({ name: '', email: '', phone: '', membershipType: 'basic', duprRating: undefined, comments: [] });
     onClose();
   };
 
+  const updateField = (field: keyof CreateUser, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const membershipOptions = [
+    { value: 'basic', label: 'Basic' },
+    { value: 'premium', label: 'Premium' },
+    { value: 'admin', label: 'Admin' }
+  ];
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl">Add New User</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="phone">Phone</Label>
-            <Input
-              id="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="membership">Membership Type</Label>
-            <Select value={formData.membershipType} onValueChange={(value: 'basic' | 'premium' | 'admin') => setFormData(prev => ({ ...prev, membershipType: value }))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="basic">Basic</SelectItem>
-                <SelectItem value="premium">Premium</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="text-sm sm:text-base">
-              Cancel
-            </Button>
-            <Button type="submit" className="text-sm sm:text-base">
-              Add User
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <BaseForm
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add New User"
+      onSubmit={handleSubmit}
+      submitText="Add User"
+    >
+      <FormField
+        id="name"
+        label="Name"
+        type="text"
+        value={formData.name}
+        onChange={(value) => updateField('name', value)}
+        required
+      />
+      
+      <FormField
+        id="email"
+        label="Email"
+        type="email"
+        value={formData.email}
+        onChange={(value) => updateField('email', value)}
+        required
+      />
+      
+      <FormField
+        id="phone"
+        label="Phone"
+        type="tel"
+        value={formData.phone}
+        onChange={(value) => updateField('phone', value)}
+        required
+      />
+      
+      <FormField
+        id="membershipType"
+        label="Membership Type"
+        type="select"
+        value={formData.membershipType}
+        onChange={(value) => updateField('membershipType', value)}
+        options={membershipOptions}
+        required
+      />
+      
+      <FormField
+        id="duprRating"
+        label="DUPR Rating"
+        type="number"
+        value={formData.duprRating?.toString() || ''}
+        onChange={(value) => updateField('duprRating', value ? parseFloat(value) : undefined)}
+        placeholder="1.0 - 8.0"
+        min="1.0"
+        max="8.0"
+        step="0.1"
+      />
+    </BaseForm>
   );
 }

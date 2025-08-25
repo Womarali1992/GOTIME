@@ -2,13 +2,18 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu } from "lucide-react";
+import { Menu, User } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import UserSettings from "@/components/UserSettings";
+import { useUser } from "@/contexts/UserContext";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
+  const { currentUser, isAuthenticated, logout } = useUser();
 
   const navigation = [
     { name: "Book a Court", href: "/", current: true },
@@ -42,9 +47,40 @@ const Header = () => {
 
         {/* Right side */}
         <div className="ml-auto flex items-center space-x-2 sm:space-x-4">
-          <Button className="paper-button text-sm px-3 py-2 sm:px-4 sm:py-2">
-            Sign In
-          </Button>
+          {/* User Settings */}
+          <UserSettings currentUserEmail={currentUser?.email} />
+          
+          {isAuthenticated && currentUser ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="text-sm px-3 py-2 sm:px-4 sm:py-2 flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline">{currentUser.name}</span>
+                  <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                    {currentUser.membershipType}
+                  </Badge>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled>
+                  <div className="flex flex-col space-y-1">
+                    <span className="font-medium">{currentUser.name}</span>
+                    <span className="text-xs text-muted-foreground">{currentUser.email}</span>
+                    <Badge variant="secondary" className="text-xs w-fit">
+                      {currentUser.membershipType}
+                    </Badge>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={logout} className="text-red-600">
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button className="paper-button text-sm px-3 py-2 sm:px-4 sm:py-2">
+              Sign In
+            </Button>
+          )}
 
           {/* Mobile menu button */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -70,6 +106,9 @@ const Header = () => {
                     {item.name}
                   </Link>
                 ))}
+                <div className="px-4 py-3">
+                  <UserSettings />
+                </div>
               </nav>
             </SheetContent>
           </Sheet>

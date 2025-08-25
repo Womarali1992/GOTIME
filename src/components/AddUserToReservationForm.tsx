@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Clock, User, GraduationCap } from "lucide-react";
+import { Clock, User, GraduationCap, UserCheck } from "lucide-react";
 import { TimeSlot, User as UserType, Clinic, Court } from "@/lib/types";
+import { useUser } from "@/contexts/UserContext";
 
 interface AddUserToReservationFormProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ const AddUserToReservationForm = ({
   courts,
   preSelectedTimeSlot,
 }: AddUserToReservationFormProps) => {
+  const { currentUser, isAuthenticated } = useUser();
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(preSelectedTimeSlot || "");
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [customPlayerName, setCustomPlayerName] = useState("");
@@ -44,6 +46,7 @@ const AddUserToReservationForm = ({
   const [customPlayerPhone, setCustomPlayerPhone] = useState("");
   const [players, setPlayers] = useState(1);
   const [useCustomPlayer, setUseCustomPlayer] = useState(false);
+  const [useCurrentUser, setUseCurrentUser] = useState(true);
 
   const selectedSlot = timeSlots.find(slot => slot.id === selectedTimeSlot);
   const selectedUserData = users.find(user => user.id === selectedUser);
@@ -57,6 +60,14 @@ const AddUserToReservationForm = ({
     }
   }, [preSelectedTimeSlot]);
 
+  // Auto-select current user when authenticated and useCurrentUser is true
+  useEffect(() => {
+    if (isAuthenticated && currentUser && useCurrentUser) {
+      setSelectedUser(currentUser.id);
+      setUseCustomPlayer(false);
+    }
+  }, [currentUser, isAuthenticated, useCurrentUser]);
+
   const availableTimeSlots = timeSlots.filter(slot => 
     slot.available || slot.type === 'clinic'
   );
@@ -66,12 +77,32 @@ const AddUserToReservationForm = ({
     
     if (!selectedTimeSlot || !selectedSlot) return;
 
+    // Determine which user data to use
+    let playerData;
+    if (useCustomPlayer) {
+      playerData = {
+        playerName: customPlayerName,
+        playerEmail: customPlayerEmail,
+        playerPhone: customPlayerPhone,
+      };
+    } else if (useCurrentUser && currentUser) {
+      playerData = {
+        playerName: currentUser.name,
+        playerEmail: currentUser.email,
+        playerPhone: currentUser.phone,
+      };
+    } else {
+      playerData = {
+        playerName: selectedUserData?.name || "",
+        playerEmail: selectedUserData?.email || "",
+        playerPhone: selectedUserData?.phone || "",
+      };
+    }
+
     const reservationData = {
       timeSlotId: selectedTimeSlot,
       courtId: selectedSlot.courtId,
-      playerName: useCustomPlayer ? customPlayerName : selectedUserData?.name || "",
-      playerEmail: useCustomPlayer ? customPlayerEmail : selectedUserData?.email || "",
-      playerPhone: useCustomPlayer ? customPlayerPhone : selectedUserData?.phone || "",
+      ...playerData,
       players,
     };
 
@@ -88,6 +119,7 @@ const AddUserToReservationForm = ({
     setCustomPlayerPhone("");
     setPlayers(1);
     setUseCustomPlayer(false);
+    setUseCurrentUser(true);
   };
 
   const handleClose = () => {
@@ -140,9 +172,44 @@ const AddUserToReservationForm = ({
             </Select>
           </div>
 
+          {/* Current User Section */}
+          {isAuthenticated && currentUser && (
+            <div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <h3 className="font-medium text-sm">Book for Yourself</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {currentUser.membershipType}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUseCurrentUser(!useCurrentUser)}
+                  className="text-xs"
+                >
+                  {useCurrentUser ? "Book for Others" : "Book for Me"}
+                </Button>
+              </div>
+              {useCurrentUser && (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>✓ Booking for: <span className="font-medium">{currentUser.name}</span></p>
+                  <p>Email: {currentUser.email}</p>
+                  <p>Phone: {currentUser.phone}</p>
+                  {currentUser.duprRating && (
+                    <p>DUPR Rating: {currentUser.duprRating}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* User Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm">Select User</Label>
+          {(!useCurrentUser || !isAuthenticated || !currentUser) && (
+            <div className="space-y-2">
+              <Label className="text-sm">Select User</Label>
             <div className="space-y-2">
               <Select value={selectedUser} onValueChange={setSelectedUser}>
                 <SelectTrigger className="text-sm">
@@ -172,7 +239,8 @@ const AddUserToReservationForm = ({
                 <Label htmlFor="useCustomPlayer" className="text-sm">Add custom player instead</Label>
               </div>
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Custom Player Fields */}
           {useCustomPlayer && (
@@ -239,7 +307,9 @@ const AddUserToReservationForm = ({
               type="submit" 
               disabled={
                 !selectedTimeSlot || 
-                (!useCustomPlayer && !selectedUser) ||
+                (
+                  !useCurrentUser && !useCustomPlayer && !selectedUser
+                ) ||
                 (useCustomPlayer && (!customPlayerName || !customPlayerEmail || !customPlayerPhone))
               }
               className="w-full sm:w-auto text-sm"

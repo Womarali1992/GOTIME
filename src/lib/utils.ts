@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { ReservationSettings, DaySettings, TimeSlot } from "./types"
-import { getTimeSlotReservationStatus } from "./data"
+import { dataService } from "./services/data-service"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -85,39 +85,35 @@ export function validateDaySettings(daySettings: DaySettings[]): string[] {
   return errors;
 }
 
-// Standardized timeslot status determination - now uses centralized function
+// Standardized timeslot status determination
 export function getTimeSlotStatus(slot: TimeSlot) {
-  const status = getTimeSlotReservationStatus(slot.id);
-  if (!status) {
-    return {
-      available: slot.available && !slot.blocked,
-      reserved: !slot.available && !slot.blocked && slot.type !== 'clinic',
-      blocked: slot.blocked,
-      isClinic: slot.type === 'clinic',
-      slot: slot,
-    };
-  }
+  const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
+  const clinic = slot.type === 'clinic' && slot.clinicId 
+    ? dataService.clinicService.getClinicById(slot.clinicId) 
+    : null;
+  
+  const isBlocked = slot.blocked;
+  const isClinic = slot.type === 'clinic' && clinic !== null;
+  const isReserved = !slot.available && !isBlocked && !isClinic && reservation !== null;
+  const isAvailable = slot.available && !isBlocked;
   
   return {
-    available: status.isAvailable,
-    reserved: status.isReserved,
-    blocked: status.isBlocked,
-    isClinic: status.isClinic,
+    available: isAvailable,
+    reserved: isReserved,
+    blocked: isBlocked,
+    isClinic: isClinic,
     slot: slot,
   };
 }
 
 // Get status text for display - now uses centralized function
 export function getTimeSlotStatusText(slot: TimeSlot): string {
-  const status = getTimeSlotReservationStatus(slot.id);
-  if (!status) {
-    if (slot.blocked) return "Blocked";
-    if (slot.type === 'clinic') return "Clinic";
-    if (!slot.available) return "Reserved";
-    return "Available";
-  }
+  const status = getTimeSlotStatus(slot);
   
-  return status.status.charAt(0).toUpperCase() + status.status.slice(1);
+  if (status.blocked) return "Blocked";
+  if (status.isClinic) return "Clinic";
+  if (status.reserved) return "Reserved";
+  return "Available";
 }
 
 // Get CSS classes for timeslot styling

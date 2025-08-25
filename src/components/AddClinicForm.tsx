@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { coaches, courts } from "@/lib/data";
+import { dataService } from "@/lib/services/data-service";
 import { Clinic } from "@/lib/types";
 
 interface AddClinicFormProps {
@@ -83,7 +83,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
                 <SelectValue placeholder="Select a coach" />
               </SelectTrigger>
               <SelectContent>
-                {coaches.map((coach) => (
+                {dataService.coachService.getAllCoaches().map((coach) => (
                   <SelectItem key={coach.id} value={coach.id}>
                     {coach.name}
                   </SelectItem>
@@ -98,7 +98,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
                 <SelectValue placeholder="Select a court" />
               </SelectTrigger>
               <SelectContent>
-                {courts.map((court) => (
+                {dataService.getAllCourts().map((court) => (
                   <SelectItem key={court.id} value={court.id}>
                     {court.name} - {court.location}
                   </SelectItem>

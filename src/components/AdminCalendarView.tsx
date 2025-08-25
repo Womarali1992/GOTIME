@@ -1,24 +1,32 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar as CalendarIcon, LayoutList, MapPin, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
-import { timeSlots, courts, reservations, getTimeSlotsWithStatusForDate } from "@/lib/data";
+import { dataService } from "@/lib/services/data-service";
 
 const AdminCalendarView = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [currentDateSlots, setCurrentDateSlots] = useState<any[]>([]);
+
+  // Generate time slots for the selected date when it changes
+  useEffect(() => {
+    const formattedDate = format(selectedDate, "yyyy-MM-dd");
+    const slots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate);
+    setCurrentDateSlots(slots);
+  }, [selectedDate]);
 
   // Get all slots for the selected date
-  const slotsForDate = timeSlots.filter(
-    (slot) => slot.date === format(selectedDate, "yyyy-MM-dd")
-  );
-  
+  const slotsForDate = currentDateSlots.length > 0
+    ? currentDateSlots
+    : dataService.timeSlotService.getTimeSlotsForDate(format(selectedDate, "yyyy-MM-dd"));
+
   // Get time slots with status for better reservation handling
-  const slotsWithStatus = getTimeSlotsWithStatusForDate(format(selectedDate, "yyyy-MM-dd"));
+  const slotsWithStatus = dataService.timeSlotService.getTimeSlotsForDate(format(selectedDate, "yyyy-MM-dd"));
 
   // Check if a slot is reserved using centralized function
   const isSlotReserved = (slotId: string) => {
@@ -56,13 +64,13 @@ const AdminCalendarView = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Section */}
+        {/* Unified Header */}
         <div className="text-center">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent mb-2">
-            Admin Calendar
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+            Admin Calendar — {format(selectedDate, "EEEE, MMMM d, yyyy")}
           </h1>
-          <p className="text-muted-foreground text-lg">
-            Manage court schedules and reservations
+          <p className="text-muted-foreground text-sm sm:text-base mt-2">
+            Manage court schedules and reservations · All times in local timezone
           </p>
         </div>
 
@@ -143,23 +151,18 @@ const AdminCalendarView = () => {
           <Card className="bg-card/80 backdrop-blur-sm border-0 shadow-xl">
             <CardHeader className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b border-border/20">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold text-foreground">
-                    {format(selectedDate, "EEEE, MMMM d, yyyy")}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Court schedules and availability
-                  </p>
-                </div>
+                <h3 className="text-2xl font-bold text-foreground">
+                  Admin Calendar — {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                </h3>
                 <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>All times in local timezone</span>
+                  <span>Local time</span>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-8">
-                {courts.map((court) => {
+                {dataService.getAllCourts().map((court) => {
                   const courtSlots = slotsForDate.filter(
                     (slot) => slot.courtId === court.id
                   );
@@ -212,28 +215,19 @@ const AdminCalendarView = () => {
               {/* Legend */}
               <Card className="mt-8 bg-muted/20 border-0">
                 <CardContent className="p-6">
-                  <h4 className="text-lg font-semibold text-center mb-4">Status Legend</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <div className="text-xl">🎾</div>
-                      <div>
-                        <div className="font-medium text-green-800">Available</div>
-                        <div className="text-xs text-green-600">Ready for booking</div>
-                      </div>
+                  <h4 className="text-lg font-semibold text-center mb-4">Legend</h4>
+                  <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+                      <span>Available</span>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="text-xl">✅</div>
-                      <div>
-                        <div className="font-medium text-blue-800">Reserved</div>
-                        <div className="text-xs text-blue-600">Already booked</div>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-yellow-500/30 border border-yellow-500/50"></div>
+                      <span>Clinic</span>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="text-xl">🚫</div>
-                      <div>
-                        <div className="font-medium text-gray-800">Blocked</div>
-                        <div className="text-xs text-gray-600">Not available</div>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-gray-500/30 border border-gray-500/50"></div>
+                      <span>Blocked</span>
                     </div>
                   </div>
                 </CardContent>
