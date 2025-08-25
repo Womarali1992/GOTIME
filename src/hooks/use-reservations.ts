@@ -29,11 +29,15 @@ export const useReservations = () => {
 
   // Function to get time slots with status for a specific date
   const getTimeSlotsForDate = useCallback((date: string, courtId?: string) => {
+    // Ensure consistency before returning data
+    ensureReservationConsistency();
     return getTimeSlotsWithStatusForDate(date, courtId);
   }, []);
 
   // Function to get reservations for a specific date
-  const getReservationsForDate = useCallback((date: string) => {
+  const getReservationsForDateHook = useCallback((date: string) => {
+    // Ensure consistency before returning data
+    ensureReservationConsistency();
     return getReservationsForDate(date);
   }, []);
 
@@ -70,7 +74,7 @@ export const useReservations = () => {
     ...reservationData,
     refreshData,
     getTimeSlotsForDate,
-    getReservationsForDate,
+    getReservationsForDate: getReservationsForDateHook,
     getAllReservations,
     getAllTimeSlots,
     getAllClinics

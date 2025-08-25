@@ -26,22 +26,31 @@ const AdminCalendarView = () => {
     return slotWithStatus ? slotWithStatus.isReserved : false;
   };
 
-  const getSlotColor = (slotId: string, available: boolean) => {
-    if (!available) return "bg-gradient-to-br from-gray-50 to-slate-50 border-gray-300 text-gray-600"; // Blocked
-    if (isSlotReserved(slotId)) return "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300 text-blue-700"; // Reserved
+  const getSlotColor = (slotId: string) => {
+    const slotWithStatus = slotsWithStatus.find(slot => slot.id === slotId);
+    if (!slotWithStatus) return "bg-gradient-to-br from-gray-50 to-slate-50 border-gray-300 text-gray-600";
+    
+    if (slotWithStatus.isBlocked) return "bg-gradient-to-br from-gray-50 to-slate-50 border-gray-300 text-gray-600"; // Blocked
+    if (slotWithStatus.isClinic) return "bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-300 text-yellow-700"; // Clinic
+    if (slotWithStatus.isReserved) return "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300 text-blue-700"; // Reserved
     return "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 text-green-800"; // Available
   };
 
-  const getSlotIcon = (slotId: string, available: boolean) => {
-    if (!available) return "🚫";
-    if (isSlotReserved(slotId)) return "✅";
+  const getSlotIcon = (slotId: string) => {
+    const slotWithStatus = slotsWithStatus.find(slot => slot.id === slotId);
+    if (!slotWithStatus) return "🚫";
+    
+    if (slotWithStatus.isBlocked) return "🚫";
+    if (slotWithStatus.isClinic) return "🏆";
+    if (slotWithStatus.isReserved) return "✅";
     return "🎾";
   };
 
-  const getSlotStatus = (slotId: string, available: boolean) => {
-    if (!available) return "Blocked";
-    if (isSlotReserved(slotId)) return "Reserved";
-    return "Available";
+  const getSlotStatus = (slotId: string) => {
+    const slotWithStatus = slotsWithStatus.find(slot => slot.id === slotId);
+    if (!slotWithStatus) return "Unknown";
+    
+    return slotWithStatus.status.charAt(0).toUpperCase() + slotWithStatus.status.slice(1);
   };
 
   return (
@@ -182,16 +191,15 @@ const AdminCalendarView = () => {
                             key={slot.id}
                             variant="outline"
                             className={`h-16 sm:h-20 flex flex-col items-center justify-center ${getSlotColor(
-                              slot.id,
-                              slot.available
+                              slot.id
                             )} border-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg`}
                           >
-                            <div className="text-base sm:text-lg mb-1">{getSlotIcon(slot.id, slot.available)}</div>
+                            <div className="text-base sm:text-lg mb-1">{getSlotIcon(slot.id)}</div>
                             <span className="text-xs font-semibold">
                               {slot.startTime}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {getSlotStatus(slot.id, slot.available)}
+                              {getSlotStatus(slot.id)}
                             </span>
                           </Button>
                         ))}

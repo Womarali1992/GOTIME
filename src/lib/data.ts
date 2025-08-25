@@ -451,10 +451,18 @@ export const mockCreateReservation = (
 
 // Block/Unblock time slot functions
 export const blockTimeSlot = (timeSlotId: string): boolean => {
+  // Validate blocking operation
+  const validation = validateTimeSlotBlocking(timeSlotId);
+  if (!validation.isValid) {
+    console.error(`Cannot block time slot: ${validation.error}`);
+    return false;
+  }
+  
   const slotIndex = timeSlots.findIndex(slot => slot.id === timeSlotId);
   if (slotIndex !== -1) {
     timeSlots[slotIndex].blocked = true;
     timeSlots[slotIndex].available = false;
+    ensureReservationConsistency();
     return true;
   }
   return false;
@@ -464,7 +472,12 @@ export const unblockTimeSlot = (timeSlotId: string): boolean => {
   const slotIndex = timeSlots.findIndex(slot => slot.id === timeSlotId);
   if (slotIndex !== -1) {
     timeSlots[slotIndex].blocked = false;
-    timeSlots[slotIndex].available = true;
+    // Only set available to true if there's no reservation
+    const hasReservation = reservations.find(res => res.timeSlotId === timeSlotId);
+    if (!hasReservation) {
+      timeSlots[slotIndex].available = true;
+    }
+    ensureReservationConsistency();
     return true;
   }
   return false;
@@ -715,22 +728,13 @@ export const addUserToReservation = (
   playerPhone: string,
   players: number
 ): Reservation => {
-  // Find the time slot
-  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
+  // Validate reservation creation
+  const validation = validateReservationCreation(timeSlotId);
+  if (!validation.isValid) {
+    throw new Error(validation.error);
+  }
   
-  if (!timeSlot) {
-    throw new Error('Time slot not found');
-  }
-
-  // Check if the time slot is blocked
-  if (timeSlot.blocked) {
-    throw new Error('Cannot book a blocked time slot');
-  }
-
-  // Check if the time slot is available or is a clinic
-  if (!timeSlot.available && timeSlot.type !== 'clinic') {
-    throw new Error('Time slot is not available for reservation');
-  }
+  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId)!; // We know it exists from validation
 
   // Mark the time slot as unavailable (unless it's a clinic)
   if (timeSlot.type !== 'clinic') {
@@ -1060,9 +1064,10 @@ export const fixDataInconsistencies = () => {
   const validReservations = reservations.filter(res => validTimeSlotIds.has(res.timeSlotId));
   
   if (validReservations.length !== reservations.length) {
+    const removedCount = reservations.length - validReservations.length;
     reservations.length = 0;
     reservations.push(...validReservations);
-    console.log(`Removed ${reservations.length - validReservations.length} orphaned reservations`);
+    console.log(`Removed ${removedCount} orphaned reservations`);
   }
   
   // Fix time slot status inconsistencies
@@ -1083,6 +1088,73 @@ export const fixDataInconsistencies = () => {
   });
   
   console.log('Data inconsistencies fixed');
+};
+
+// Validation functions to prevent status inconsistencies
+export const validateReservationCreation = (timeSlotId: string): { isValid: boolean; error?: string } => {
+  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
+  
+  if (!timeSlot) {
+    return { isValid: false, error: 'Time slot not found' };
+  }
+  
+  if (timeSlot.blocked) {
+    return { isValid: false, error: 'Cannot book a blocked time slot' };
+  }
+  
+  // Check if slot is already reserved (unless it's a clinic)
+  if (!timeSlot.available && timeSlot.type !== 'clinic') {
+    return { isValid: false, error: 'Time slot is not available for reservation' };
+  }
+  
+  // Check if there's already a reservation for this slot
+  const existingReservation = reservations.find(res => res.timeSlotId === timeSlotId);
+  if (existingReservation && timeSlot.type !== 'clinic') {
+    return { isValid: false, error: 'Time slot already has a reservation' };
+  }
+  
+  return { isValid: true };
+};
+
+export const validateTimeSlotBlocking = (timeSlotId: string): { isValid: boolean; error?: string } => {
+  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
+  
+  if (!timeSlot) {
+    return { isValid: false, error: 'Time slot not found' };
+  }
+  
+  // Check if there's an existing reservation
+  const existingReservation = reservations.find(res => res.timeSlotId === timeSlotId);
+  if (existingReservation) {
+    return { isValid: false, error: 'Cannot block a time slot with an existing reservation' };
+  }
+  
+  // Check if it's a clinic slot
+  if (timeSlot.type === 'clinic') {
+    return { isValid: false, error: 'Cannot block a clinic time slot' };
+  }
+  
+  return { isValid: true };
+};
+
+export const validateClinicCreation = (timeSlotId: string): { isValid: boolean; error?: string } => {
+  const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
+  
+  if (!timeSlot) {
+    return { isValid: false, error: 'Time slot not found' };
+  }
+  
+  if (timeSlot.blocked) {
+    return { isValid: false, error: 'Cannot create clinic on a blocked time slot' };
+  }
+  
+  // Check if there's already a reservation (non-clinic)
+  const existingReservation = reservations.find(res => res.timeSlotId === timeSlotId);
+  if (existingReservation && timeSlot.type !== 'clinic') {
+    return { isValid: false, error: 'Cannot create clinic on a time slot with existing reservation' };
+  }
+  
+  return { isValid: true };
 };
 
 // Function to get all items with comments

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TimeSlot, Court } from "@/lib/types";
-import { timeSlots, courts, clinics, coaches, getTimeSlotsForDate, getTimeSlotsWithStatusForDate } from "@/lib/data";
+import { timeSlots, courts, clinics, coaches, getTimeSlotsForDate, getTimeSlotsWithStatusForDate, getTimeSlotReservationStatus } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { CalendarIcon, Clock, MapPin, Users, Star } from "lucide-react";
@@ -223,26 +223,29 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                           const clinic = isClinic ? clinics.find(c => c.id === slot.clinicId) : null;
                           const coach = clinic ? coaches.find(c => c.id === clinic.coachId) : null;
                           
-                          // Determine slot status and styling
+                          // Use centralized status determination
+                          const slotStatus = getTimeSlotReservationStatus(slot.id);
+                          
                           let statusText = "Available";
                           let statusClass = "bg-green-500/20 text-green-700 border border-green-500/30";
                           let isClickable = true;
                           let statusIcon = "🎾";
                           
-                          if (isClinic) {
-                            statusText = "Clinic";
-                            statusClass = "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50";
-                            statusIcon = "🏆";
-                          } else if (slot.blocked) {
-                            statusText = "Blocked";
-                            statusClass = "bg-gray-500/30 text-gray-100 border border-gray-500/50";
-                            isClickable = false;
-                            statusIcon = "🚫";
-                          } else if (!slot.available) {
-                            statusText = "Reserved";
-                            statusClass = "bg-blue-500/20 text-blue-700 border border-blue-500/30";
-                            isClickable = false;
-                            statusIcon = "✅";
+                          if (slotStatus) {
+                            statusText = slotStatus.status.charAt(0).toUpperCase() + slotStatus.status.slice(1);
+                            
+                            if (slotStatus.isBlocked) {
+                              statusClass = "bg-gray-500/30 text-gray-100 border border-gray-500/50";
+                              isClickable = false;
+                              statusIcon = "🚫";
+                            } else if (slotStatus.isClinic) {
+                              statusClass = "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50";
+                              statusIcon = "🏆";
+                            } else if (slotStatus.isReserved) {
+                              statusClass = "bg-blue-500/20 text-blue-700 border border-blue-500/30";
+                              isClickable = false;
+                              statusIcon = "✅";
+                            }
                           }
                           
                           return (
