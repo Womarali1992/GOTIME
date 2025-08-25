@@ -43,6 +43,13 @@ const DayView = ({
   const [isTimeFocusMode, setIsTimeFocusMode] = useState(false);
   const [focusedTime, setFocusedTime] = useState<number | null>(null);
   
+  // Reservation popup state
+  const [selectedReservation, setSelectedReservation] = useState<{
+    reservation: any;
+    timeSlot: TimeSlot;
+    court: any;
+  } | null>(null);
+  
   // Time range to display (8am to 9pm)
   const startHour = 8;
   const endHour = 21;
@@ -219,61 +226,235 @@ const DayView = ({
           </div>
         )}
 
-        {/* Court Headers - Week View Style */}
-        <div className="mb-6 grid grid-cols-4 gap-4">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center gap-2">
-              {isTimeFocusMode ? (
-                <>
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Days</span>
-                </>
-              ) : (
-                <>
-                  <Clock className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Time</span>
-                </>
-              )}
+        {/* Court Headers - Mobile-responsive */}
+        <div className="mb-6">
+          {/* Mobile: Stack vertically, Desktop: Grid layout */}
+          <div className="block sm:hidden space-y-3">
+            <div className="text-center bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-3 rounded-lg border border-border/20">
+              <div className="flex items-center justify-center gap-2">
+                {isTimeFocusMode ? (
+                  <>
+                    <Calendar className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-semibold">Days</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-semibold">Time</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="space-y-3">
+              {courts.map((court) => (
+                <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-3 rounded-lg border border-border/20">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <div className="p-1 bg-primary/20 rounded">
+                        <MapPin className="h-4 w-4 text-primary" />
+                      </div>
+                      <h3 className="text-base font-bold text-foreground">
+                        {court.name}
+                      </h3>
+                    </div>
+                    <p className="text-muted-foreground text-sm mb-2">
+                      {court.location}
+                    </p>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        court.indoor 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                          : 'bg-green-100 text-green-800 border border-green-200'
+                      }`}>
+                        {court.indoor ? "Indoor" : "Outdoor"}
+                      </span>
+                      <div className="flex items-center gap-1 text-yellow-600">
+                        <Star className="h-3 w-3 fill-current" />
+                        <span className="text-xs font-medium">Premium</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          {courts.map((court) => (
-            <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20 min-h-[120px]">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="p-1 bg-primary/20 rounded">
-                    <MapPin className="h-4 w-4 text-primary" />
+
+          {/* Desktop: Grid layout */}
+          <div className="hidden sm:grid grid-cols-4 gap-4">
+            <div className="flex items-center justify-center">
+              <div className="flex items-center gap-2">
+                {isTimeFocusMode ? (
+                  <>
+                    <Calendar className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-semibold">Days</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-semibold">Time</span>
+                  </>
+                )}
+              </div>
+            </div>
+            {courts.map((court) => (
+              <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20 min-h-[120px]">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="p-1 bg-primary/20 rounded">
+                      <MapPin className="h-4 w-4 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground">
+                      {court.name}
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-bold text-foreground">
-                    {court.name}
-                  </h3>
-                </div>
-                <p className="text-muted-foreground text-sm mb-2">
-                  {court.location}
-                </p>
-                <div className="flex items-center justify-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    court.indoor 
-                      ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                      : 'bg-green-100 text-green-800 border border-green-200'
-                  }`}>
-                    {court.indoor ? "Indoor" : "Outdoor"}
-                  </span>
-                  <div className="flex items-center gap-1 text-yellow-600">
-                    <Star className="h-3 w-3 fill-current" />
-                    <span className="text-xs font-medium">Premium</span>
+                  <p className="text-muted-foreground text-sm mb-2">
+                    {court.location}
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      court.indoor 
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                        : 'bg-green-100 text-green-800 border border-green-200'
+                    }`}>
+                      {court.indoor ? "Indoor" : "Outdoor"}
+                    </span>
+                    <div className="flex items-center gap-1 text-yellow-600">
+                      <Star className="h-3 w-3 fill-current" />
+                      <span className="text-xs font-medium">Premium</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Dynamic Grid - Changes based on mode */}
         <div className="space-y-3">
           {rowData.map((row, rowIndex) => {
             return (
-              <div key={rowIndex} className="border border-border/30 rounded-lg overflow-hidden bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 min-h-[3rem]">
-                <div className="grid grid-cols-4 gap-0">
+              <div key={rowIndex} className="border border-border/30 rounded-lg overflow-hidden bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
+                {/* Mobile Layout */}
+                <div className="block sm:hidden">
+                  {/* Row Header - Mobile */}
+                  <div 
+                    className={cn(
+                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-b border-border/20 transition-colors",
+                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:bg-primary/10" : "",
+                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:bg-primary/10" : ""
+                    )}
+                    onClick={() => {
+                      if (row.type === 'hour') {
+                        handleTimeHeaderClick(row.value as number);
+                      } else if (row.type === 'day' && onDateChange) {
+                        handleDayHeaderClick(row.value as Date);
+                      }
+                    }}
+                    title={
+                      row.type === 'hour' 
+                        ? `Click to view ${row.label} across next 13 days`
+                        : row.type === 'day' && onDateChange
+                        ? `Click to view full day schedule for ${row.fullLabel}`
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      {row.type === 'hour' ? (
+                        <Clock className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Calendar className="h-5 w-5 text-primary" />
+                      )}
+                      <span className="text-lg font-bold text-foreground">
+                        {row.label}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Courts Grid - Mobile */}
+                  <div className="grid grid-cols-1 gap-2 p-3">
+                    {courts.map((court, courtIndex) => {
+                      // Get slot status based on current mode
+                      let slotData;
+                      if (row.type === 'hour') {
+                        // Default mode: get status for this court and hour on selected date
+                        slotData = getSlotStatus(court, row.value as number);
+                      } else {
+                        // Time focus mode: get status for this court and focused time on this day
+                        slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
+                      }
+                      
+                      const { available, reserved, blocked, slot, reservation, clinic } = slotData;
+                      const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
+                      const isPast = row.type === 'hour' 
+                        ? isTimeSlotInPast(selectedDate, row.value as number)
+                        : isTimeSlotInPast(row.value as Date, focusedTime!);
+                      
+                      return (
+                        <div key={court.id} className="border border-border/20 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-foreground">{court.name}</span>
+                          </div>
+                          <div
+                            className={cn(
+                              "w-full h-12 rounded text-sm text-center flex items-center justify-center transition-all duration-200 font-medium",
+                              isClickable ? "cursor-pointer" : "cursor-default",
+                              clinic
+                                ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+                                : blocked
+                                ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
+                                : reservation
+                                ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+                                : available
+                                ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
+                                : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                              isPast && "opacity-50"
+                            )}
+                            onClick={() => {
+                              if (isClickable) {
+                                if (row.type === 'hour') {
+                                  handleTimeSlotClick(court, row.value as number);
+                                } else {
+                                  handleTimeSlotClick(court, focusedTime!, row.value as Date);
+                                }
+                              }
+                            }}
+                            title={
+                              clinic 
+                                ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
+                                : reservation
+                                ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})`
+                                : blocked
+                                ? "Blocked"
+                                : available
+                                ? "Available - Click to book"
+                                : "Unavailable"
+                            }
+                          >
+                            {clinic ? (
+                              <div className="flex items-center gap-2">
+                                <GraduationCap className="h-4 w-4" />
+                                <span>Clinic</span>
+                              </div>
+                            ) : reservation ? (
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                <span>Reserved</span>
+                              </div>
+                            ) : blocked ? (
+                              <span>Blocked</span>
+                            ) : (
+                              <span>{available ? "Available" : "N/A"}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden sm:grid sm:grid-cols-4 gap-0">
                   {/* Row Header Column - Time or Day */}
                   <div 
                     className={cn(

@@ -283,27 +283,54 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   return (
     <>
       <Card className="gradient-card overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5">
-          <div className="flex flex-col space-y-1">
-            <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+        <CardHeader className={cn(
+          "pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
+          isMobile ? "flex flex-row items-start justify-between space-y-0" : "flex flex-row items-center justify-between space-y-0"
+        )}>
+          {/* Title Section - Left Aligned */}
+          <div className={cn(
+            isMobile ? "text-left flex-1" : "flex flex-col space-y-1"
+          )}>
+            <CardTitle className={cn(
+              "font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent",
+              isMobile ? "text-lg leading-tight" : "text-2xl md:text-3xl"
+            )}>
               Court Scheduler
             </CardTitle>
           </div>
           
-          {/* Date Display moved from DayOfWeekTabs */}
-          <div className="text-center flex-1">
-            <div className="text-lg sm:text-xl font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              {format(currentDate, "EEEE, MMMM d, yyyy")}
-            </div>
+          {/* Date Display - Center Aligned */}
+          <div className={cn(
+            isMobile ? "text-center flex-1 mx-2" : "text-center flex-1"
+          )}>
+            {isMobile ? (
+              <div className="text-lg font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent leading-tight">
+                <div className="flex flex-col space-y-0.5">
+                  <div>{format(currentDate, "EEEE,")}</div>
+                  <div>{format(currentDate, "MMMM d,")}</div>
+                  <div>{format(currentDate, "yyyy")}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-lg sm:text-xl font-medium bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+                {format(currentDate, "EEEE, MMMM d, yyyy")}
+              </div>
+            )}
           </div>
           
-          {/* View Toggle Navigation moved to header */}
-          <div className="flex items-center space-x-1 p-1 bg-muted/50 rounded-lg">
+          {/* View Toggle Navigation - Right Aligned */}
+          <div className={cn(
+            "bg-muted/50 rounded-lg",
+            isMobile ? "flex flex-row space-x-0.5 p-0.5" : "flex items-center space-x-1 p-1"
+          )}>
             <Button
               variant={viewDays === 1 ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewDays(1)}
-              className="h-8 px-3 sm:px-4 text-xs sm:text-sm"
+              className={cn(
+                "text-xs",
+                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+              )}
             >
               Day
             </Button>
@@ -311,7 +338,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
               variant={viewDays === 3 ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewDays(3)}
-              className="h-8 px-3 sm:px-4 text-xs sm:text-sm"
+              className={cn(
+                "text-xs",
+                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+              )}
             >
               Week
             </Button>
@@ -319,7 +349,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
               variant={viewDays === 0 ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewDays(0)}
-              className="h-8 px-3 sm:px-4 text-xs sm:text-sm"
+              className={cn(
+                "text-xs",
+                isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
+              )}
             >
               Calendar
             </Button>
@@ -362,35 +395,40 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
             />
           ) : (
             // Schedule View (Week view)
-            <div className="overflow-x-auto">
-              <div className="min-w-max relative">
+            <div className={cn(isMobile ? "overflow-x-hidden w-full max-w-full" : "overflow-x-auto")}>
+              <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}>
                 {/* Court rows with date headers over each column */}
                 {courts.filter(court => court.id === selectedCourt).map((court) => (
-                  <div key={court.id} className="mb-8">
+                  <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
                     {/* Court name header above the columns */}
-                    <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 sm:p-6 border-b border-border/20 rounded-t-lg mb-4">
+                    <div className={cn("bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 border-b border-border/20 rounded-t-lg mb-4", isMobile ? "p-2" : "p-4 sm:p-6")}>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                         <div className="flex-1 flex justify-start">
-                          <h3 className="text-lg sm:text-xl font-bold text-foreground text-center sm:text-left">{court.name}</h3>
+                          <h3 className="text-xl sm:text-2xl font-bold text-foreground text-center sm:text-left">{court.name}</h3>
                         </div>
                         
-                        {/* Court Navigation Tabs - Perfectly Centered */}
-                        <div className="flex flex-wrap gap-4 sm:gap-6 justify-center">
-                          {courts.map(courtOption => (
-                            <Button
-                              key={courtOption.id}
-                              variant={selectedCourt === courtOption.id ? "default" : "outline"}
-                              onClick={() => setSelectedCourt(courtOption.id)}
-                              className={`h-10 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-base ${
-                                selectedCourt === courtOption.id 
-                                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
-                                  : 'hover:bg-primary/10 hover:border-primary/30'
-                              }`}
-                            >
-                              <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                              {courtOption.name}
-                            </Button>
-                          ))}
+                        {/* Court Navigation Tabs - Mobile Optimized */}
+                        <div className="flex-1 flex justify-center">
+                          <div className={cn("w-full max-w-2xl", isMobile ? "overflow-x-hidden" : "overflow-x-auto scrollbar-hide")}>
+                            <div className={cn("flex gap-2 sm:gap-4 justify-center", isMobile ? "px-2" : "min-w-max px-4")}>
+                              {courts.map(courtOption => (
+                                <Button
+                                  key={courtOption.id}
+                                  variant={selectedCourt === courtOption.id ? "default" : "outline"}
+                                  onClick={() => setSelectedCourt(courtOption.id)}
+                                  className={`h-12 px-4 sm:px-6 py-3 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-lg whitespace-nowrap ${
+                                    selectedCourt === courtOption.id 
+                                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
+                                      : 'hover:bg-primary/10 hover:border-primary/30'
+                                  }`}
+                                >
+                                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">{courtOption.name}</span>
+                                  <span className="sm:hidden">{courtOption.name.split(' ')[0]}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                         
                         {/* Day navigation controls for each court */}
@@ -401,66 +439,66 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               size="sm" 
                               onClick={previousDay}
                               disabled={subDays(currentDate, 1) < startOfDay(new Date())}
-                              className="h-8 px-2"
+                              className="h-10 px-3"
                             >
                               <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" onClick={today} className="h-8 px-3 text-xs">
+                            <Button variant="outline" size="sm" onClick={today} className="h-10 px-4 text-sm">
                               Today
                             </Button>
-                            <Button variant="outline" size="sm" onClick={nextDay} className="h-8 px-2">
+                            <Button variant="outline" size="sm" onClick={nextDay} className="h-10 px-3">
                               <ChevronRight className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
                       </div>
                       
-                      {/* Legend */}
-                      <div className="mt-4 px-4 sm:px-6">
-                        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm">
+                      {/* Legend - Mobile Optimized */}
+                      <div className="mt-4 px-2 sm:px-6">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-3 sm:gap-6 text-sm sm:text-base">
                           <button
                             onClick={() => toggleLegendFilter('available')}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
                               legendFilters.available ? "opacity-100" : "opacity-40 hover:opacity-60"
                             )}
                             title="Click to toggle Available slots visibility"
                           >
-                            <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30"></div>
-                            <span className="text-muted-foreground font-medium">Available</span>
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-green-500/20 border border-green-500/30"></div>
+                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Available</span>
                           </button>
                           <button
                             onClick={() => toggleLegendFilter('reserved')}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
                               legendFilters.reserved ? "opacity-100" : "opacity-40 hover:opacity-60"
                             )}
                             title="Click to toggle Reserved slots visibility"
                           >
-                            <div className="w-4 h-4 rounded bg-secondary/20 border border-secondary/30"></div>
-                            <span className="text-muted-foreground font-medium">Reserved</span>
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-secondary/20 border border-secondary/30"></div>
+                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Reserved</span>
                           </button>
                           <button
                             onClick={() => toggleLegendFilter('clinic')}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
                               legendFilters.clinic ? "opacity-100" : "opacity-40 hover:opacity-60"
                             )}
                             title="Click to toggle Clinic slots visibility"
                           >
-                            <div className="w-4 h-4 rounded bg-yellow-500/20 border border-yellow-500/30"></div>
-                            <span className="text-muted-foreground font-medium">Clinic</span>
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-yellow-500/20 border border-yellow-500/30"></div>
+                            <span className="text-muted-foreground font-medium text-sm sm:text-base">Clinic</span>
                           </button>
                           <button
                             onClick={() => toggleLegendFilter('myReservations')}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-200 hover:bg-muted/50",
+                              "flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md transition-all duration-200 hover:bg-muted/50 min-h-[48px] justify-center",
                               legendFilters.myReservations ? "opacity-100" : "opacity-40 hover:opacity-60"
                             )}
                             title="Click to toggle My Reservations visibility"
                           >
-                            <div className="w-4 h-4 rounded bg-purple-500/20 border border-purple-500/30"></div>
-                            <span className="text-muted-foreground font-medium">My Reservations</span>
+                            <div className="w-4 h-4 sm:w-5 sm:h-5 rounded bg-purple-500/20 border border-purple-500/30"></div>
+                            <span className="text-muted-foreground font-medium text-sm sm:text-base">My Reservations</span>
                           </button>
                         </div>
                       </div>
@@ -468,17 +506,24 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                     
                     {/* Time slots grid */}
                     <div
-                      className="grid"
+                      className={cn(
+                        "grid",
+                        isMobile ? "mobile-all-columns-visible gap-1" : "gap-2 sm:gap-4"
+                      )}
                       style={{
-                        gridTemplateColumns: `repeat(${viewDays}, 1fr)`,
+                        gridTemplateColumns: isMobile 
+                          ? `repeat(${viewDays}, 1fr)`
+                          : `repeat(${viewDays}, 1fr)`,
+                        maxWidth: isMobile ? "100vw" : undefined,
+                        width: "100%"
                       }}
                     >
                       {/* Date headers over each column */}
                       {daysToShow.map((day) => (
-                        <div key={`${court.id}-${day.toString()}`} className="border border-border/30 rounded-lg overflow-hidden">
+                        <div key={`${court.id}-${day.toString()}`} className={cn("border border-border/30 rounded-lg overflow-hidden", isMobile && "min-w-0")}>
                           {/* Date header */}
                           <div
-                            className="text-center font-medium text-foreground cursor-pointer hover:bg-muted/50 transition-colors duration-200 p-2 mb-2 bg-muted/20"
+                            className="text-center font-medium text-foreground cursor-pointer hover:bg-muted/50 transition-colors duration-200 p-3 mb-3 bg-muted/20 text-base sm:text-lg"
                             onClick={() => handleDateHeaderClick(day)}
                             title="Click to view full day schedule"
                           >
@@ -486,7 +531,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                           </div>
                           
                           {/* Time slots */}
-                          <div className="space-y-1 p-2">
+                          <div className={cn("space-y-1", isMobile ? "p-1" : "p-2")}>
                             {(() => {
                               const timeSlotBlocks: Array<{
                                 startHour: number;
@@ -576,7 +621,12 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               return timeSlotBlocks
                                 .filter((block) => {
                                   // Apply legend filters
-                                  if (block.isClinic && !legendFilters.clinic) return false;
+                                  // Clinic blocks should only be filtered by clinic filter
+                                  if (block.isClinic) {
+                                    return legendFilters.clinic;
+                                  }
+                                  
+                                  // Non-clinic blocks use other filters
                                   if (block.available && !block.reserved && !block.blocked && !legendFilters.available) return false;
                                   if (block.reserved && !block.isMyReservation && !legendFilters.reserved) return false;
                                   if (block.isMyReservation && !legendFilters.myReservations) return false;
@@ -591,7 +641,8 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                   <div
                                     key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
                                     className={cn(
-                                      "text-xs text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative p-2",
+                                      "text-sm sm:text-base text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative",
+                                      isMobile ? "p-2" : "p-3",
                                       block.isMyReservation 
                                         ? "bg-purple-500/20 text-purple-800 border border-purple-500/30 hover:bg-purple-500/30"
                                         : block.isClinic
@@ -609,9 +660,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                       isMultiHour && block.available && !block.isClinic && !block.isMyReservation && "border-green-500/50 bg-gradient-to-br from-green-500/20 to-green-500/30 hover:from-green-500/30 hover:to-green-500/40"
                                     )}
                                     style={{
-                                      height: isMultiHour ? `${duration * 2.5}rem` : undefined,
-                                      minHeight: isMultiHour ? undefined : "2.5rem",
-                                      marginBottom: isMultiHour ? "0.25rem" : undefined
+                                      height: isMultiHour ? `${duration * (isMobile ? 3 : 3.5)}rem` : undefined,
+                                      minHeight: isMultiHour ? undefined : isMobile ? "3rem" : "3.5rem",
+                                      marginBottom: isMultiHour ? "0.5rem" : undefined
                                     }}
                                     onClick={() => {
                                       if (block.isClinic && isMultiHour) {
@@ -633,22 +684,22 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                   >
                                     {isMultiHour ? (
                                       <div className="flex flex-col items-center">
-                                        <span className="font-medium">{block.startHour}:00</span>
-                                        <span className="text-xs opacity-75">to</span>
-                                        <span className="font-medium">{block.endHour}:00</span>
+                                        <span className="font-medium text-base">{block.startHour}:00</span>
+                                        <span className="text-sm opacity-75">to</span>
+                                        <span className="font-medium text-base">{block.endHour}:00</span>
                                         {block.isClinic && (
-                                          <span className="text-xs mt-1 px-2 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium">
+                                          <span className="text-sm mt-2 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium">
                                             Clinic
                                           </span>
                                         )}
                                         {block.isMyReservation && (
-                                          <span className="text-xs mt-1 px-2 py-1 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium">
+                                          <span className="text-sm mt-2 px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium">
                                             My Reservation
                                           </span>
                                         )}
                                       </div>
                                     ) : (
-                                      <span>{block.startHour}:00</span>
+                                      <span className="text-base font-medium">{block.startHour}:00</span>
                                     )}
                                     
                                     {block.isClinic && block.clinic && (

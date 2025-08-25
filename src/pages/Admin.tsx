@@ -19,6 +19,7 @@ import AddClinicForm from "@/components/AddClinicForm";
 import AddUserToReservationForm from "@/components/AddUserToReservationForm";
 import CommentForm from "@/components/CommentForm";
 import AdminSettings from "@/components/AdminSettings";
+import UserSearchForm from "@/components/UserSearchForm";
 // import EditNotesForm from "@/components/EditNotesForm"; // Deprecated - using CommentForm instead
 import { Clock, User, GraduationCap, StickyNote } from "lucide-react";
 import { ReservationSettings } from "@/lib/types";
@@ -168,17 +169,19 @@ const Admin = () => {
         </div>
         
         <Tabs defaultValue="scheduler" className="space-y-6">
-          <TabsList className="mb-6 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 flex-wrap h-auto p-2 gap-1">
-            <TabsTrigger value="scheduler" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Scheduler</TabsTrigger>
-            <TabsTrigger value="calendar" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Calendar</TabsTrigger>
-            <TabsTrigger value="reservations" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Reservations</TabsTrigger>
-            <TabsTrigger value="courts" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Courts</TabsTrigger>
-            <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Users</TabsTrigger>
-            <TabsTrigger value="coaches" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Coaches</TabsTrigger>
-            <TabsTrigger value="clinics" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Clinics</TabsTrigger>
-            <TabsTrigger value="notes" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Notes</TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5">Settings</TabsTrigger>
-          </TabsList>
+          <div className="mb-6 overflow-x-auto scrollbar-hide">
+            <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
+              <TabsTrigger value="scheduler" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
+              <TabsTrigger value="calendar" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
+              <TabsTrigger value="reservations" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Reservations</TabsTrigger>
+              <TabsTrigger value="courts" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Courts</TabsTrigger>
+              <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
+              <TabsTrigger value="coaches" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Coaches</TabsTrigger>
+              <TabsTrigger value="clinics" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
+              <TabsTrigger value="notes" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Notes</TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Settings</TabsTrigger>
+            </TabsList>
+          </div>
           
           <TabsContent value="scheduler" className="space-y-6">
             <SchedulerChart 
@@ -258,7 +261,7 @@ const Admin = () => {
                               return (
                                                                 <div
                                   key={slot.id}
-                                  className={`min-h-[4rem] sm:min-h-[5rem] rounded-sm flex flex-col sm:flex-row items-start sm:items-center p-2 sm:px-4 transition-all duration-300 hover:scale-[1.01] ${
+                                  className={`min-h-[4rem] rounded-lg p-3 sm:p-4 transition-all duration-300 hover:scale-[1.01] ${
                                     clinic
                                       ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
                                       : reservation
@@ -269,15 +272,25 @@ const Admin = () => {
                                       ? "bg-primary/20 text-primary-foreground cursor-pointer"
                                       : "bg-muted/80 text-muted-foreground"
                                   }`}
-                                                                     onClick={() => {
+                                  onClick={() => {
                                      if (slot.available && !slot.blocked) {
                                        setSelectedTimeSlotForForm(slot.id);
                                        setShowAddUserToReservation(true);
                                      }
                                    }}
                                 >
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2 sm:gap-4">
-                                    <div className="sm:min-w-[150px] flex-1">
+                                  {/* Mobile-first layout */}
+                                  <div className="space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
+                                    {/* Time - prominently displayed on mobile */}
+                                    <div className="flex items-center gap-2 sm:order-2 sm:flex-1 sm:justify-center">
+                                      <Clock className="h-4 w-4 text-foreground" />
+                                      <span className="text-base sm:text-lg font-bold text-foreground">
+                                        {slot.startTime} - {slot.endTime}
+                                      </span>
+                                    </div>
+
+                                    {/* Content - Name/Status */}
+                                    <div className="sm:order-1 sm:flex-1">
                                       {clinic ? (
                                         <div>
                                           <span className="font-semibold text-base">
@@ -295,11 +308,10 @@ const Admin = () => {
                                           <div className="text-sm text-muted-foreground">
                                             ({reservation.players} player{reservation.players !== 1 ? 's' : ''})
                                           </div>
-
                                         </div>
                                       ) : (
                                          <div>
-                                           <span className="text-base font-medium !text-foreground">
+                                           <span className="text-base font-medium text-foreground">
                                              {slot.available ? "Available" : "Blocked"}
                                            </span>
                                            {slot.comments && slot.comments.length > 0 && (
@@ -307,21 +319,15 @@ const Admin = () => {
                                                <span className="text-xs font-medium text-blue-600">
                                                  {slot.comments.length} comment{slot.comments.length !== 1 ? 's' : ''}:
                                                </span>
-                                               <span className="ml-1">{slot.comments[slot.comments.length - 1].text}</span>
+                                               <span className="ml-1 break-words">{slot.comments[slot.comments.length - 1].text}</span>
                                              </div>
                                            )}
                                          </div>
                                        )}
                                     </div>
-                                    
-                                    <div className="flex items-center gap-2 flex-1 sm:justify-center mt-2 sm:mt-0">
-                                      <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
-                                      <span className="text-sm sm:text-lg font-semibold whitespace-nowrap !text-foreground">
-                                        {slot.startTime} - {slot.endTime}
-                                      </span>
-                                    </div>
 
-                                    <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+                                    {/* Actions */}
+                                    <div className="flex flex-wrap items-center gap-2 sm:order-3 sm:flex-shrink-0">
                                       {clinic ? (
                                         <Badge
                                           variant="default"
@@ -342,7 +348,8 @@ const Admin = () => {
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => {
+                                            onClick={(e) => {
+                                              e.stopPropagation();
                                               const court = courts.find(c => c.id === reservation.courtId);
                                               const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
                                               setEditingReservationComments({
@@ -352,7 +359,7 @@ const Admin = () => {
                                                 time: timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
                                               });
                                             }}
-                                            className={`h-6 px-2 text-xs ${
+                                            className={`h-8 px-2 sm:px-3 text-xs min-w-[60px] ${
                                               reservation.comments && reservation.comments.length > 0
                                                 ? 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800 bg-yellow-100' 
                                                 : 'border-yellow-300 hover:bg-yellow-50 text-yellow-700 hover:text-yellow-800'
@@ -360,7 +367,9 @@ const Admin = () => {
                                           >
                                             <StickyNote className="h-3 w-3 mr-1" />
                                             <span className="hidden sm:inline">{reservation.comments && reservation.comments.length > 0 ? `Notes (${reservation.comments.length})` : 'Add Notes'}</span>
-                                            <span className="sm:hidden">Notes</span>
+                                            <span className="sm:hidden">
+                                              {reservation.comments && reservation.comments.length > 0 ? `(${reservation.comments.length})` : 'Notes'}
+                                            </span>
                                           </Button>
                                         </div>
                                       ) : slot.blocked ? (
@@ -523,7 +532,7 @@ const Admin = () => {
                   Users
                 </h2>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {users.filter(u => u.comments && u.comments.length > 0).length} user{users.filter(u => u.comments && u.comments.length > 0).length !== 1 ? 's' : ''} with notes
+                  Manage and search through all users
                 </div>
               </div>
               <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={() => setShowAddUser(true)}>
@@ -531,60 +540,10 @@ const Admin = () => {
               </Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              {users.map(user => (
-                <Card key={user.id} className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg shadow-primary/5">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="flex items-center gap-2">
-                        <User className="h-5 w-5" />
-                        {user.name}
-                      </CardTitle>
-                      <Badge variant={user.membershipType === 'premium' ? 'default' : user.membershipType === 'admin' ? 'secondary' : 'outline'}>
-                        {user.membershipType}
-                      </Badge>
-                    </div>
-                    <CardDescription>
-                      <div className="space-y-1">
-                        <div>{user.email}</div>
-                        <div>{user.phone}</div>
-                      </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {user.comments && user.comments.length > 0 && (
-                      <div className="p-3 bg-yellow-200 border border-yellow-300 rounded text-sm text-yellow-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <StickyNote className="h-4 w-4" />
-                            <span className="font-medium">Admin Comments:</span>
-                          </div>
-                          <span className="text-xs font-medium">
-                            {user.comments.length} comment{user.comments.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <div className="text-xs text-yellow-700 mb-1">
-                          Latest: {new Date(user.comments[user.comments.length - 1].createdAt).toLocaleDateString()}
-                        </div>
-                        {user.comments[user.comments.length - 1].text}
-                      </div>
-                    )}
-                    <div className="flex justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingUserComments(user)}
-                        className="border-yellow-300 hover:bg-yellow-50 text-xs sm:text-sm"
-                      >
-                        <StickyNote className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                        <span className="hidden sm:inline">{user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}</span>
-                        <span className="sm:hidden">Comments</span>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <UserSearchForm 
+              users={users}
+              onEditComments={(user) => setEditingUserComments(user)}
+            />
           </TabsContent>
 
           <TabsContent value="coaches" className="space-y-6">

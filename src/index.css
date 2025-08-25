@@ -83,6 +83,16 @@
     overflow-x: hidden;
   }
 
+  /* Scrollbar utilities */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
   /* Mobile-specific optimizations */
   @media (max-width: 768px) {
     /* Ensure forms don't overflow on mobile */
@@ -109,6 +119,27 @@
       margin-left: 0.5rem;
       margin-right: 0.5rem;
       max-width: calc(100vw - 1rem);
+    }
+
+    /* Improve touch targets */
+    button, [role="button"], input[type="button"], input[type="submit"] {
+      min-height: 48px;
+      min-width: 48px;
+    }
+    
+    /* Enhanced mobile time slots for better visibility */
+    .mobile-time-slot {
+      min-height: 3rem !important;
+      font-size: 0.9rem !important;
+      font-weight: 600 !important;
+      padding: 0.75rem 0.5rem !important;
+    }
+
+    /* Better modal sizing on mobile */
+    [role="dialog"], .dialog-content {
+      margin: 1rem;
+      max-width: calc(100vw - 2rem);
+      max-height: calc(100vh - 2rem);
     }
   }
 }
@@ -318,6 +349,80 @@
 
 .hover-glow {
   @apply transition-all duration-300 hover:shadow-[0_0_20px_rgba(var(--primary)/0.3)];
+}
+
+/* Mobile All Columns Visible Layout */
+@media (max-width: 768px) {
+  /* Prevent any horizontal scrolling on mobile */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Ensure all columns fit on screen without horizontal scroll */
+  .mobile-all-columns-visible {
+    display: grid;
+    width: 100%;
+    max-width: 100vw;
+    gap: 0.125rem;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  .mobile-all-columns-visible > * {
+    min-width: 0; /* Allow columns to shrink below their content width */
+    max-width: 100%;
+    overflow: hidden; /* Prevent content overflow */
+    font-size: 0.7rem;
+    box-sizing: border-box;
+  }
+  
+  /* Make date headers more compact but readable */
+  .mobile-all-columns-visible .text-center {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+  }
+  
+  /* Adjust time slot text size for better readability */
+  .mobile-all-columns-visible .text-sm {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  
+  .mobile-all-columns-visible .text-base {
+    font-size: 0.85rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  
+  /* Ensure clinic labels are readable */
+  .mobile-all-columns-visible .text-sm.mt-2 {
+    font-size: 0.65rem;
+    padding: 0.125rem 0.25rem;
+    margin-top: 0.125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Force all flex containers to respect viewport width */
+  .mobile-all-columns-visible .flex {
+    max-width: 100%;
+    flex-wrap: nowrap;
+  }
+  
+  /* Ensure buttons don't cause overflow */
+  .mobile-all-columns-visible button {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 }
 
 /* Responsive Calendar Grid */

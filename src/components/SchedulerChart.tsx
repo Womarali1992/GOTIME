@@ -90,9 +90,14 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt }: SchedulerChartPr
             {courts.map((court) => (
               <div
                 key={court.id}
-                className="grid"
+                className={cn(
+                  "grid",
+                  isMobile ? "mobile-three-columns" : ""
+                )}
                 style={{
-                  gridTemplateColumns: `150px repeat(${viewDays}, 1fr)`,
+                  gridTemplateColumns: isMobile 
+                    ? `150px repeat(${viewDays}, minmax(280px, 1fr))`
+                    : `150px repeat(${viewDays}, 1fr)`,
                 }}
               >
                 {/* Court name */}
