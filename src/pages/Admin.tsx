@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useDataService } from "@/hooks/use-data-service";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
-import { useState } from "react";
+import React, { useState } from "react";
 import SchedulerChart from "@/components/SchedulerChart";
 import AdminSettings from "@/components/AdminSettings";
 import UserSearchForm from "@/components/UserSearchForm";
@@ -74,9 +74,53 @@ const Admin = () => {
   };
 
   const handleAddClinic = (clinicData: any) => {
-    dataService.addClinic(clinicData);
-    console.log("Added clinic:", clinicData);
+    console.log("handleAddClinic called with data:", clinicData);
+    console.log("Current clinics count before adding:", clinics.length);
+    try {
+      const result = dataService.addClinic(clinicData);
+      console.log("addClinic result:", result);
+      if (result.success) {
+        console.log("Successfully added clinic:", result.clinic);
+        console.log("Current clinics count after adding:", clinics.length);
+        // Force a manual refresh to see if the issue is with the refresh mechanism
+        dataService.refresh();
+        setTimeout(() => {
+          console.log("Clinics count after timeout:", clinics.length);
+        }, 100);
+      } else {
+        console.error("Failed to add clinic:", result.errors);
+      }
+      return result; // Return the result to the form
+    } catch (error) {
+      console.error("Exception in handleAddClinic:", error);
+      return { success: false, errors: [error instanceof Error ? error.message : 'Unknown error occurred'] };
+    }
   };
+
+  // Expose debug function to window for console testing
+  React.useEffect(() => {
+    (window as any).debugCreateClinic = (testData?: any) => {
+      console.log("=== CONSOLE DEBUG CLINIC CREATION ===");
+      const defaultTestData = {
+        name: "Console Test Clinic " + Date.now(),
+        description: "This is a test clinic created directly from the browser console to bypass form validation issues",
+        coachId: coaches[0]?.id || "1",
+        courtId: courts[0]?.id || "1", 
+        date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+        startTime: "10:00",
+        endTime: "11:00",
+        maxParticipants: 6,
+        price: 50
+      };
+      
+      const clinicData = testData || defaultTestData;
+      console.log("Using clinic data:", clinicData);
+      
+      handleAddClinic(clinicData);
+    };
+    
+    console.log("Debug function exposed: call debugCreateClinic() in console to test clinic creation");
+  }, [coaches, courts, handleAddClinic]);
 
   const handleAddUserToReservation = (reservationData: any) => {
     try {

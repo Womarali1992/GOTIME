@@ -8,15 +8,42 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { CalendarIcon, Clock, MapPin, Users } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-mobile";
+import CourtHeader from "./CourtHeader";
 
 interface CourtCalendarProps {
   onSelectTimeSlot: (timeSlot: TimeSlot) => void;
   selectedDate?: Date;
+  // Navigation props
+  weekOffset?: number;
+  onWeekChange?: (offset: number) => void;
+  viewDays?: number;
+  onViewDaysChange?: (days: number) => void;
+  legendFilters?: {
+    available: boolean;
+    clinic: boolean;
+    myReservations: boolean;
+  };
+  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; myReservations: boolean; }) => void;
+  selectedCourt?: string | undefined;
+  onCourtChange?: (courtId: string | undefined) => void;
+  onDateChange?: (date: Date) => void;
 }
 
-const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: CourtCalendarProps) => {
+const CourtCalendar = ({ 
+  onSelectTimeSlot, 
+  selectedDate: propSelectedDate,
+  weekOffset = 0,
+  onWeekChange,
+  viewDays = 0,
+  onViewDaysChange,
+  legendFilters = { available: true, clinic: true, myReservations: true },
+  onLegendFiltersChange,
+  selectedCourt: propSelectedCourt,
+  onCourtChange,
+  onDateChange
+}: CourtCalendarProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(propSelectedDate || new Date());
-  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(undefined);
+  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(propSelectedCourt || undefined);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   // Update internal selectedDate when prop changes
@@ -25,6 +52,27 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
       setSelectedDate(propSelectedDate);
     }
   }, [propSelectedDate]);
+
+  // Update internal selectedCourt when prop changes
+  useEffect(() => {
+    setSelectedCourt(propSelectedCourt);
+  }, [propSelectedCourt]);
+
+  // Handle date selection with callback to parent
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date && onDateChange) {
+      onDateChange(date);
+    }
+  };
+
+  // Handle court selection with callback to parent
+  const handleCourtSelect = (courtId: string | undefined) => {
+    setSelectedCourt(courtId);
+    if (onCourtChange) {
+      onCourtChange(courtId);
+    }
+  };
 
   // Generate time slots for the selected date when it changes
   const [currentDateSlots, setCurrentDateSlots] = useState<TimeSlot[]>([]);
@@ -76,27 +124,26 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-2 sm:p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="mb-6 sm:mb-8 text-center px-2">
-          <div className="p-4 sm:p-6 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 rounded-xl border-0 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="text-center sm:text-left">
-                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent mb-2">
-                  {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : "Select a date"}
-                </h2>
-                <p className="text-muted-foreground text-sm sm:text-base">Available courts and time slots</p>
-              </div>
-              <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-clock h-4 w-4">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <span>All times shown in local timezone</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="max-w-7xl mx-auto space-y-4">
+        {/* Navigation Header */}
+        {onWeekChange && onViewDaysChange && onLegendFiltersChange && onCourtChange && (
+          <CourtHeader
+            courtId={selectedCourt || "all"}
+            courtName={selectedCourt ? (dataService.getCourtById(selectedCourt)?.name || "All Courts") : "All Courts"}
+            currentDate={selectedDate || new Date()}
+            onDateSelect={handleDateSelect}
+            weekOffset={weekOffset}
+            onWeekChange={onWeekChange}
+            viewDays={viewDays}
+            onViewDaysChange={onViewDaysChange}
+            legendFilters={legendFilters}
+            onLegendFiltersChange={onLegendFiltersChange}
+            selectedCourt={selectedCourt}
+            onCourtChange={handleCourtSelect}
+          />
+        )}
+        
+
 
         <div className={`grid gap-4 sm:gap-6 md:gap-8 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-12'}`}>
           {/* Calendar Sidebar */}
@@ -116,7 +163,7 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={setSelectedDate}
+                    onSelect={handleDateSelect}
                     className="rounded-xl border-0 shadow-lg bg-gradient-to-br from-card to-muted/20 w-full"
                     disabled={{ before: new Date() }}
                     classNames={{
@@ -151,41 +198,7 @@ const CourtCalendar = ({ onSelectTimeSlot, selectedDate: propSelectedDate }: Cou
           <div className={`space-y-4 sm:space-y-6 ${isMobile ? 'w-full' : 'lg:col-span-8'}`}>
 
 
-            {/* Court Filter Buttons */}
-            <Card className="bg-card/80 backdrop-blur-sm border-0 shadow-lg">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex flex-wrap gap-2 sm:gap-3 justify-center sm:justify-start">
-                  <Button
-                    variant={selectedCourt === undefined ? "default" : "outline"}
-                    onClick={() => setSelectedCourt(undefined)}
-                    className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-base ${
-                      selectedCourt === undefined 
-                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
-                        : 'hover:bg-primary/10 hover:border-primary/30'
-                    }`}
-                  >
-                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                    All Courts
-                  </Button>
-                  
-                  {dataService.getAllCourts().map(court => (
-                    <Button
-                      key={court.id}
-                      variant={selectedCourt === court.id ? "default" : "outline"}
-                      onClick={() => setSelectedCourt(court.id)}
-                      className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-200 text-sm sm:text-base ${
-                        selectedCourt === court.id 
-                          ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25' 
-                          : 'hover:bg-primary/10 hover:border-primary/30'
-                      }`}
-                    >
-                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                      {court.name}
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+
 
             {/* Court Time Slots */}
             <div className="space-y-4 sm:space-y-6">

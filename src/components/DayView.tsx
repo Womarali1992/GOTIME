@@ -8,7 +8,7 @@ import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dataService } from "@/lib/services/data-service";
-import { getReservationsForDate, getTimeSlotsWithStatusForDate, getSlotStatusForCourtDateTimeObj } from "@/lib/data";
+import CourtHeader from "./CourtHeader";
 
 interface DayViewProps {
   selectedDate: Date;
@@ -22,6 +22,19 @@ interface DayViewProps {
   isModal?: boolean; // New prop to control modal vs inline display
   onSelectTimeSlot?: (timeSlot: TimeSlot) => void; // Add slot selection callback
   onDateChange?: (date: Date) => void; // Add date change callback
+  // Navigation props for inline view
+  weekOffset?: number;
+  onWeekChange?: (offset: number) => void;
+  viewDays?: number;
+  onViewDaysChange?: (days: number) => void;
+  legendFilters?: {
+    available: boolean;
+    clinic: boolean;
+    myReservations: boolean;
+  };
+  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; myReservations: boolean; }) => void;
+  selectedCourt?: string | undefined;
+  onCourtChange?: (courtId: string | undefined) => void;
 }
 
 const DayView = ({ 
@@ -35,7 +48,15 @@ const DayView = ({
   isOpen,
   isModal = true,
   onSelectTimeSlot,
-  onDateChange
+  onDateChange,
+  weekOffset = 0,
+  onWeekChange,
+  viewDays = 1,
+  onViewDaysChange,
+  legendFilters = { available: true, clinic: true, myReservations: true },
+  onLegendFiltersChange,
+  selectedCourt,
+  onCourtChange
 }: DayViewProps) => {
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
   const displayDate = format(selectedDate, "EEEE, MMMM d, yyyy");
@@ -84,22 +105,23 @@ const DayView = ({
     setFocusedTime(null);
   };
 
-  // Use centralized function for getting slot status
+  // Use services-based single source for getting slot status
   const getSlotStatusForDate = (court: Court, date: Date, hour: number) => {
-    return getSlotStatusForCourtDateTimeObj(court, date, hour);
+    const dateString = format(date, "yyyy-MM-dd");
+    return dataService.timeSlotService.getSlotStatus(court.id, dateString, hour);
   };
 
   // Get all time slots for the selected date
   const dateTimeSlots = timeSlots.filter(slot => slot.date === formattedDate);
   
-  // Get all reservations for the selected date using centralized function
-  const dateReservations = getReservationsForDate(formattedDate);
+  // Get all reservations for the selected date using services
+  const dateReservations = dataService.reservationService.getReservationsForDate(formattedDate);
   
-  // Get all clinics for the selected date
-  const dateClinics = clinics.filter(clinic => clinic.date === formattedDate);
+  // Get all clinics for the selected date using services
+  const dateClinics = dataService.clinicService.getClinicsForDate(formattedDate);
   
-  // Get time slots with status for better reservation handling
-  const timeSlotsWithStatus = getTimeSlotsWithStatusForDate(formattedDate);
+  // Get time slots with status for better reservation handling (services)
+  const timeSlotsWithStatus = dataService.timeSlotService.getTimeSlotsForDate(formattedDate);
 
   // Function to get clinic for a time slot
   const getClinicForSlot = (slot: TimeSlot) => {
@@ -114,24 +136,9 @@ const DayView = ({
     return reservations.find(reservation => reservation.timeSlotId === slot.id);
   };
 
-  // Function to get time slot status for a specific court and hour - now uses centralized data
+  // Function to get time slot status for a specific court and hour - services based
   const getSlotStatus = (court: Court, hour: number) => {
-    const relevantSlots = timeSlotsWithStatus.filter(
-      slot => slot.courtId === court.id && parseInt(slot.startTime.split(":")[0]) === hour
-    );
-
-    if (relevantSlots.length === 0) return { available: false, reserved: false, blocked: false, isClinic: false, slot: null };
-
-    const slotWithStatus = relevantSlots[0];
-    
-    return {
-      available: slotWithStatus.isAvailable,
-      reserved: slotWithStatus.isReserved,
-      blocked: slotWithStatus.isBlocked,
-      slot: slotWithStatus,
-      reservation: slotWithStatus.reservation,
-      clinic: slotWithStatus.clinic,
-    };
+    return dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
   };
 
   // Check if a time slot is in the past
@@ -229,47 +236,51 @@ const DayView = ({
 
         {/* Court Headers - Mobile-responsive */}
         <div className="mb-6">
-          {/* Mobile: Stack vertically, Desktop: Grid layout */}
-          <div className="block sm:hidden space-y-3">
-            <div className="text-center bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-3 rounded-lg border border-border/20">
-              <div className="flex items-center justify-center gap-2">
-                {isTimeFocusMode ? (
-                  <>
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <span className="text-lg font-semibold">Days</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="h-5 w-5 text-primary" />
-                    <span className="text-lg font-semibold">Time</span>
-                  </>
-                )}
+          {/* Mobile: Grid layout to match table structure */}
+          <div className="block sm:hidden">
+            <div className="grid grid-cols-4 gap-0 border border-border/30 rounded-lg overflow-hidden bg-card/80">
+              {/* Time/Days header */}
+              <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 border-r border-border/20 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-1">
+                  {isTimeFocusMode ? (
+                    <>
+                      <Calendar className="h-3 w-3 text-primary" />
+                      <span className="text-xs font-semibold">Days</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-3 w-3 text-primary" />
+                      <span className="text-xs font-semibold">Time</span>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="space-y-3">
-              {courts.map((court) => (
-                <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-3 rounded-lg border border-border/20">
+              
+              {/* Court headers */}
+              {courts.map((court, index) => (
+                <div 
+                  key={court.id} 
+                  className={cn(
+                    "bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 flex flex-col items-center justify-center",
+                    index < courts.length - 1 ? "border-r border-border/20" : ""
+                  )}
+                >
                   <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <div className="p-1 bg-primary/20 rounded">
-                        <MapPin className="h-4 w-4 text-primary" />
-                      </div>
-                      <h3 className="text-base font-bold text-foreground">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <h3 className="text-xs font-bold text-foreground leading-tight">
                         {court.name}
                       </h3>
                     </div>
-                    <p className="text-muted-foreground text-sm mb-2">
+                    <p className="text-muted-foreground text-xs mb-1 leading-tight">
                       {court.location}
                     </p>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        court.indoor
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                          : 'bg-green-100 text-green-800 border border-green-200'
-                      }`}>
-                        {court.indoor ? "Indoor" : "Outdoor"}
-                      </span>
-                    </div>
+                    <span className={`px-1 py-0.5 rounded-full text-xs font-medium ${
+                      court.indoor
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : 'bg-green-100 text-green-800 border border-green-200'
+                    }`}>
+                      {court.indoor ? "Indoor" : "Outdoor"}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -297,10 +308,7 @@ const DayView = ({
               <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20 min-h-[120px]">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="p-1 bg-primary/20 rounded">
-                      <MapPin className="h-4 w-4 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-bold text-foreground">
+                    <h3 className="text-lg font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
                       {court.name}
                     </h3>
                   </div>
@@ -327,44 +335,44 @@ const DayView = ({
           {rowData.map((row, rowIndex) => {
             return (
               <div key={rowIndex} className="border border-border/30 rounded-lg overflow-hidden bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300">
-                {/* Mobile Layout */}
+                {/* Mobile Layout - Grid Format */}
                 <div className="block sm:hidden">
-                  {/* Row Header - Mobile */}
-                  <div 
-                    className={cn(
-                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-b border-border/20 transition-colors",
-                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:bg-primary/10" : "",
-                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:bg-primary/10" : ""
-                    )}
-                    onClick={() => {
-                      if (row.type === 'hour') {
-                        handleTimeHeaderClick(row.value as number);
-                      } else if (row.type === 'day' && onDateChange) {
-                        handleDayHeaderClick(row.value as Date);
-                      }
-                    }}
-                    title={
-                      row.type === 'hour' 
-                        ? `Click to view ${row.label} across next 13 days`
-                        : row.type === 'day' && onDateChange
-                        ? `Click to view full day schedule for ${row.fullLabel}`
-                        : undefined
-                    }
-                  >
-                    <div className="flex items-center gap-2">
-                      {row.type === 'hour' ? (
-                        <Clock className="h-5 w-5 text-primary" />
-                      ) : (
-                        <Calendar className="h-5 w-5 text-primary" />
+                  <div className="grid grid-cols-4 gap-0">
+                    {/* Row Header Column - Time or Day */}
+                    <div 
+                      className={cn(
+                        "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-2 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] rounded-l-lg",
+                        !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : "",
+                        isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : ""
                       )}
-                      <span className="text-lg font-bold text-foreground">
-                        {row.label}
-                      </span>
+                      onClick={() => {
+                        if (row.type === 'hour') {
+                          handleTimeHeaderClick(row.value as number);
+                        } else if (row.type === 'day' && onDateChange) {
+                          handleDayHeaderClick(row.value as Date);
+                        }
+                      }}
+                      title={
+                        row.type === 'hour' 
+                          ? `Click to view ${row.label} across next 13 days`
+                          : row.type === 'day' && onDateChange
+                          ? `Click to view full day schedule for ${row.fullLabel}`
+                          : undefined
+                      }
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        {row.type === 'hour' ? (
+                          <Clock className="h-3 w-3 text-primary flex-shrink-0" />
+                        ) : (
+                          <Calendar className="h-3 w-3 text-primary flex-shrink-0" />
+                        )}
+                        <span className="text-xs font-semibold text-center leading-tight">
+                          {row.label}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Courts Grid - Mobile */}
-                  <div className="grid grid-cols-1 gap-2 p-3">
+                    
+                    {/* Court Columns */}
                     {courts.map((court, courtIndex) => {
                       // Get slot status based on current mode
                       let slotData;
@@ -383,15 +391,17 @@ const DayView = ({
                         : isTimeSlotInPast(row.value as Date, focusedTime!);
                       
                       return (
-                        <div key={court.id} className="border border-border/20 rounded-lg p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            <span className="font-medium text-foreground">{court.name}</span>
-                          </div>
+                        <div
+                          key={court.id}
+                          className={cn(
+                            "p-1 min-h-[3rem] flex items-center justify-center transition-all duration-200 relative",
+                            courtIndex < courts.length - 1 ? "border-r border-border/20" : "",
+                            isClickable ? "cursor-pointer" : "cursor-default"
+                          )}
+                        >
                           <div
                             className={cn(
-                              "w-full h-12 rounded text-base text-center flex items-center justify-center transition-all duration-200 font-medium",
-                              isClickable ? "cursor-pointer" : "cursor-default",
+                              "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-1",
                               clinic
                                 ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
                                 : blocked
@@ -425,19 +435,25 @@ const DayView = ({
                             }
                           >
                             {clinic ? (
-                              <div className="flex items-center gap-2">
-                                <GraduationCap className="h-4 w-4" />
-                                <span>Clinic</span>
+                              <div className="flex flex-col items-center">
+                                <GraduationCap className="h-2 w-2 mb-0.5" />
+                                <span className="font-semibold text-xs leading-none">Clinic</span>
                               </div>
                             ) : reservation ? (
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                <span>Reserved</span>
+                              <div className="flex flex-col items-center">
+                                <User className="h-2 w-2 mb-0.5" />
+                                <span className="font-semibold text-xs leading-none">Reserved</span>
                               </div>
                             ) : blocked ? (
-                              <span>Blocked</span>
+                              <div className="flex flex-col items-center">
+                                <span className="font-semibold text-xs leading-none">Blocked</span>
+                              </div>
                             ) : (
-                              <span>{available ? "Available" : "N/A"}</span>
+                              <div className="flex flex-col items-center">
+                                <span className="font-semibold text-xs leading-none">
+                                  {available ? "Available" : "N/A"}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -608,27 +624,31 @@ const DayView = ({
   // Return inline content for non-modal usage
   if (!isModal) {
     return (
-      <Card className="gradient-card overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div className="flex flex-col space-y-1">
-            <CardTitle className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              {isTimeFocusMode && focusedTime 
-                ? `${focusedTime.toString().padStart(2, '0')}:00 - Next 13 Days`
-                : displayDate
-              }
-            </CardTitle>
-            <p className="text-muted-foreground">
-              {isTimeFocusMode 
-                ? "Time focus view - showing the same time across multiple days"
-                : "Full day schedule for all courts"
-              }
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="px-1 md:px-4 pb-2">
-          {dayViewContent}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {/* Navigation Header for inline view */}
+        {onWeekChange && onViewDaysChange && onLegendFiltersChange && onCourtChange && (
+          <CourtHeader
+            courtId={selectedCourt || "all"}
+            courtName={selectedCourt ? (dataService.getCourtById(selectedCourt)?.name || "All Courts") : "All Courts"}
+            currentDate={selectedDate}
+            onDateSelect={onDateChange || (() => {})}
+            weekOffset={weekOffset}
+            onWeekChange={onWeekChange}
+            viewDays={viewDays}
+            onViewDaysChange={onViewDaysChange}
+            legendFilters={legendFilters}
+            onLegendFiltersChange={onLegendFiltersChange}
+            selectedCourt={selectedCourt}
+            onCourtChange={onCourtChange}
+          />
+        )}
+        
+        <Card className="gradient-card overflow-hidden">
+          <CardContent className="px-1 md:px-4 pb-2">
+            {dayViewContent}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

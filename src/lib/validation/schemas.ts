@@ -123,6 +123,7 @@ export const DaySettingsSchema = z.object({
 
 export const ReservationSettingsSchema = z.object({
   id: z.string(),
+  courtName: z.string().min(1, 'Court name is required').default('Pickleball Court'),
   advanceBookingLimit: z.number().min(1, 'Advance booking limit must be at least 1 hour'),
   cancellationDeadline: z.number().min(0, 'Cancellation deadline cannot be negative'),
   maxPlayersPerSlot: z.number().min(1, 'Maximum players must be at least 1'),

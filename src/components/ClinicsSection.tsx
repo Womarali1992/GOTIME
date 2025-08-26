@@ -17,9 +17,56 @@ const ClinicsSection = ({ clinics, coaches, courts, onAddClinic }: ClinicsSectio
         <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
           Clinics
         </h2>
-        <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={onAddClinic}>
-          Add Clinic
-        </Button>
+        <div className="flex gap-2">
+          <Button className="bg-primary/90 hover:bg-primary/80 text-sm sm:text-base" onClick={onAddClinic}>
+            Add Clinic
+          </Button>
+          <Button 
+            variant="outline" 
+            className="text-sm sm:text-base" 
+            onClick={() => {
+              // Test clinic creation with hardcoded data
+              console.log("=== DIRECT CLINIC CREATION TEST ===");
+              const testClinic = {
+                name: "Direct Test Clinic " + Date.now(),
+                description: "This is a direct test clinic to debug the creation process without the form",
+                coachId: coaches[0]?.id || "1",
+                courtId: courts[0]?.id || "1", 
+                date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+                startTime: "10:00",
+                endTime: "11:00",
+                maxParticipants: 6,
+                price: 50
+              };
+              console.log("Direct test clinic data:", testClinic);
+              
+              // Directly call the clinic creation (this should trigger all our debug logs)
+              try {
+                // We need to access the dataService from the parent component
+                // For now, let's just open the form
+                onAddClinic();
+                
+                // Log instructions for manual testing
+                console.log("=== MANUAL TEST INSTRUCTIONS ===");
+                console.log("1. Fill the form with this data:");
+                console.log("   Name:", testClinic.name);
+                console.log("   Description:", testClinic.description);
+                console.log("   Coach: First coach in dropdown");
+                console.log("   Court: First court in dropdown");
+                console.log("   Date:", testClinic.date);
+                console.log("   Start Time:", testClinic.startTime);
+                console.log("   End Time:", testClinic.endTime);
+                console.log("   Max Participants:", testClinic.maxParticipants);
+                console.log("   Price:", testClinic.price);
+                console.log("2. Click 'Add Clinic' and watch console for detailed logs");
+              } catch (error) {
+                console.error("Error in direct test:", error);
+              }
+            }}
+          >
+            Debug Test
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

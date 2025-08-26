@@ -30,21 +30,35 @@ export class ClinicService {
 
   createClinic(data: CreateClinic): { success: boolean; clinic?: ClinicWithDetails; errors?: string[] } {
     try {
+      console.log('ClinicService.createClinic called with data:', data);
+      
       // Validate clinic creation
+      console.log('Validating clinic creation...');
       const validation = this.clinicRepository.validateClinicCreation(data);
+      console.log('Validation result:', validation);
       
       if (!validation.isValid) {
+        console.log('Validation failed:', validation.errors);
         return { success: false, errors: validation.errors };
       }
 
       // Create the clinic
+      console.log('Creating clinic in repository...');
       const clinic = this.clinicRepository.create(data);
+      console.log('Clinic created:', clinic);
 
       // Create or update time slots for the clinic
+      console.log('Creating time slots for clinic...');
       this.createClinicTimeSlots(clinic);
+      console.log('Time slots created');
 
-      return { success: true, clinic: this.enrichClinicWithDetails(clinic) };
+      const enrichedClinic = this.enrichClinicWithDetails(clinic);
+      console.log('Clinic enriched with details:', enrichedClinic);
+
+      return { success: true, clinic: enrichedClinic };
     } catch (error) {
+      console.error('Error in ClinicService.createClinic:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       return { 
         success: false, 
         errors: [error instanceof Error ? error.message : 'Unknown error occurred'] 

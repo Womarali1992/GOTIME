@@ -4,6 +4,7 @@ import { ReservationRepository } from '../repositories/reservation-repository';
 import { UserRepository } from '../repositories/user-repository';
 import { CoachRepository } from '../repositories/coach-repository';
 import { ClinicRepository } from '../repositories/clinic-repository';
+import { timeSlots as dataTimeSlots, clinics as dataClinics, coaches as dataCoaches, users as dataUsers } from '../data';
 
 
 
@@ -54,6 +55,7 @@ const defaultDaySettings = [
 
 const initialReservationSettings: ReservationSettings = {
   id: '1',
+  courtName: 'Pickleball Court',
   advanceBookingLimit: 24, // 24 hours in advance
   cancellationDeadline: 2, // 2 hours before
   maxPlayersPerSlot: 4,
@@ -143,91 +145,19 @@ const generateTimeSlots = (): TimeSlot[] => {
   return timeSlots;
 };
 
-const initialTimeSlots = generateTimeSlots();
+const initialTimeSlots = dataTimeSlots;
 
 // Sample reservations
 const initialReservations: Reservation[] = [];
 
 // Sample users
-const initialUsers: User[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '555-123-4567',
-    membershipType: 'premium',
-    duprRating: 5.2,
-    createdAt: new Date().toISOString(),
-    comments: [
-      {
-        id: '1',
-        text: 'Premium member since 2022. Excellent player, helps with new member orientation. Advanced level player.',
-        authorId: 'admin',
-        authorName: 'Admin',
-        createdAt: new Date().toISOString(),
-      }
-    ],
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    phone: '555-987-6543',
-    membershipType: 'basic',
-    duprRating: 2.8,
-    createdAt: new Date().toISOString(),
-    comments: [
-      {
-        id: '2',
-        text: 'Basic member, interested in upgrading to premium. Has requested private lessons. Beginner level player.',
-        authorId: 'admin',
-        authorName: 'Admin',
-        createdAt: new Date().toISOString(),
-      }
-    ],
-  },
-];
+const initialUsers: User[] = dataUsers;
 
 // Sample coaches
-const initialCoaches: Coach[] = [
-  {
-    id: '1',
-    name: 'Maria Rodriguez',
-    email: 'maria@example.com',
-    phone: '555-111-2222',
-    specialties: ['Beginner Lessons', 'Advanced Training'],
-    bio: 'Professional tennis coach with 10+ years experience.',
-    hourlyRate: 85,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'David Wilson',
-    email: 'david@example.com',
-    phone: '555-333-4444',
-    specialties: ['Junior Programs', 'Advanced Training'],
-    bio: 'Former professional player specializing in youth development.',
-    hourlyRate: 95,
-    createdAt: new Date().toISOString(),
-  },
-];
+const initialCoaches: Coach[] = dataCoaches;
 
 // Sample clinics
-const initialClinics: Clinic[] = [
-  {
-    id: '1',
-    name: 'Beginner Tennis Clinic',
-    description: 'Learn the basics of tennis in a fun, supportive environment.',
-    coachId: '1',
-    courtId: '1',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
-    startTime: '10:00',
-    endTime: '12:00',
-    maxParticipants: 8,
-    price: 45,
-    createdAt: new Date().toISOString(),
-  },
-];
+const initialClinics: Clinic[] = dataClinics;
 
 
 

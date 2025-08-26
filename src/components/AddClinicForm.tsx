@@ -29,19 +29,61 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    setFormData({
-      name: '',
-      description: '',
-      coachId: '',
-      courtId: '',
-      date: '',
-      startTime: '',
-      endTime: '',
-      maxParticipants: 8,
-      price: 0,
-    });
-    onClose();
+    
+    // Validate required fields
+    if (!formData.name.trim()) {
+      alert('Clinic name is required');
+      return;
+    }
+    if (!formData.description.trim()) {
+      alert('Description is required');
+      return;
+    }
+    if (!formData.coachId) {
+      alert('Please select a coach');
+      return;
+    }
+    if (!formData.courtId) {
+      alert('Please select a court');
+      return;
+    }
+    if (!formData.date) {
+      alert('Date is required');
+      return;
+    }
+    if (!formData.startTime) {
+      alert('Start time is required');
+      return;
+    }
+    if (!formData.endTime) {
+      alert('End time is required');
+      return;
+    }
+    
+    console.log("Form submitting with data:", formData);
+    console.log("Form validation passed, calling onSave...");
+    const result = onSave(formData);
+    console.log("onSave returned:", result);
+    
+    // Only close and reset form if the clinic was successfully created
+    if (result && result.success) {
+      setFormData({
+        name: '',
+        description: '',
+        coachId: '',
+        courtId: '',
+        date: '',
+        startTime: '',
+        endTime: '',
+        maxParticipants: 8,
+        price: 0,
+      });
+      onClose();
+    } else {
+      // Show error message but keep form open
+      const errorMessage = result?.errors?.join(', ') || 'Unknown error occurred';
+      alert(`Failed to create clinic: ${errorMessage}`);
+    }
   };
 
   // Generate time options

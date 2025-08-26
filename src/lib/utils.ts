@@ -95,7 +95,8 @@ export function getTimeSlotStatus(slot: TimeSlot) {
   const isBlocked = slot.blocked;
   const isClinic = slot.type === 'clinic' && clinic !== null;
   const isReserved = !slot.available && !isBlocked && !isClinic && reservation !== null;
-  const isAvailable = slot.available && !isBlocked;
+  // Fixed: Clinic slots should NOT be considered available for regular booking
+  const isAvailable = slot.available && !isBlocked && !isClinic;
   
   return {
     available: isAvailable,

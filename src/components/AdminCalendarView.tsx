@@ -3,14 +3,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Calendar as CalendarIcon, LayoutList, MapPin, Clock, Users } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
 import { dataService } from "@/lib/services/data-service";
 
 const AdminCalendarView = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<"month" | "week">("month");
+
   const [currentDateSlots, setCurrentDateSlots] = useState<any[]>([]);
 
   // Generate time slots for the selected date when it changes
@@ -74,34 +73,7 @@ const AdminCalendarView = () => {
           </p>
         </div>
 
-        {/* View Mode Toggle */}
-        <Card className="bg-card/80 backdrop-blur-sm border-0 shadow-lg max-w-md mx-auto">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center gap-4">
-              <ToggleGroup
-                type="single"
-                value={viewMode}
-                onValueChange={(value) => value && setViewMode(value as "month" | "week")}
-                className="border-0 bg-muted/30 rounded-xl p-1"
-              >
-                <ToggleGroupItem 
-                  value="month" 
-                  aria-label="Month view" 
-                  className="hover:bg-primary/20 transition-all duration-200 rounded-lg p-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                >
-                  <CalendarIcon className="h-5 w-5" />
-                </ToggleGroupItem>
-                <ToggleGroupItem 
-                  value="week" 
-                  aria-label="Week view" 
-                  className="hover:bg-primary/20 transition-all duration-200 rounded-lg p-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                >
-                  <LayoutList className="h-5 w-5" />
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-          </CardContent>
-        </Card>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] xl:grid-cols-[350px_1fr] gap-4 lg:gap-8">
           {/* Calendar Sidebar */}

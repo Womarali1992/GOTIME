@@ -83,20 +83,26 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
 
 
       {/* Enhanced Day Tabs */}
-      <div className="bg-gradient-to-br from-white to-gray-50/80 dark:from-slate-900 dark:to-slate-800/80 rounded-xl border border-border/50 shadow-lg backdrop-blur-sm p-4 relative">
+      <div className="day-of-week-tabs bg-gradient-to-br from-white to-gray-50/80 dark:from-slate-900 dark:to-slate-800/80 rounded-xl border border-border/50 shadow-lg backdrop-blur-sm p-4 relative">
         <div className="flex items-center">
           <Button
             variant="ghost"
             size="icon"
             onClick={handlePrevDay}
             aria-label="Previous day"
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-6 w-6 p-0"
+            className={cn(
+              "absolute left-2 top-1/2 -translate-y-1/2 z-10 p-0",
+              isMobile ? "h-8 w-8" : "h-6 w-6"
+            )}
             disabled={!canGoPrev}
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
+            <ChevronLeft className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
           </Button>
 
-          <div className="grid grid-cols-7 gap-3 w-full px-8">
+          <div className={cn(
+            "grid w-full",
+            isMobile ? "grid-cols-7 gap-1 px-10" : "grid-cols-7 gap-3 px-8"
+          )}>
           {tabDays.map((date, index) => {
             const isCentered = date.getTime() === centeredDate.getTime();
             const isPast = date < today;
@@ -216,7 +222,8 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
                 onClick={() => onDateSelect(date)}
                 disabled={isPast && !isToday}
                 className={cn(
-                  "relative h-14 sm:h-16 flex flex-col items-center justify-center rounded-xl transition-all duration-200 group border-0",
+                  "relative flex flex-col items-center justify-center rounded-xl transition-all duration-200 group border-0",
+                  isMobile ? "h-12 min-w-0" : "h-14 sm:h-16",
                   isCentered 
                     ? `bg-gradient-to-br ${colors.selected} text-white shadow-lg ${colors.shadow} scale-105 font-bold`
                     : isPast && !isToday
@@ -226,17 +233,19 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
                 )}
               >
                 <span className={cn(
-                  "text-xs font-medium transition-all duration-200",
+                  "font-medium transition-all duration-200",
+                  isMobile ? "text-xs" : "text-xs",
                   isCentered 
                     ? colors.textLight 
                     : isToday 
                     ? `${colors.textAccent} font-semibold` 
                     : `text-muted-foreground ${colors.textAccentHover}`
                 )}>
-                  {dayName}
+                  {isMobile ? dayName.slice(0, 2) : dayName}
                 </span>
                 <span className={cn(
-                  "text-lg sm:text-xl font-bold transition-all duration-200 leading-none mt-0.5",
+                  "font-bold transition-all duration-200 leading-none mt-0.5",
+                  isMobile ? "text-sm" : "text-lg sm:text-xl",
                   isCentered 
                     ? "text-white" 
                     : isToday 
@@ -261,10 +270,13 @@ const DayOfWeekTabs = ({ centeredDate, onDateSelect, weekOffset = 0, onWeekChang
             size="icon"
             onClick={handleNextDay}
             aria-label="Next day"
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-6 w-6 p-0"
+            className={cn(
+              "absolute right-2 top-1/2 -translate-y-1/2 z-10 p-0",
+              isMobile ? "h-8 w-8" : "h-6 w-6"
+            )}
             disabled={!canGoNext}
           >
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className={cn(isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
           </Button>
         </div>
       </div>

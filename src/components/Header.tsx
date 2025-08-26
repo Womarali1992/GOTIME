@@ -9,11 +9,22 @@ import UserSettings from "@/components/UserSettings";
 import { useUser } from "@/contexts/UserContext";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useDataService } from "@/hooks/use-data-service";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
   const { currentUser, isAuthenticated, logout } = useUser();
+  const dataService = useDataService();
+  
+  // Safe way to get court name with fallback
+  let courtName = "PickleBook";
+  try {
+    const settings = dataService.getReservationSettings();
+    courtName = settings?.courtName || "PickleBook";
+  } catch (error) {
+    console.warn("Failed to get court name from settings, using fallback:", error);
+  }
 
   const navigation = [
     { name: "Book a Court", href: "/", current: true },
@@ -28,7 +39,7 @@ const Header = () => {
         {/* Logo */}
         <div className="flex items-center">
           <Link to="/" className="flex items-center space-x-2">
-            <span className="font-bold text-lg sm:text-xl text-primary">PickleBook</span>
+            <span className="font-bold text-lg sm:text-xl text-primary">{courtName}</span>
           </Link>
         </div>
 

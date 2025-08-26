@@ -10,7 +10,7 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import DayView from "./DayView";
 import { dataService } from "@/lib/services/data-service";
-import { getSlotStatusForCourtDateTimeObj } from "@/lib/data";
+// Use services-based status via dataService
 
 interface SchedulerChartProps {
   courts: Court[];
@@ -65,9 +65,10 @@ const SchedulerChart = ({ courts, timeSlots, onScheduleCourt, onDateChange }: Sc
     setSelectedDateForDayView(date);
   };
 
-  // Get availability for a specific court, day and hour - now uses centralized function
+  // Get availability for a specific court, day and hour - services single source of truth
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
-    return getSlotStatusForCourtDateTimeObj(court, day, hour);
+    const dateString = format(day, "yyyy-MM-dd");
+    return dataService.timeSlotService.getSlotStatus(court.id, dateString, hour);
   };
 
   return (

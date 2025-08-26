@@ -69,9 +69,11 @@ export function useDataService() {
     },
     
     addClinic: (clinicData: CreateClinic) => {
-      const clinic = dataService.clinicService.createClinic(clinicData);
+      console.log("useDataService.addClinic called with:", clinicData);
+      const result = dataService.clinicService.createClinic(clinicData);
+      console.log("clinicService.createClinic returned:", result);
       refresh();
-      return clinic;
+      return result;
     },
     
     addUserToReservation: (reservationId: string, userId: string) => {

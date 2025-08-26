@@ -167,14 +167,21 @@ export abstract class BaseRepository<T extends BaseEntity, TCreate = Omit<T, 'id
 
   create(data: TCreate): T {
     try {
+      console.log('BaseRepository.create called with data:', data);
+      console.log('Using createSchema:', this.createSchema);
+      
       const validatedData = this.createSchema.parse(data);
+      console.log('Data validated successfully:', validatedData);
+      
       const newItem: T = {
         ...validatedData,
         id: this.generateId(),
         createdAt: new Date().toISOString(),
       } as T;
+      console.log('New item created:', newItem);
 
       const validatedItem = this.schema.parse(newItem);
+      console.log('Item validated against full schema:', validatedItem);
 
       // Add to data array
       this.data.push(validatedItem);
@@ -186,9 +193,12 @@ export abstract class BaseRepository<T extends BaseEntity, TCreate = Omit<T, 'id
       // Add to cache
       this.setCache(validatedItem.id, validatedItem);
 
+      console.log('Item successfully created and stored');
       return validatedItem;
     } catch (error) {
+      console.error('Error in BaseRepository.create:', error);
       if (error instanceof z.ZodError) {
+        console.error('Zod validation error details:', error.issues);
         throw new ValidationError(`Validation failed: ${error.message}`);
       }
       throw error;

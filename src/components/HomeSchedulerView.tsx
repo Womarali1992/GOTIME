@@ -11,9 +11,10 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
 import { dataService } from "@/lib/services/data-service";
-import DayOfWeekTabs from "./DayOfWeekTabs";
+
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
+import CourtHeader from "./CourtHeader";
 
 // Type definitions for time slot blocks
 interface TimeSlotBlockData {
@@ -130,7 +131,19 @@ const TimeSlotBlock = React.memo(({
           )}
         </div>
       ) : (
-        <span className="text-xl sm:text-lg font-semibold">{block.startHour}:00</span>
+        <div className="flex items-center gap-2 justify-center">
+          <span className="text-xl sm:text-lg font-semibold">{block.startHour}:00</span>
+          {block.isClinic && block.clinic && (
+            <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium whitespace-nowrap">
+              {block.clinic.name}
+            </span>
+          )}
+          {block.isMyReservation && (
+            <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium whitespace-nowrap">
+              My Reservation
+            </span>
+          )}
+        </div>
       )}
 
       {block.isClinic && block.clinic && (
@@ -167,7 +180,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   });
 
   const [weekOffset, setWeekOffset] = useState<number>(0);
-  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(dataService.getAllCourts()[0]?.id);
+  const [selectedCourt, setSelectedCourt] = useState<string | undefined>(undefined);
   const isMobile = useMediaQuery("(max-width: 768px)");
   
   // Refs for click-outside functionality
@@ -329,31 +342,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
     return slotDate < now;
   }, [currentTime]);
 
-  // Get availability for a specific court, day and hour - uses data service
+  // Get availability for a specific court, day and hour - services single source of truth
   const getSlotStatus = (court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
-
-    const relevantSlots = timeSlots.filter(
-      slot => parseInt(slot.startTime.split(":")[0]) === hour
-    );
-
-    if (relevantSlots.length === 0) return { available: false, reserved: false, isClinic: false };
-
-    const slot = relevantSlots[0];
-    const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
-    const clinic = slot.type === 'clinic' && slot.clinicId
-      ? dataService.clinicService.getClinicById(slot.clinicId)
-      : null;
-
-    return {
-      available: slot.available,
-      reserved: !!reservation,
-      isClinic: slot.type === 'clinic',
-      slot,
-      reservation,
-      clinic,
-    };
+    return dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
   };
 
   const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
@@ -445,174 +437,43 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   return (
     <>
       <Card className="gradient-card overflow-hidden">
-        <CardHeader className={cn(
-          "px-2 sm:px-3 pt-0 pb-0 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
-          "flex flex-col space-y-0.5"
+<CardHeader className={cn(
+          "px-2 sm:px-3 pt-2 pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
+          "flex flex-col space-y-2"
         )}>
-          <div className={cn(
-            isMobile ? "flex flex-row items-start justify-between" : "flex flex-row items-center justify-between"
-          )}>
-            {/* Left: Court selector */}
-            <div className="flex items-center justify-start gap-2 sm:gap-3">
-              <Select value={selectedCourt} onValueChange={setSelectedCourt}>
-                <SelectTrigger className="inline-flex items-center justify-center gap-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-10 sm:h-11 px-3 sm:px-4 py-2 rounded-md font-medium transition-all duration-200 text-sm sm:text-base whitespace-nowrap border border-border/60 bg-card shadow-sm w-auto">
-                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <SelectValue placeholder="Select court" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  {dataService.getAllCourts().map((courtOption) => (
-                    <SelectItem key={courtOption.id} value={courtOption.id}>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline">{courtOption.name}</span>
-                        <span className="sm:hidden">{courtOption.name.split(' ')[0]}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Center: Filter dropdown */}
-            <div className={cn(
-              isMobile ? "text-center flex-1 mx-2 min-w-0" : "text-center flex-[2] min-w-0"
-            )}>
-              <div className="flex items-center justify-center gap-3 min-w-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="inline-flex items-center gap-3 h-10 px-3 sm:h-11 sm:px-4 rounded-md shadow-sm"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {isAllOn ? (
-                          <>
-                            <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                            <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                            <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
-                          </>
-                        ) : (
-                          <>
-                            {legendFilters.available && (
-                              <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                            )}
-                            {legendFilters.clinic && (
-                              <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                            )}
-                            {legendFilters.myReservations && (
-                              <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <span className="text-sm sm:text-base">Show: {activeFilterLabel}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center">
-                    <DropdownMenuLabel>Filter slots</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setLegendFilters({ available: true, clinic: true, myReservations: true })}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                        <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                        <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
-                        <span className="text-sm">All</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => toggleLegendFilter('available')}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                        <span className="text-sm">Available only</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => toggleLegendFilter('clinic')}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                        <span className="text-sm">Clinic only</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => toggleLegendFilter('myReservations')}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
-                        <span className="text-sm whitespace-nowrap">My Reservations only</span>
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {/* Removed inline label; moved to DayOfWeekTabs topRightLabel */}
-              </div>
-            </div>
-            
-            {/* View Toggle Navigation - Right Aligned */}
-            <div className={cn(
-              "bg-muted/50 rounded-lg flex-none shrink-0",
-              isMobile ? "flex flex-row space-x-0.5 p-0.5" : "flex items-center space-x-1 p-1"
-            )}>
-              <Button
-                variant={viewDays === 1 ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewDays(1)}
-                className={cn(
-                  "text-xs",
-                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-                )}
-              >
-                Day
-              </Button>
-              <Button
-                variant={viewDays === 3 ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewDays(3)}
-                className={cn(
-                  "text-xs",
-                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-                )}
-              >
-                Week
-              </Button>
-              <Button
-                variant={viewDays === 0 ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewDays(0)}
-                className={cn(
-                  "text-xs",
-                  isMobile ? "h-6 px-1 py-0" : "h-8 px-3 sm:px-4 sm:text-sm"
-                )}
-              >
-                Calendar
-              </Button>
-            </div>
+          {/* Always show court name from settings as main header */}
+          <div className="flex items-center justify-center">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+              {dataService.getReservationSettings()?.courtName || 'Pickleball Court'}
+            </h2>
           </div>
-
-          
         </CardHeader>
-        
-
         
         <CardContent className="p-0 px-1 md:px-4 pb-2">
 
           
 
           
-          {/* Day-of-week tabs with label above (flush right) */}
-          <div className="relative">
-            <span className="hidden sm:inline absolute left-1/2 -translate-x-1/2 top-0 -translate-y-full z-10 pointer-events-none truncate font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-base sm:text-lg max-w-[50vw]">
-              {`${format(currentDate, "EEEE MMMM d")} ${dataService.getCourtById(selectedCourt || "")?.name ?? ""}`}
-            </span>
-            <DayOfWeekTabs 
-              centeredDate={currentDate} 
-              onDateSelect={handleDateSelect}
-              weekOffset={weekOffset}
-              onWeekChange={setWeekOffset}
-            />
-          </div>
+
           
 
           
                     {/* Show schedule view or calendar view based on viewDays */}
           {viewDays === 0 ? (
             // Calendar View
-            <CourtCalendar onSelectTimeSlot={onSelectTimeSlot} selectedDate={currentDate} />
+            <CourtCalendar 
+              onSelectTimeSlot={onSelectTimeSlot} 
+              selectedDate={currentDate}
+              weekOffset={weekOffset}
+              onWeekChange={setWeekOffset}
+              viewDays={viewDays}
+              onViewDaysChange={setViewDays}
+              legendFilters={legendFilters}
+              onLegendFiltersChange={setLegendFilters}
+              selectedCourt={selectedCourt}
+              onCourtChange={setSelectedCourt}
+              onDateChange={setCurrentDate}
+            />
           ) : viewDays === 1 ? (
             // Day View - show all courts horizontally for single day
             <DayView
@@ -627,14 +488,39 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
               onDateChange={setCurrentDate}
+              weekOffset={weekOffset}
+              onWeekChange={setWeekOffset}
+              viewDays={viewDays}
+              onViewDaysChange={setViewDays}
+              legendFilters={legendFilters}
+              onLegendFiltersChange={setLegendFilters}
+              selectedCourt={selectedCourt}
+              onCourtChange={setSelectedCourt}
             />
           ) : (
             // Schedule View (Week view)
             <div className={cn(isMobile ? "overflow-x-hidden w-full max-w-full" : "overflow-x-auto")}>
               <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}> 
                 {/* Court rows with date headers over each column */}
-                {dataService.getAllCourts().filter(court => court.id === selectedCourt).map((court) => (
-                  <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}> 
+                {(selectedCourt ? dataService.getAllCourts().filter(court => court.id === selectedCourt) : dataService.getAllCourts()).map((court) => (
+                  <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
+                    {/* Show CourtHeader for each court when in All Courts view */}
+                    {!selectedCourt && (
+                      <CourtHeader
+                        courtId={court.id}
+                        courtName={court.name}
+                        currentDate={currentDate}
+                        onDateSelect={handleDateSelect}
+                        weekOffset={weekOffset}
+                        onWeekChange={setWeekOffset}
+                        viewDays={viewDays}
+                        onViewDaysChange={setViewDays}
+                        legendFilters={legendFilters}
+                        onLegendFiltersChange={setLegendFilters}
+                        selectedCourt={selectedCourt}
+                        onCourtChange={setSelectedCourt}
+                      />
+                    )} 
                     
                     {/* Time slots grid */}
                     <div
@@ -716,11 +602,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               // Group consecutive time slots into blocks
                               for (let i = 0; i < hours.length; i++) {
                                 const hour = hours[i];
-                                const { available, reserved, isClinic, slot } = getSlotStatus(court, day, hour);
-                                const clinic = slot?.clinicId ? dataService.clinicService.getClinicById(slot.clinicId) : null;
+                                const { available, reserved, blocked, isClinic, slot, clinic, reservation } = getSlotStatus(court, day, hour);
                                 
                                 // Check if this is the current user's reservation
-                                const reservation = slot ? dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id) : null;
                                 const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
                                 
                                 if (isClinic && clinic) {
@@ -744,7 +628,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                       slot,
                                       available,
                                       reserved,
-                                      blocked: false, // Blocked status is not directly available from getSlotStatus
+                                      blocked: !!blocked,
                                       isMyReservation
                                     };
                                   }
@@ -763,7 +647,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                     slot,
                                     available,
                                     reserved,
-                                    blocked: false, // Blocked status is not directly available from getSlotStatus
+                                    blocked: !!blocked,
                                     isMyReservation
                                   });
                                 }

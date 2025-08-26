@@ -76,13 +76,13 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
   };
 
   const handleReset = () => {
-    setSettings(reservationSettings);
+    setSettings(dataService.getReservationSettings());
     setHasChanges(false);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setSettings(reservationSettings);
+    setSettings(dataService.getReservationSettings());
     setHasChanges(false);
     setIsEditing(false);
   };
@@ -155,6 +155,22 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="courtName">Court Name</Label>
+              <Input
+                id="courtName"
+                type="text"
+                value={settings.courtName || 'Pickleball Court'}
+                onChange={(e) => handleSettingChange('courtName', e.target.value)}
+                disabled={!isEditing}
+                placeholder="Enter your court name"
+                className="max-w-md"
+              />
+              <p className="text-xs text-muted-foreground">
+                This name will appear in the header and throughout the system
+              </p>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="advanceBookingLimit">Advance Booking Limit</Label>
               <div className="flex items-center gap-2">

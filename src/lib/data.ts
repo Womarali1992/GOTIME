@@ -976,7 +976,8 @@ export const getTimeSlotReservationStatus = (timeSlotId: string) => {
   const isBlocked = timeSlot.blocked;
   const isClinic = timeSlot.type === 'clinic' && clinic !== null;
   const isReserved = !timeSlot.available && !isBlocked && !isClinic && reservation !== null;
-  const isAvailable = timeSlot.available && !isBlocked;
+  // Fixed: Clinic slots should NOT be considered available for regular booking
+  const isAvailable = timeSlot.available && !isBlocked && !isClinic;
   
   let status: 'available' | 'reserved' | 'blocked' | 'clinic';
   if (isBlocked) {
@@ -1038,7 +1039,8 @@ export const getTimeSlotsWithStatusForDate = (date: string, courtId?: string) =>
     const isBlocked = slot.blocked;
     const isClinic = slot.type === 'clinic' && clinic !== null;
     const isReserved = !slot.available && !isBlocked && !isClinic && reservation !== null;
-    const isAvailable = slot.available && !isBlocked;
+    // Fixed: Clinic slots should NOT be considered available for regular booking
+    const isAvailable = slot.available && !isBlocked && !isClinic;
     
     let status: 'available' | 'reserved' | 'blocked' | 'clinic';
     if (isBlocked) {
