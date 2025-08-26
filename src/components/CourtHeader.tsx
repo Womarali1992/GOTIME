@@ -1,12 +1,13 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MapPin } from "lucide-react";
+import { MapPin, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { dataService } from "@/lib/services/data-service";
-import { format } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
+
 
 
 interface CourtHeaderProps {
@@ -77,11 +78,35 @@ const CourtHeader = ({
     });
   }, [onLegendFiltersChange]);
 
+  // Navigation functions
+  const navigatePrevious = React.useCallback(() => {
+    const previousDate = subDays(currentDate, 1);
+    // Don't go before today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (previousDate >= today) {
+      onDateSelect(previousDate);
+    }
+  }, [currentDate, onDateSelect]);
+
+  const navigateNext = React.useCallback(() => {
+    const nextDate = addDays(currentDate, 1);
+    onDateSelect(nextDate);
+  }, [currentDate, onDateSelect]);
+
+  // Check if previous navigation is disabled
+  const isPreviousDisabled = React.useMemo(() => {
+    const previousDate = subDays(currentDate, 1);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return previousDate < today;
+  }, [currentDate]);
+
   return (
-    <div className="mb-4 space-y-3">
-      {/* Header Controls */}
-      <div className="px-2 sm:px-3 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 rounded-lg py-2 relative">
-        <div className="flex flex-row items-center justify-between gap-1 sm:gap-2">
+    <>
+      {/* Top Bar - View Toggle Buttons and Court Selector at the very top */}
+      <div className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-row items-center justify-between gap-1 sm:gap-2 py-2 px-4">
           {/* Left: Court selector */}
           <div className="flex items-center justify-start">
             <Select value={selectedCourt ?? 'all'} onValueChange={(v) => onCourtChange(v === 'all' ? undefined : v)}>
@@ -109,38 +134,8 @@ const CourtHeader = ({
             </Select>
           </div>
           
-          {/* Right: View Toggle Navigation */}
-          <div className="bg-muted/50 rounded-lg flex-none shrink-0 flex items-center space-x-0.5 sm:space-x-1 p-0.5 sm:p-1">
-            <Button
-              variant={viewDays === 1 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(1)}
-              className="h-6 sm:h-8 px-1 sm:px-3 text-xs sm:text-sm"
-            >
-              Day
-            </Button>
-            <Button
-              variant={viewDays === 3 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(3)}
-              className="h-6 sm:h-8 px-1 sm:px-3 text-xs sm:text-sm"
-            >
-              Week
-            </Button>
-            <Button
-              variant={viewDays === 0 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(0)}
-              className="h-6 sm:h-8 px-1 sm:px-3 text-xs sm:text-sm"
-            >
-              Calendar
-            </Button>
-          </div>
-        </div>
-        
-        {/* Center: Filter dropdown - absolutely positioned to true center */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="pointer-events-auto">
+          {/* Center: Filter dropdown */}
+          <div className="flex items-center justify-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -204,18 +199,83 @@ const CourtHeader = ({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          
+          {/* Right: View Toggle Buttons */}
+          <div className="bg-muted/50 rounded-lg flex-none shrink-0 flex items-center space-x-0.5 sm:space-x-1 p-0.5 sm:p-1">
+            <Button
+              variant={viewDays === 1 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewDaysChange(1)}
+              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
+            >
+              1D
+            </Button>
+            <Button
+              variant={viewDays === 3 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewDaysChange(3)}
+              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
+            >
+              3D
+            </Button>
+            <Button
+              variant={viewDays === 0 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewDaysChange(0)}
+              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
+            >
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Court Title with Date - positioned after controls */}
-      <div className="text-center">
-        <h3 className="text-lg font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-          {format(currentDate, "EEEE, MMMM d")} - {courtName}
-        </h3>
+      {/* Court Name and Date Section */}
+      <div className="px-2 sm:px-3 py-3 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b border-border/30">
+        <div className="flex items-center justify-between">
+          {/* Left Navigation Arrow */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={navigatePrevious}
+            disabled={isPreviousDisabled}
+            className="h-8 w-8 p-0 hover:bg-primary/10"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          {/* Center: Date and Court Name */}
+          <div className="text-center flex-1">
+            {/* Mobile: Stack court name and date */}
+            <div className="sm:hidden">
+              <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                {dataService.reservationSettings?.courtName || 'Pickleball Court'}
+              </div>
+              <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                {format(currentDate, "EEEE, MMMM d")} - {courtName}
+              </h2>
+            </div>
+            
+            {/* Desktop: Single line */}
+            <h2 className="hidden sm:block text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+              {dataService.reservationSettings?.courtName || 'Pickleball Court'} {format(currentDate, "EEEE, MMMM d")} - {courtName}
+            </h2>
+          </div>
+
+          {/* Right Navigation Arrow */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={navigateNext}
+            className="h-8 w-8 p-0 hover:bg-primary/10"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
 
-    </div>
+    </>
   );
 };
 

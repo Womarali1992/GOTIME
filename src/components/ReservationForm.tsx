@@ -172,7 +172,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               </h3>
               <div className="bg-muted p-3 rounded-md text-xs sm:text-sm space-y-1">
                 <p className="break-words"><span className="font-medium">Court:</span> {court?.name}</p>
-                <p className="break-words"><span className="font-medium">Date:</span> {format(date, "EEEE, MMMM d, yyyy")}</p>
+                <p className="break-words"><span className="font-medium">Date:</span> {format(date, "MMM d")}</p>
                 <p className="break-words"><span className="font-medium">Time:</span> {selectedTimeSlot.startTime} - {selectedTimeSlot.endTime}</p>
                 <p className="break-words"><span className="font-medium">Location:</span> {court?.location} ({court?.indoor ? "Indoor" : "Outdoor"})</p>
                 {clinic && (

@@ -131,6 +131,8 @@ const Admin = () => {
         playerEmail: reservationData.playerEmail,
         playerPhone: reservationData.playerPhone,
         players: reservationData.players,
+        participants: reservationData.participants || [],
+        comments: reservationData.comments || [],
       });
       if (!result.success) {
         console.error("Error creating reservation:", result.error);

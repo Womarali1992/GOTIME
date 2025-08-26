@@ -20,7 +20,7 @@ const Header = () => {
   // Safe way to get court name with fallback
   let courtName = "PickleBook";
   try {
-    const settings = dataService.getReservationSettings();
+    const settings = dataService.reservationSettings;
     courtName = settings?.courtName || "PickleBook";
   } catch (error) {
     console.warn("Failed to get court name from settings, using fallback:", error);

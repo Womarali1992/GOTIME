@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/lib/types';
-import { useDataService } from '@/hooks/use-data-service';
+import { dataService } from '@/lib/services/data-service';
 
 interface UserContextType {
   currentUser: User | null;
@@ -10,32 +10,43 @@ interface UserContextType {
   updateCurrentUser: (userData: Partial<User>) => void;
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined);
+// Create a default context value that matches our interface
+const defaultContextValue: UserContextType = {
+  currentUser: null,
+  isAuthenticated: false,
+  login: () => console.warn('login called outside of UserProvider'),
+  logout: () => console.warn('logout called outside of UserProvider'),
+  updateCurrentUser: () => console.warn('updateCurrentUser called outside of UserProvider'),
+};
+
+const UserContext = createContext<UserContextType>(defaultContextValue);
 
 interface UserProviderProps {
   children: ReactNode;
 }
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+  console.log('UserProvider rendering');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const dataService = useDataService();
 
   // Initialize user from localStorage or default to John Doe for demo
   useEffect(() => {
     const savedUserEmail = localStorage.getItem('currentUserEmail');
     const userEmail = savedUserEmail || 'john@example.com'; // Default to John Doe for demo
     
-    const user = dataService.users.find(u => u.email === userEmail);
+    const users = dataService.userService.getAllUsers();
+    const user = users.find(u => u.email === userEmail);
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
       localStorage.setItem('currentUserEmail', user.email);
     }
-  }, [dataService.users]);
+  }, []);
 
   const login = (email: string) => {
-    const user = dataService.users.find(u => u.email === email);
+    const users = dataService.userService.getAllUsers();
+    const user = users.find(u => u.email === email);
     if (user) {
       setCurrentUser(user);
       setIsAuthenticated(true);
@@ -66,6 +77,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     updateCurrentUser,
   };
 
+  console.log('UserProvider providing value:', { currentUser: currentUser?.email || null, isAuthenticated });
+
   return (
     <UserContext.Provider value={value}>
       {children}
@@ -75,8 +88,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
 export const useUser = (): UserContextType => {
   const context = useContext(UserContext);
-  if (context === undefined) {
-    throw new Error('useUser must be used within a UserProvider');
+  console.log('useUser called, context:', context);
+  
+  // Check if we're getting the default context (which means we're outside a provider)
+  if (context === defaultContextValue) {
+    console.warn('useUser: Using default context - component may be outside UserProvider');
   }
+  
   return context;
 };

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
-import { dataService } from "@/lib/services/data-service";
+import { useDataService } from "@/hooks/use-data-service";
 
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
@@ -192,6 +192,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   // Get current user from context
   const { currentUser } = useUser();
   const currentUserEmail = currentUser?.email || "";
+  
+  // Get data service
+  const dataService = useDataService();
 
   const activeFilterLabel = useMemo(() => {
     if (legendFilters.available && legendFilters.clinic && legendFilters.myReservations) return "All";
@@ -292,7 +295,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const nextDay = useCallback(() => {
     const newDate = addDays(currentDate, 1);
     const today = startOfDay(new Date());
-    const maxDate = addDays(today, dataService.getTimeSlotVisibilityDays() - 1);
+    const maxDate = addDays(today, 30 - 1); // Use default 30 days visibility
     
     if (newDate <= maxDate) {
       setCurrentDate(newDate);
@@ -359,7 +362,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
     if (relevantSlots.length > 0) {
       const slot = relevantSlots[0];
       // Check if this is a reservation
-      const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
+      const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
 
       if (reservation) {
         // Show reservation popup
@@ -373,7 +376,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         onSelectTimeSlot(slot);
       }
     }
-  }, [onSelectTimeSlot]);
+  }, [onSelectTimeSlot, dataService.reservations, dataService.timeSlotService]);
 
   // Helper function to get the first available time slot for a clinic block
   const getFirstAvailableSlotForBlock = useCallback((court: Court, day: Date, startHour: number, endHour: number) => {
@@ -436,29 +439,35 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
 
   return (
     <>
+      {/* CourtHeader now contains the top bar with view toggles and court/date info */}
+      <CourtHeader
+        courtId={selectedCourt || "all"}
+        courtName={selectedCourt ? (dataService.courts.find(court => court.id === selectedCourt)?.name || "All Courts") : "All Courts"}
+        currentDate={currentDate}
+        onDateSelect={handleDateSelect}
+        weekOffset={weekOffset}
+        onWeekChange={setWeekOffset}
+        viewDays={viewDays}
+        onViewDaysChange={setViewDays}
+        legendFilters={legendFilters}
+        onLegendFiltersChange={setLegendFilters}
+        selectedCourt={selectedCourt}
+        onCourtChange={setSelectedCourt}
+      />
+
       <Card className="gradient-card overflow-hidden">
-<CardHeader className={cn(
+        <CardHeader className={cn(
           "px-2 sm:px-3 pt-2 pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
           "flex flex-col space-y-2"
         )}>
-          {/* Always show court name from settings as main header */}
-          <div className="flex items-center justify-center">
-            <h2 className="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-              {dataService.getReservationSettings()?.courtName || 'Pickleball Court'}
-            </h2>
-          </div>
+
         </CardHeader>
         
         <CardContent className="p-0 px-1 md:px-4 pb-2">
 
-          
 
-          
 
-          
-
-          
-                    {/* Show schedule view or calendar view based on viewDays */}
+          {/* Show schedule view or calendar view based on viewDays */}
           {viewDays === 0 ? (
             // Calendar View
             <CourtCalendar 
@@ -479,11 +488,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
             <DayView
               selectedDate={currentDate}
               onClose={() => {}} // No close needed for inline view
-              courts={dataService.getAllCourts()}
-              timeSlots={dataService.timeSlotService.getAllTimeSlots()}
-              reservations={dataService.reservationService.getAllReservations()}
-              clinics={dataService.clinicService.getAllClinics()}
-              coaches={dataService.coachService.getAllCoaches()}
+              courts={dataService.courts}
+              timeSlots={dataService.timeSlots}
+              reservations={dataService.reservations}
+              clinics={dataService.clinics}
+              coaches={dataService.coaches}
               isOpen={true}
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
@@ -502,26 +511,8 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
             <div className={cn(isMobile ? "overflow-x-hidden w-full max-w-full" : "overflow-x-auto")}>
               <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}> 
                 {/* Court rows with date headers over each column */}
-                {(selectedCourt ? dataService.getAllCourts().filter(court => court.id === selectedCourt) : dataService.getAllCourts()).map((court) => (
+                {(selectedCourt ? dataService.courts.filter(court => court.id === selectedCourt) : dataService.courts).map((court) => (
                   <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
-                    {/* Show CourtHeader for each court when in All Courts view */}
-                    {!selectedCourt && (
-                      <CourtHeader
-                        courtId={court.id}
-                        courtName={court.name}
-                        currentDate={currentDate}
-                        onDateSelect={handleDateSelect}
-                        weekOffset={weekOffset}
-                        onWeekChange={setWeekOffset}
-                        viewDays={viewDays}
-                        onViewDaysChange={setViewDays}
-                        legendFilters={legendFilters}
-                        onLegendFiltersChange={setLegendFilters}
-                        selectedCourt={selectedCourt}
-                        onCourtChange={setSelectedCourt}
-                      />
-                    )} 
-                    
                     {/* Time slots grid */}
                     <div
                       className={cn(
@@ -564,7 +555,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                 variant="ghost"
                                 size="icon"
                                 onClick={(e) => { e.stopPropagation(); nextDay(); }}
-                                disabled={addDays(currentDate, 1) > addDays(startOfDay(new Date()), dataService.getTimeSlotVisibilityDays() - 1)}
+                                disabled={addDays(currentDate, 1) > addDays(startOfDay(new Date()), 30 - 1)}
                                 className="absolute right-0.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0"
                               >
                                 <ChevronRight className="h-3 w-3" />
@@ -704,11 +695,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
         <DayView
           selectedDate={selectedDateForDayView}
           onClose={() => setSelectedDateForDayView(null)}
-          courts={dataService.getAllCourts()}
-          timeSlots={dataService.timeSlotService.getAllTimeSlots()}
-          reservations={dataService.reservationService.getAllReservations()}
-          clinics={dataService.clinicService.getAllClinics()}
-          coaches={dataService.coachService.getAllCoaches()}
+          courts={dataService.courts}
+          timeSlots={dataService.timeSlots}
+          reservations={dataService.reservations}
+          clinics={dataService.clinics}
+          coaches={dataService.coaches}
           isOpen={selectedDateForDayView !== null}
         />
       )}
@@ -738,11 +729,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                </div>
                
                <div className="space-y-4">
-                 {dataService.reservationService.getAllReservations()
+                 {dataService.reservations
                    .filter(res => res.playerEmail === currentUserEmail)
                    .map(reservation => {
-                     const timeSlot = dataService.timeSlotService.getTimeSlotById(reservation.timeSlotId);
-                     const court = dataService.getCourtById(reservation.courtId);
+                     const timeSlot = dataService.timeSlots.find(ts => ts.id === reservation.timeSlotId);
+                     const court = dataService.courts.find(c => c.id === reservation.courtId);
                      const date = timeSlot ? new Date(timeSlot.date) : new Date();
                      
                      return (
@@ -750,7 +741,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                          <div className="flex items-center justify-between">
                            <div>
                              <h3 className="font-semibold text-purple-800">
-                               {court?.name} - {format(date, "EEEE, MMMM d, yyyy")}
+                               {court?.name} - {format(date, "MMM d")}
                              </h3>
                              <p className="text-purple-600">
                                {timeSlot?.startTime} - {timeSlot?.endTime}
@@ -770,7 +761,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                      );
                    })}
                  
-                 {dataService.reservationService.getAllReservations().filter(res => res.playerEmail === currentUserEmail).length === 0 && (
+                 {dataService.reservations.filter(res => res.playerEmail === currentUserEmail).length === 0 && (
                    <div className="text-center py-8 text-gray-500">
                      <p>You don't have any reservations yet.</p>
                    </div>
@@ -811,7 +802,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                          {selectedReservation.court?.name}
                        </h3>
                        <p className="text-blue-600">
-                         {format(new Date(selectedReservation.timeSlot.date), "EEEE, MMMM d, yyyy")}
+                         {format(new Date(selectedReservation.timeSlot.date), "MMM d")}
                        </p>
                      </div>
                      

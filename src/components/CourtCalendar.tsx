@@ -125,23 +125,7 @@ const CourtCalendar = ({
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-2 sm:p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Navigation Header */}
-        {onWeekChange && onViewDaysChange && onLegendFiltersChange && onCourtChange && (
-          <CourtHeader
-            courtId={selectedCourt || "all"}
-            courtName={selectedCourt ? (dataService.getCourtById(selectedCourt)?.name || "All Courts") : "All Courts"}
-            currentDate={selectedDate || new Date()}
-            onDateSelect={handleDateSelect}
-            weekOffset={weekOffset}
-            onWeekChange={onWeekChange}
-            viewDays={viewDays}
-            onViewDaysChange={onViewDaysChange}
-            legendFilters={legendFilters}
-            onLegendFiltersChange={onLegendFiltersChange}
-            selectedCourt={selectedCourt}
-            onCourtChange={handleCourtSelect}
-          />
-        )}
+        {/* Note: CourtHeader is now handled by parent HomeSchedulerView to avoid duplication */}
         
 
 

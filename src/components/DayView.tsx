@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, User, GraduationCap, X, MapPin, Calendar } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, User, GraduationCap, X, MapPin, Calendar } from "lucide-react";
+import { format, addDays, subDays } from "date-fns";
 import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -59,7 +59,7 @@ const DayView = ({
   onCourtChange
 }: DayViewProps) => {
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
-  const displayDate = format(selectedDate, "EEEE, MMMM d, yyyy");
+  const displayDate = format(selectedDate, "MMM d");
   
   // Time focus mode state
   const [isTimeFocusMode, setIsTimeFocusMode] = useState(false);
@@ -191,6 +191,41 @@ const DayView = ({
     }
   };
 
+  // Navigation handlers for date/time navigation
+  const handlePreviousNavigation = () => {
+    if (isTimeFocusMode && focusedTime !== null) {
+      // In time focus mode, navigate to previous hour
+      const newHour = focusedTime - 1;
+      if (newHour >= 8) { // Don't go before 8am
+        setFocusedTime(newHour);
+      }
+    } else {
+      // In day mode, navigate to previous day
+      const previousDate = subDays(selectedDate, 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (previousDate >= today && onDateChange) {
+        onDateChange(previousDate);
+      }
+    }
+  };
+
+  const handleNextNavigation = () => {
+    if (isTimeFocusMode && focusedTime !== null) {
+      // In time focus mode, navigate to next hour
+      const newHour = focusedTime + 1;
+      if (newHour <= 21) { // Don't go after 9pm
+        setFocusedTime(newHour);
+      }
+    } else {
+      // In day mode, navigate to next day
+      const nextDate = addDays(selectedDate, 1);
+      if (onDateChange) {
+        onDateChange(nextDate);
+      }
+    }
+  };
+
   // Get the data to display in rows (either hours or days based on mode)
   const getRowData = () => {
     if (isTimeFocusMode && focusedTime) {
@@ -234,25 +269,65 @@ const DayView = ({
           </div>
         )}
 
-        {/* Court Headers - Mobile-responsive */}
-        <div className="mb-6">
+        {/* Day of Week Navigation removed */}
+
+        {/* Court Headers - Mobile-responsive - Always show in day view */}
+        {(
+          <div className="mb-6">
           {/* Mobile: Grid layout to match table structure */}
           <div className="block sm:hidden">
             <div className="grid grid-cols-4 gap-0 border border-border/30 rounded-lg overflow-hidden bg-card/80">
               {/* Time/Days header */}
               <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 border-r border-border/20 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-1">
-                  {isTimeFocusMode ? (
-                    <>
-                      <Calendar className="h-3 w-3 text-primary" />
-                      <span className="text-xs font-semibold">Days</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-3 w-3 text-primary" />
-                      <span className="text-xs font-semibold">Time</span>
-                    </>
-                  )}
+                <div className="flex items-center gap-2">
+                  {/* Previous Navigation Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePreviousNavigation}
+                    className="h-6 w-6 p-0 hover:bg-primary/10 rounded-full"
+                    disabled={
+                      isTimeFocusMode 
+                        ? focusedTime === 8 
+                        : (() => {
+                            const yesterday = subDays(selectedDate, 1);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return yesterday < today;
+                          })()
+                    }
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </Button>
+
+                  <div className="flex flex-col items-center gap-1">
+                    {isTimeFocusMode ? (
+                      <>
+                        <Clock className="h-3 w-3 text-primary" />
+                        <span className="text-xs font-semibold">{focusedTime?.toString().padStart(2, '0')}:00</span>
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="h-3 w-3 text-primary" />
+                        <span className="text-xs font-semibold">{format(selectedDate, "MMM d")}</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Next Navigation Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleNextNavigation}
+                    className="h-6 w-6 p-0 hover:bg-primary/10 rounded-full"
+                    disabled={
+                      isTimeFocusMode 
+                        ? focusedTime === 21 
+                        : false
+                    }
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
               
@@ -290,18 +365,61 @@ const DayView = ({
           {/* Desktop: Grid layout */}
           <div className="hidden sm:grid grid-cols-4 gap-4">
             <div className="flex items-center justify-center">
-              <div className="flex items-center gap-2">
-                {isTimeFocusMode ? (
-                  <>
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <span className="text-lg font-semibold">Days</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="h-5 w-5 text-primary" />
-                    <span className="text-lg font-semibold">Time</span>
-                  </>
-                )}
+              <div className="flex items-center gap-3">
+                {/* Previous Navigation Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePreviousNavigation}
+                  className="h-8 w-8 p-0 hover:bg-primary/10 rounded-full"
+                  disabled={
+                    isTimeFocusMode 
+                      ? focusedTime === 8 
+                      : (() => {
+                          const yesterday = subDays(selectedDate, 1);
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return yesterday < today;
+                        })()
+                  }
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  {isTimeFocusMode ? (
+                    <>
+                      <Clock className="h-5 w-5 text-primary" />
+                      <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                        <div>{focusedTime?.toString().padStart(2, '0')}:00</div>
+                        <div>Time Focus</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="h-5 w-5 text-primary" />
+                      <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                        <div>{format(selectedDate, "EEEE")}</div>
+                        <div>{format(selectedDate, "MMM d")}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Next Navigation Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleNextNavigation}
+                  className="h-8 w-8 p-0 hover:bg-primary/10 rounded-full"
+                  disabled={
+                    isTimeFocusMode 
+                      ? focusedTime === 21 
+                      : false
+                  }
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
             {courts.map((court) => (
@@ -329,6 +447,7 @@ const DayView = ({
             ))}
           </div>
         </div>
+        )}
 
         {/* Dynamic Grid - Changes based on mode */}
         <div className="space-y-3">
@@ -625,23 +744,7 @@ const DayView = ({
   if (!isModal) {
     return (
       <div className="space-y-4">
-        {/* Navigation Header for inline view */}
-        {onWeekChange && onViewDaysChange && onLegendFiltersChange && onCourtChange && (
-          <CourtHeader
-            courtId={selectedCourt || "all"}
-            courtName={selectedCourt ? (dataService.getCourtById(selectedCourt)?.name || "All Courts") : "All Courts"}
-            currentDate={selectedDate}
-            onDateSelect={onDateChange || (() => {})}
-            weekOffset={weekOffset}
-            onWeekChange={onWeekChange}
-            viewDays={viewDays}
-            onViewDaysChange={onViewDaysChange}
-            legendFilters={legendFilters}
-            onLegendFiltersChange={onLegendFiltersChange}
-            selectedCourt={selectedCourt}
-            onCourtChange={onCourtChange}
-          />
-        )}
+        {/* Note: CourtHeader is now handled by parent HomeSchedulerView to avoid duplication */}
         
         <Card className="gradient-card overflow-hidden">
           <CardContent className="px-1 md:px-4 pb-2">
@@ -714,7 +817,7 @@ const DayView = ({
                           {selectedReservation.court?.name}
                         </h3>
                         <p className="text-blue-600">
-                          {format(new Date(selectedReservation.timeSlot.date), "EEEE, MMMM d, yyyy")}
+                          {format(new Date(selectedReservation.timeSlot.date), "MMM d")}
                         </p>
                       </div>
                       

@@ -66,7 +66,7 @@ const AdminCalendarView = () => {
         {/* Unified Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-            Admin Calendar — {format(selectedDate, "EEEE, MMMM d, yyyy")}
+            Admin Calendar — {format(selectedDate, "MMM d")}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base mt-2">
             Manage court schedules and reservations · All times in local timezone
@@ -124,11 +124,11 @@ const AdminCalendarView = () => {
             <CardHeader className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b border-border/20">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold text-foreground">
-                  Admin Calendar — {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                  Admin Calendar — {format(selectedDate, "MMM d")}
                 </h3>
                 <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>Local time</span>
+                  <span>{format(selectedDate, "EEE, MMM d").toUpperCase()}</span>
                 </div>
               </div>
             </CardHeader>
