@@ -456,13 +456,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
       />
 
       <Card className="gradient-card overflow-hidden">
-        <CardHeader className={cn(
-          "px-2 sm:px-3 pt-2 pb-2 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5",
-          "flex flex-col space-y-2"
-        )}>
-
-        </CardHeader>
-        
         <CardContent className="p-0 px-1 md:px-4 pb-2">
 
 

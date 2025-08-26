@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MapPin, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, Calendar, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-mobile";
@@ -106,27 +106,25 @@ const CourtHeader = ({
     <>
       {/* Top Bar - View Toggle Buttons and Court Selector at the very top */}
       <div className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_2px_10px_rgba(0,0,0,0.04)]">
-        <div className="flex flex-row items-center justify-between gap-1 sm:gap-2 py-2 px-4">
+        <div className="flex flex-row items-center py-0.5 sm:py-1 px-2 sm:px-4">
           {/* Left: Court selector */}
-          <div className="flex items-center justify-start">
+          <div className="flex items-center justify-start flex-1">
             <Select value={selectedCourt ?? 'all'} onValueChange={(v) => onCourtChange(v === 'all' ? undefined : v)}>
-              <SelectTrigger className="inline-flex items-center justify-center gap-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-8 sm:h-10 px-2 sm:px-3 py-2 rounded-md font-medium transition-all duration-200 text-xs sm:text-sm whitespace-nowrap border border-border/60 bg-card shadow-sm w-auto">
+              <SelectTrigger className="inline-flex items-center justify-center gap-1 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3 [&_svg]:shrink-0 !h-6 sm:!h-8 px-1 sm:px-2 py-0 sm:py-1 rounded-md font-medium transition-all duration-200 text-xs whitespace-nowrap border border-border/60 bg-card shadow-sm w-auto min-h-0">
                 <SelectValue placeholder="Select court" />
               </SelectTrigger>
               <SelectContent position="popper">
                 <SelectItem value={'all'}>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="hidden sm:inline">All Courts</span>
-                    <span className="sm:hidden">All</span>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-2.5 w-2.5" />
+                    <span>All Courts</span>
                   </div>
                 </SelectItem>
                 {dataService.getAllCourts().map((courtOption) => (
                   <SelectItem key={courtOption.id} value={courtOption.id}>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">{courtOption.name}</span>
-                      <span className="sm:hidden">{courtOption.name.split(' ')[0]}</span>
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-2.5 w-2.5" />
+                      <span>{courtOption.name}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -140,31 +138,31 @@ const CourtHeader = ({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="inline-flex items-center justify-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-md shadow-sm font-medium transition-all duration-200 text-xs sm:text-sm whitespace-nowrap border border-border/60 bg-card"
+                  className="inline-flex items-center justify-center gap-1 !h-6 sm:!h-8 px-1 sm:px-2 py-0 sm:py-1 rounded-md shadow-sm font-medium transition-all duration-200 text-xs whitespace-nowrap border border-border/60 bg-card min-h-0"
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-center gap-0.5">
                     {isAllOn ? (
                       <>
-                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500/20 border border-green-500/30"></div>
-                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-green-500/20 border border-green-500/30"></div>
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-500/20 border border-yellow-500/30"></div>
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500/20 border border-purple-500/30"></div>
                       </>
                     ) : (
                       <>
                         {legendFilters.available && (
-                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500/20 border border-green-500/30"></div>
+                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-green-500/20 border border-green-500/30"></div>
                         )}
                         {legendFilters.clinic && (
-                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-500/20 border border-yellow-500/30"></div>
                         )}
                         {legendFilters.myReservations && (
-                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-purple-500/20 border border-purple-500/30"></div>
+                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500/20 border border-purple-500/30"></div>
                         )}
                       </>
                     )}
                   </div>
-                  <span className="hidden sm:inline">Show: {activeFilterLabel}</span>
-                  <span className="sm:hidden">{activeFilterLabel}</span>
+                  <span className="text-center">{activeFilterLabel}</span>
+                  <ChevronDown className="h-3 w-3 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center">
@@ -201,31 +199,30 @@ const CourtHeader = ({
           </div>
           
           {/* Right: View Toggle Buttons */}
-          <div className="bg-muted/50 rounded-lg flex-none shrink-0 flex items-center space-x-0.5 sm:space-x-1 p-0.5 sm:p-1">
-            <Button
-              variant={viewDays === 1 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(1)}
-              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
-            >
-              1D
-            </Button>
-            <Button
-              variant={viewDays === 3 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(3)}
-              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
-            >
-              3D
-            </Button>
-            <Button
-              variant={viewDays === 0 ? "default" : "ghost"}
-              size="sm"
-              onClick={() => onViewDaysChange(0)}
-              className="h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
-            >
-              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
+          <div className="flex items-center justify-end flex-1">
+            <div className="bg-muted/50 rounded-lg flex-none shrink-0 flex items-center space-x-0.5 p-0.5">
+              <Button
+                variant={viewDays === 1 ? "default" : "ghost"}
+                onClick={() => onViewDaysChange(1)}
+                className="!h-6 sm:!h-7 px-1 sm:px-1.5 py-0 sm:py-0.5 text-xs min-h-0 min-w-0"
+              >
+                1D
+              </Button>
+              <Button
+                variant={viewDays === 3 ? "default" : "ghost"}
+                onClick={() => onViewDaysChange(3)}
+                className="!h-6 sm:!h-7 px-1 sm:px-1.5 py-0 sm:py-0.5 text-xs min-h-0 min-w-0"
+              >
+                3D
+              </Button>
+              <Button
+                variant={viewDays === 0 ? "default" : "ghost"}
+                onClick={() => onViewDaysChange(0)}
+                className="!h-6 sm:!h-7 px-1 sm:px-1.5 py-0 sm:py-0.5 text-xs min-h-0 min-w-0"
+              >
+                <Calendar className="h-2.5 w-2.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

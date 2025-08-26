@@ -279,55 +279,57 @@ const DayView = ({
             <div className="grid grid-cols-4 gap-0 border border-border/30 rounded-lg overflow-hidden bg-card/80">
               {/* Time/Days header */}
               <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 border-r border-border/20 flex items-center justify-center">
-                <div className="flex items-center gap-2">
-                  {/* Previous Navigation Button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handlePreviousNavigation}
-                    className="h-6 w-6 p-0 hover:bg-primary/10 rounded-full"
-                    disabled={
-                      isTimeFocusMode 
-                        ? focusedTime === 8 
-                        : (() => {
-                            const yesterday = subDays(selectedDate, 1);
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            return yesterday < today;
-                          })()
-                    }
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                  </Button>
+                <div className="flex items-center justify-center">
+                  <div className="flex items-center gap-0">
+                    {/* Previous Navigation Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handlePreviousNavigation}
+                      className="h-4 w-4 p-0 hover:bg-primary/10 rounded-full"
+                      disabled={
+                        isTimeFocusMode 
+                          ? focusedTime === 8 
+                          : (() => {
+                              const yesterday = subDays(selectedDate, 1);
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              return yesterday < today;
+                            })()
+                      }
+                    >
+                      <ChevronLeft className="h-2 w-2" />
+                    </Button>
 
-                  <div className="flex flex-col items-center gap-1">
-                    {isTimeFocusMode ? (
-                      <>
-                        <Clock className="h-3 w-3 text-primary" />
-                        <span className="text-xs font-semibold">{focusedTime?.toString().padStart(2, '0')}:00</span>
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="h-3 w-3 text-primary" />
-                        <span className="text-xs font-semibold">{format(selectedDate, "MMM d")}</span>
-                      </>
-                    )}
+                    <div className="flex flex-col items-center justify-center text-center">
+                      {isTimeFocusMode ? (
+                        <>
+                          <Clock className="h-3 w-3 text-primary mx-auto" />
+                          <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-center">{focusedTime?.toString().padStart(2, '0')}:00</span>
+                        </>
+                      ) : (
+                        <>
+                          <Calendar className="h-3 w-3 text-primary mx-auto" />
+                          <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-center">{format(selectedDate, "MMM d")}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Next Navigation Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleNextNavigation}
+                      className="h-4 w-4 p-0 hover:bg-primary/10 rounded-full"
+                      disabled={
+                        isTimeFocusMode 
+                          ? focusedTime === 21 
+                          : false
+                      }
+                    >
+                      <ChevronRight className="h-2 w-2" />
+                    </Button>
                   </div>
-
-                  {/* Next Navigation Button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleNextNavigation}
-                    className="h-6 w-6 p-0 hover:bg-primary/10 rounded-full"
-                    disabled={
-                      isTimeFocusMode 
-                        ? focusedTime === 21 
-                        : false
-                    }
-                  >
-                    <ChevronRight className="h-3 w-3" />
-                  </Button>
                 </div>
               </div>
               
