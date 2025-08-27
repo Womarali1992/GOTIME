@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { User, AlertCircle, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import FriendSelector from "./FriendSelector";
+import { X } from "lucide-react";
 
 interface ReservationFormProps {
   selectedTimeSlot: TimeSlot;
@@ -35,6 +36,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<ReservationStep>('details');
+  const [friendSelectorExpanded, setFriendSelectorExpanded] = useState(false);
 
   const { currentUser, isAuthenticated } = useUser();
   const users = dataService.userService.getAllUsers();
@@ -136,20 +138,19 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100%-3rem)] max-w-xs sm:max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden mx-auto">
         <DialogHeader className="px-2 sm:px-0">
           <DialogTitle className="text-xl sm:text-2xl font-semibold leading-tight">
-            {clinic ? `Book ${clinic.name}` : "Complete Your Reservation"}
+            {clinic ? `Book ${clinic.name}` : ""}
           </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed">
-            {clinic 
-              ? `Join this clinic to improve your skills. Please provide your information to secure your spot.`
-              : "Please provide your information to book this court."
-            }
-          </DialogDescription>
+          {clinic && (
+            <DialogDescription className="text-sm leading-relaxed">
+              Join this clinic to improve your skills. Please provide your information to secure your spot.
+            </DialogDescription>
+          )}
         </DialogHeader>
         
-        <div className="px-2 sm:px-0">
+        <div className="px-2 sm:px-0 overflow-x-hidden">
           {/* Error and Success Messages */}
           {error && (
             <Alert variant="destructive" className="mb-4">
@@ -165,16 +166,29 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <h3 className="font-medium text-sm sm:text-base">
-                {clinic ? "Clinic Details" : "Reservation Details"}
-              </h3>
-              <div className="bg-muted p-3 rounded-md text-xs sm:text-sm space-y-1">
-                <p className="break-words"><span className="font-medium">Court:</span> {court?.name}</p>
-                <p className="break-words"><span className="font-medium">Date:</span> {format(date, "MMM d")}</p>
-                <p className="break-words"><span className="font-medium">Time:</span> {selectedTimeSlot.startTime} - {selectedTimeSlot.endTime}</p>
-                <p className="break-words"><span className="font-medium">Location:</span> {court?.location} ({court?.indoor ? "Indoor" : "Outdoor"})</p>
+          <form onSubmit={handleSubmit} className="space-y-4 overflow-x-hidden">
+            <div className="space-y-2 max-w-md mx-auto">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-sm sm:text-base">
+                  {clinic ? "Clinic Details" : "Reservation Details"}
+                </h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClose}
+                  className="h-6 w-6 p-0 hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <p className="break-words"><span className="font-medium">Court:</span> {court?.name}</p>
+                  <p className="break-words"><span className="font-medium">Date:</span> {format(date, "MMM d")}</p>
+                  <p className="break-words"><span className="font-medium">Time:</span> {selectedTimeSlot.startTime} - {selectedTimeSlot.endTime}</p>
+                  <p className="break-words"><span className="font-medium">Location:</span> {court?.location} ({court?.indoor ? "Indoor" : "Outdoor"})</p>
+                </div>
                 {clinic && (
                   <div className="mt-2 pt-2 border-t border-border/30 space-y-1">
                     <p className="break-words"><span className="font-medium">Clinic:</span> {clinic.name}</p>
@@ -193,36 +207,46 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
             
             {/* Profile Information Section */}
             {isAuthenticated && currentUser && (
-              <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+              <div className="space-y-2 max-w-md mx-auto">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-primary" />
-                    <h3 className="font-medium text-sm">Profile Information</h3>
-                    <Badge variant="secondary" className="text-xs">
-                      {currentUser.membershipType}
-                    </Badge>
+                    <h3 className="font-medium text-sm sm:text-base">Profile Information</h3>
                   </div>
-                  <Button
-                    type="button"
+                  <Badge
                     variant="outline"
-                    size="sm"
+                    className="text-[10px] cursor-pointer hover:bg-gray-100 transition-colors px-2 py-0.5 text-gray-600 border-gray-300"
                     onClick={toggleUseProfileInfo}
-                    className="text-xs"
                   >
                     {useProfileInfo ? "Enter Manually" : "Use Profile"}
-                  </Button>
+                  </Badge>
                 </div>
+                <div className="p-4 bg-muted/50 rounded-lg border">
                 {useProfileInfo && (
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>✓ Using your profile information:</p>
-                    <p><span className="font-medium">Name:</span> {currentUser.name}</p>
-                    <p><span className="font-medium">Email:</span> {currentUser.email}</p>
-                    <p><span className="font-medium">Phone:</span> {currentUser.phone}</p>
-                    {currentUser.duprRating && (
-                      <p><span className="font-medium">DUPR Rating:</span> {currentUser.duprRating}</p>
-                    )}
+                  <div className="text-xs text-muted-foreground">
+                    <div className="grid grid-cols-[1.5fr_1fr] gap-x-4 gap-y-3">
+                      <div>
+                        <div className="font-medium">Name:</div>
+                        <div>{currentUser.name}</div>
+                      </div>
+                      <div>
+                        <div className="font-medium">Phone:</div>
+                        <div>{currentUser.phone}</div>
+                      </div>
+                      <div>
+                        <div className="font-medium">Email:</div>
+                        <div className="break-all">{currentUser.email}</div>
+                      </div>
+                      {currentUser.duprRating && (
+                        <div>
+                          <div className="font-medium">DUPR Rating:</div>
+                          <div>{currentUser.duprRating}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
+                </div>
               </div>
             )}
             
@@ -270,45 +294,28 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
             
             {/* Friend Selection for Regular Reservations */}
             {!clinic && (
-              <FriendSelector
-                users={users}
-                selectedParticipants={selectedParticipants}
-                onParticipantsChange={setSelectedParticipants}
-                maxParticipants={4}
-                className="border rounded-lg p-4 bg-muted/20"
-              />
+              <div className="max-w-md mx-auto overflow-x-hidden">
+                <FriendSelector
+                  users={users}
+                  selectedParticipants={selectedParticipants}
+                  onParticipantsChange={setSelectedParticipants}
+                  maxParticipants={4}
+                  className="border rounded-lg p-4 bg-muted/20 overflow-x-hidden"
+                  isExpanded={friendSelectorExpanded}
+                  onExpandedChange={setFriendSelectorExpanded}
+                />
+              </div>
             )}
             
-            {/* Player count display */}
-            <div className="space-y-2">
-              <Label className="text-sm">
-                {clinic ? "Participants" : "Total Players"}
-              </Label>
-              {clinic ? (
-                <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
-                  <p className="break-words"><span className="font-medium">Current Participants:</span> {clinic.maxParticipants - 2} / {clinic.maxParticipants}</p>
-                  <p className="text-muted-foreground">You'll be joining as 1 participant</p>
-                </div>
-              ) : (
-                <div className="bg-muted p-3 rounded-md text-xs sm:text-sm">
-                  <p className="break-words">
-                    <span className="font-medium">Total Players:</span> {1 + selectedParticipants.length}
-                  </p>
-                  <p className="text-muted-foreground">
-                    You + {selectedParticipants.length} friend{selectedParticipants.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              )}
-            </div>
             
-            <div className="flex flex-col sm:flex-row gap-3 justify-between pt-4">
-              <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center pt-4 max-w-md mx-auto">
+              <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-32 text-sm">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto text-sm">
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-32 text-sm">
                 {isSubmitting 
                   ? (clinic ? "Processing..." : "Booking...") 
-                  : (clinic ? "Book Clinic" : `Book for ${1 + selectedParticipants.length} Player${1 + selectedParticipants.length !== 1 ? 's' : ''}`)
+                  : (clinic ? "Book Clinic" : "Book")
                 }
               </Button>
             </div>

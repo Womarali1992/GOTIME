@@ -112,7 +112,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {/* Search Input */}
               <div className="space-y-2">
                 <Label htmlFor="search">Search</Label>
@@ -173,7 +173,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Sort By */}
               <div className="space-y-2">
                 <Label htmlFor="sortBy">Sort By</Label>
@@ -256,7 +256,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {filteredAndSortedUsers.map(user => (
             <Card 
               key={user.id} 
@@ -326,11 +326,11 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
                         e.stopPropagation();
                         onEditComments(user);
                       }}
-                      className="border-yellow-300 hover:bg-yellow-50 text-xs sm:text-sm"
+                      className="border-yellow-300 hover:bg-yellow-50 text-xs px-2 py-1"
                     >
-                      <StickyNote className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <StickyNote className="h-3 w-3 mr-1" />
                       <span className="hidden sm:inline">{user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}</span>
-                      <span className="sm:hidden">Comments</span>
+                      <span className="sm:hidden">Notes</span>
                     </Button>
                   </div>
                 )}

@@ -224,7 +224,7 @@ const Admin = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background/90 to-background/90">
       <Header />
       
-      <main className="flex-1 container px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <main className="flex-1 container px-3 sm:px-6 lg:px-8 py-3 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2 text-foreground">
             Admin Dashboard
@@ -234,19 +234,37 @@ const Admin = () => {
           </p>
         </div>
         
-        <Tabs defaultValue="scheduler" className="space-y-6">
-          <div className="mb-6 overflow-x-auto scrollbar-hide flex justify-center">
-            <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
-              <TabsTrigger value="scheduler" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
-              <TabsTrigger value="calendar" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
-              <TabsTrigger value="reservations" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Reservations</TabsTrigger>
-              <TabsTrigger value="courts" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Courts</TabsTrigger>
-              <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
-              <TabsTrigger value="coaches" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Coaches</TabsTrigger>
-              <TabsTrigger value="clinics" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
-              <TabsTrigger value="notes" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Notes</TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Settings</TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="scheduler" className="space-y-4 sm:space-y-6">
+          <div className="mb-4 sm:mb-6">
+            {/* Mobile: Grid layout with 2 columns */}
+            <div className="sm:hidden">
+              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 grid grid-cols-2 gap-1 p-1 h-auto">
+                <TabsTrigger value="scheduler" className="text-xs px-2 py-2">Scheduler</TabsTrigger>
+                <TabsTrigger value="calendar" className="text-xs px-2 py-2">Calendar</TabsTrigger>
+                <TabsTrigger value="reservations" className="text-xs px-2 py-2">Reservations</TabsTrigger>
+                <TabsTrigger value="courts" className="text-xs px-2 py-2">Courts</TabsTrigger>
+                <TabsTrigger value="users" className="text-xs px-2 py-2">Users</TabsTrigger>
+                <TabsTrigger value="coaches" className="text-xs px-2 py-2">Coaches</TabsTrigger>
+                <TabsTrigger value="clinics" className="text-xs px-2 py-2">Clinics</TabsTrigger>
+                <TabsTrigger value="notes" className="text-xs px-2 py-2">Notes</TabsTrigger>
+                <TabsTrigger value="settings" className="text-xs px-2 py-2">Settings</TabsTrigger>
+              </TabsList>
+            </div>
+            
+            {/* Desktop: Horizontal scrollable layout */}
+            <div className="hidden sm:block overflow-x-auto scrollbar-hide flex justify-center">
+              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
+                <TabsTrigger value="scheduler" className="text-sm px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
+                <TabsTrigger value="calendar" className="text-sm px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
+                <TabsTrigger value="reservations" className="text-sm px-3 py-2 whitespace-nowrap">Reservations</TabsTrigger>
+                <TabsTrigger value="courts" className="text-sm px-3 py-2 whitespace-nowrap">Courts</TabsTrigger>
+                <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
+                <TabsTrigger value="coaches" className="text-sm px-3 py-2 whitespace-nowrap">Coaches</TabsTrigger>
+                <TabsTrigger value="clinics" className="text-sm px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
+                <TabsTrigger value="notes" className="text-sm px-3 py-2 whitespace-nowrap">Notes</TabsTrigger>
+                <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap">Settings</TabsTrigger>
+              </TabsList>
+            </div>
           </div>
           
           <TabsContent value="scheduler" className="space-y-6">

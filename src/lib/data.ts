@@ -41,7 +41,7 @@ export const reservationSettings: ReservationSettings = {
   minPlayersPerSlot: 1,
   allowWalkIns: true,
   requirePayment: false,
-  timeSlotVisibilityPeriod: '2_weeks',
+  timeSlotVisibilityPeriod: '4_weeks',
   operatingHours: defaultDaySettings,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

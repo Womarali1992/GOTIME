@@ -1,0 +1,1 @@
+console.log('Current date:', new Date()); console.log('Max date with 30 days:', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); console.log('September 3rd:', new Date('2024-09-03')); console.log('September 4th:', new Date('2024-09-04'));

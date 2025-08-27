@@ -229,45 +229,36 @@ const CourtHeader = ({
 
       {/* Court Name and Date Section */}
       <div className="px-2 sm:px-3 py-3 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b border-border/30">
-        <div className="flex items-center justify-between">
-          {/* Left Navigation Arrow */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={navigatePrevious}
-            disabled={isPreviousDisabled}
-            className="h-8 w-8 p-0 hover:bg-primary/10"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          {/* Center: Date and Court Name */}
-          <div className="text-center flex-1">
-            {/* Mobile: Stack court name and date */}
-            <div className="sm:hidden">
-              <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                {dataService.reservationSettings?.courtName || 'Pickleball Court'}
-              </div>
-              <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                {format(currentDate, "EEEE, MMMM d")} - {courtName}
-              </h2>
+        <div className="text-center">
+          {/* Mobile: Stack court name and date */}
+          <div className="sm:hidden">
+            <div 
+              className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent cursor-pointer hover:opacity-70 transition-opacity"
+              onClick={() => onDateSelect(new Date())}
+              title="Click to go back to today"
+            >
+              {dataService.reservationSettings?.courtName || 'Pickleball Court'}
             </div>
-            
-            {/* Desktop: Single line */}
-            <h2 className="hidden sm:block text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-              {dataService.reservationSettings?.courtName || 'Pickleball Court'} {format(currentDate, "EEEE, MMMM d")} - {courtName}
-            </h2>
+            {courtName !== "All Courts" && (
+              <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                {`${format(currentDate, "EEEE, MMMM d")} - ${courtName}`}
+              </h2>
+            )}
           </div>
-
-          {/* Right Navigation Arrow */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={navigateNext}
-            className="h-8 w-8 p-0 hover:bg-primary/10"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          
+          {/* Desktop: Single line */}
+          {courtName !== "All Courts" && (
+            <h2 className="hidden sm:block text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+              <span 
+                className="cursor-pointer hover:opacity-70 transition-opacity"
+                onClick={() => onDateSelect(new Date())}
+                title="Click to go back to today"
+              >
+                {dataService.reservationSettings?.courtName || 'Pickleball Court'}
+              </span>
+              {` ${format(currentDate, "EEEE, MMMM d")} - ${courtName}`}
+            </h2>
+          )}
         </div>
       </div>
 

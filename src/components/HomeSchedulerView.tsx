@@ -74,7 +74,7 @@ const TimeSlotBlock = React.memo(({
       key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
       className={cn(
         "text-sm sm:text-base text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative",
-        isMobile ? "p-2" : "p-3",
+        isMobile ? "p-1" : "p-3",
         block.isMyReservation
           ? "bg-purple-500/20 text-purple-800 border border-purple-500/30 hover:bg-purple-500/30"
           : block.isClinic
@@ -92,8 +92,8 @@ const TimeSlotBlock = React.memo(({
         isMultiHour && block.available && !block.isClinic && !block.isMyReservation && "border-green-500/50 bg-gradient-to-br from-green-500/20 to-green-500/30 hover:from-green-500/30 hover:to-green-500/40"
       )}
       style={{
-        height: isMultiHour ? `${duration * (isMobile ? 3 : 3.5)}rem` : undefined,
-        minHeight: isMultiHour ? undefined : isMobile ? "3rem" : "3.5rem",
+        height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
+        minHeight: isMultiHour ? undefined : isMobile ? "4rem" : "3.5rem",
         marginBottom: isMultiHour ? "0.5rem" : undefined
       }}
       onClick={() => {
@@ -115,12 +115,15 @@ const TimeSlotBlock = React.memo(({
       }
     >
       {isMultiHour ? (
-        <div className="flex flex-col items-center">
-          <span className="font-semibold text-xl sm:text-lg">{block.startHour}:00</span>
-          <span className="text-sm opacity-75">to</span>
-          <span className="font-semibold text-xl sm:text-lg">{block.endHour}:00</span>
+        <div className="flex flex-col items-center justify-center h-full w-full overflow-hidden">
+          <span className="font-medium text-lg sm:text-base">{block.startHour}:00</span>
+          <span className="text-sm sm:text-xs opacity-75 font-medium">to</span>
+          <span className="font-medium text-lg sm:text-base">{block.endHour}:00</span>
           {block.isClinic && block.clinic && (
-            <span className="text-sm mt-2 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium">
+            <span 
+              className="text-[10px] mt-2 px-2 py-1 bg-yellow-500/20 rounded border border-yellow-500/30 text-yellow-800 font-medium text-center break-words leading-tight max-w-full overflow-visible cursor-help"
+              title={block.clinic.name}
+            >
               {block.clinic.name}
             </span>
           )}
@@ -131,10 +134,13 @@ const TimeSlotBlock = React.memo(({
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-2 justify-center">
-          <span className="text-xl sm:text-lg font-semibold">{block.startHour}:00</span>
+        <div className="flex flex-col items-center gap-1 justify-center w-full h-full overflow-hidden">
+          <span className="text-lg sm:text-base font-medium">{block.startHour}:00</span>
           {block.isClinic && block.clinic && (
-            <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-yellow-500/20 rounded-full border border-yellow-500/30 text-yellow-800 font-medium whitespace-nowrap">
+            <span 
+              className="text-[8px] sm:text-[9px] px-1 py-0.5 bg-yellow-500/20 rounded border border-yellow-500/30 text-yellow-800 font-medium break-words leading-tight text-center w-full overflow-visible cursor-help"
+              title={block.clinic.name}
+            >
               {block.clinic.name}
             </span>
           )}
@@ -256,12 +262,42 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Calculate days to display based on current date
-  // Show viewDays starting from the current date, no past days
   const daysToShow = useMemo(() => {
     const today = startOfDay(new Date());
-    return Array.from({ length: viewDays }, (_, i) => {
-      return addDays(currentDate, i);
-    }).filter(day => day >= today);
+    
+    if (viewDays === 3) {
+      // For 3-day view: center the selected date unless it's today
+      const isSelectedDateToday = currentDate.getTime() === today.getTime();
+      
+      if (isSelectedDateToday) {
+        // If selected date is today, show today as first column
+        return Array.from({ length: viewDays }, (_, i) => {
+          return addDays(currentDate, i);
+        }).filter(day => day >= today);
+      } else {
+        // If selected date is not today, center it (show: previous day, selected day, next day)
+        const centerDays = [
+          subDays(currentDate, 1),
+          currentDate,
+          addDays(currentDate, 1)
+        ].filter(day => day >= today);
+        
+        // If filtering removes the first day (because it's in the past), 
+        // show selected date + next 2 days instead
+        if (centerDays.length < 3) {
+          return Array.from({ length: viewDays }, (_, i) => {
+            return addDays(currentDate, i);
+          }).filter(day => day >= today);
+        }
+        
+        return centerDays;
+      }
+    } else {
+      // For other view modes, use original logic
+      return Array.from({ length: viewDays }, (_, i) => {
+        return addDays(currentDate, i);
+      }).filter(day => day >= today);
+    }
   }, [currentDate, viewDays]);
 
   // Helper function to calculate week offset for a given date
@@ -506,6 +542,50 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                 {/* Court rows with date headers over each column */}
                 {(selectedCourt ? dataService.courts.filter(court => court.id === selectedCourt) : dataService.courts).map((court) => (
                   <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
+                    {/* Court Header Bar - only show when viewing all courts */}
+                    {!selectedCourt && (
+                      <div className="px-2 sm:px-3 py-3 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 border-b border-border/30 rounded-t-lg mb-4">
+                        <div className="flex items-center justify-between">
+                          {/* Left Navigation Arrow */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={previousDay}
+                            disabled={subDays(currentDate, 1) < startOfDay(new Date())}
+                            className="h-8 w-8 p-0 hover:bg-primary/10"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+
+                          {/* Center: Date and Court Name */}
+                          <div className="text-center flex-1">
+                            {/* Mobile: Stack court name and date */}
+                            <div className="sm:hidden">
+                              <div className="bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                                <div className="text-sm font-semibold">{court.name}</div>
+                                <div className="text-lg font-bold">{format(currentDate, "EEEE, MMMM d")}</div>
+                              </div>
+                            </div>
+                            
+                            {/* Desktop: Single line */}
+                            <h2 className="hidden sm:block text-xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                              Pickleball Court {format(currentDate, "EEEE, MMMM d")} - {court.name}
+                            </h2>
+                          </div>
+
+                          {/* Right Navigation Arrow */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={nextDay}
+                            disabled={addDays(currentDate, 1) > addDays(startOfDay(new Date()), 30 - 1)}
+                            className="h-8 w-8 p-0 hover:bg-primary/10"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {/* Time slots grid */}
                     <div
                       className={cn(
@@ -541,7 +621,15 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               </Button>
                             )}
                             <div className="font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-base sm:text-lg px-6">
-                              {format(day, isMobile ? "MMM d" : "EEEE, MMM d")}
+                              {!selectedCourt && isMobile ? (
+                                <div className="flex flex-col">
+                                  <span>{format(day, "EEE do").toUpperCase()}</span>
+                                </div>
+                              ) : !selectedCourt ? (
+                                format(day, "EEEE MMMM d")
+                              ) : (
+                                format(day, isMobile ? "MMM d" : "EEEE, MMM d")
+                              )}
                             </div>
                             {dayIndex === daysToShow.length - 1 && (
                               <Button
@@ -702,20 +790,20 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
        {/* My Reservations Modal */}
        {showMyReservations && (
          <div 
-           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-4"
            onClick={() => handleBackgroundClick('myReservations')}
          >
            <div 
              ref={myReservationsModalRef} 
-             className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+             className="bg-white rounded-lg w-full max-w-[90vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto"
              onClick={(e) => e.stopPropagation()}
            >
-             <div className="p-6">
-               <div className="flex items-center justify-between mb-4">
-                 <h2 className="text-xl font-semibold text-foreground">My Reservations</h2>
+             <div className="p-3 sm:p-6">
+               <div className="flex items-start justify-between mb-4">
+                 <h2 className="text-base sm:text-xl font-semibold text-foreground pr-2 flex-1">My Reservations</h2>
                  <button
                    onClick={() => setShowMyReservations(false)}
-                   className="text-gray-500 hover:text-gray-700 text-2xl"
+                   className="text-gray-500 hover:text-gray-700 text-xl sm:text-2xl flex-shrink-0 p-1"
                  >
                    ×
                  </button>
@@ -730,16 +818,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                      const date = timeSlot ? new Date(timeSlot.date) : new Date();
                      
                      return (
-                       <div key={reservation.id} className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                       <div key={reservation.id} className="border border-purple-200 rounded-lg p-3 sm:p-4 bg-purple-50">
                          <div className="flex items-center justify-between">
-                           <div>
-                             <h3 className="font-semibold text-purple-800">
+                           <div className="min-w-0 flex-1">
+                             <h3 className="font-semibold text-purple-800 text-sm sm:text-base">
                                {court?.name} - {format(date, "MMM d")}
                              </h3>
-                             <p className="text-purple-600">
+                             <p className="text-purple-600 text-sm">
                                {timeSlot?.startTime} - {timeSlot?.endTime}
                              </p>
-                                                         <p className="text-sm text-purple-500">
+                             <p className="text-xs sm:text-sm text-purple-500">
                               {reservation.players} player{reservation.players !== 1 ? 's' : ''}
                               {reservation.participants && reservation.participants.length > 1 && (
                                 <span className="ml-2 text-xs">
@@ -768,54 +856,54 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
        {/* Reservation Details Popup */}
        {selectedReservation && (
          <div 
-           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-4"
            onClick={() => handleBackgroundClick('reservationPopup')}
          >
            <div 
              ref={reservationPopupRef} 
-             className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+             className="bg-white rounded-lg w-full max-w-[90vw] sm:max-w-md max-h-[85vh] sm:max-h-[80vh] overflow-y-auto shadow-2xl"
              onClick={(e) => e.stopPropagation()}
            >
-             <div className="p-6">
-               <div className="flex items-center justify-between mb-4">
-                 <h2 className="text-xl font-semibold text-foreground">Reservation Details</h2>
+             <div className="p-3 sm:p-6">
+               <div className="flex items-start justify-between mb-4">
+                 <h2 className="text-base sm:text-xl font-semibold text-foreground pr-2 flex-1">Reservation Details</h2>
                  <button
                    onClick={() => setSelectedReservation(null)}
-                   className="text-gray-500 hover:text-gray-700 text-2xl"
+                   className="text-gray-500 hover:text-gray-700 text-xl sm:text-2xl flex-shrink-0 p-1"
                  >
                    ×
                  </button>
                </div>
                
                <div className="space-y-4">
-                 <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                 <div className="border border-blue-200 rounded-lg p-3 sm:p-4 bg-blue-50">
                    <div className="space-y-3">
                      <div>
-                       <h3 className="font-semibold text-blue-800 text-lg">
+                       <h3 className="font-semibold text-blue-800 text-base sm:text-lg">
                          {selectedReservation.court?.name}
                        </h3>
-                       <p className="text-blue-600">
+                       <p className="text-blue-600 text-sm sm:text-base">
                          {format(new Date(selectedReservation.timeSlot.date), "MMM d")}
                        </p>
                      </div>
                      
-                     <div className="flex items-center gap-4">
+                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                        <div className="flex items-center gap-2">
                          <Clock className="h-4 w-4 text-blue-600" />
-                         <span className="text-blue-700 font-medium">
+                         <span className="text-blue-700 font-medium text-sm sm:text-base">
                            {selectedReservation.timeSlot.startTime} - {selectedReservation.timeSlot.endTime}
                          </span>
                        </div>
                        <div className="flex items-center gap-2">
                          <MapPin className="h-4 w-4 text-blue-600" />
-                         <span className="text-blue-700">
+                         <span className="text-blue-700 text-sm sm:text-base">
                            {selectedReservation.court?.location}
                          </span>
                        </div>
                      </div>
                      
                      <div className="border-t border-blue-200 pt-3">
-                       <div className="grid grid-cols-2 gap-4 text-sm">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
                          <div>
                            <span className="text-blue-600 font-medium">Player:</span>
                            <p className="text-blue-800">{selectedReservation.reservation.playerName}</p>

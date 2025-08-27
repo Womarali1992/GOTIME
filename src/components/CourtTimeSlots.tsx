@@ -199,7 +199,7 @@ const CourtTimeSlots = ({
       </div>
 
       {/* Filters Row */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-6 p-4 bg-card border border-border rounded-lg">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-4 sm:mb-6 p-3 sm:p-4 bg-card border border-border rounded-lg">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-1">
           {/* Court Filter */}
           <div className="flex flex-col gap-1.5 min-w-[140px]">
@@ -299,7 +299,7 @@ const CourtTimeSlots = ({
                         return (
                           <div
                             key={slot.id}
-                            className={`min-h-[4rem] rounded-lg p-3 sm:p-4 transition-all duration-300 hover:scale-[1.01] ${
+                            className={`min-h-[4rem] rounded-lg p-2 sm:p-4 transition-all duration-300 hover:scale-[1.01] ${
                               clinic
                                 ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
                                 : reservation
@@ -317,9 +317,9 @@ const CourtTimeSlots = ({
                             }}
                           >
                             <div className="space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
-                              <div className="flex items-center gap-2 sm:order-2 sm:flex-1 sm:justify-center">
-                                <Clock className="h-4 w-4 text-foreground" />
-                                <span className="text-lg sm:text-xl font-extrabold text-foreground">
+                              <div className="flex items-center gap-1 sm:gap-2 sm:order-2 sm:flex-1 sm:justify-center">
+                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-foreground" />
+                                <span className="text-sm sm:text-xl font-bold sm:font-extrabold text-foreground">
                                   {slot.startTime} - {slot.endTime}
                                 </span>
                               </div>
