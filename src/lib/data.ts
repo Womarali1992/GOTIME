@@ -1,5 +1,6 @@
 
-import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings, Comment, Participant } from './types';
+import { Court, TimeSlot, Reservation, User, Coach, Clinic, ReservationSettings, DaySettings, Comment, Participant, Social } from './types';
+import { SocialRepository } from './repositories/social-repository';
 
 export const courts: Court[] = [
   {
@@ -662,6 +663,18 @@ export const coaches: Coach[] = [
     specialties: ['Beginner Lessons', 'Advanced Training'],
     bio: 'Professional tennis coach with 10+ years experience.',
     hourlyRate: 85,
+    coachingRate: 75,
+    password: 'password123',
+    isActive: true,
+    availability: [
+      { dayOfWeek: 'monday', startTime: '09:00', endTime: '17:00', isAvailable: true },
+      { dayOfWeek: 'tuesday', startTime: '09:00', endTime: '17:00', isAvailable: true },
+      { dayOfWeek: 'wednesday', startTime: '09:00', endTime: '17:00', isAvailable: true },
+      { dayOfWeek: 'thursday', startTime: '09:00', endTime: '17:00', isAvailable: true },
+      { dayOfWeek: 'friday', startTime: '09:00', endTime: '17:00', isAvailable: true },
+      { dayOfWeek: 'saturday', startTime: '10:00', endTime: '14:00', isAvailable: true },
+      { dayOfWeek: 'sunday', startTime: '00:00', endTime: '00:00', isAvailable: false },
+    ],
     createdAt: new Date().toISOString(),
   },
   {
@@ -672,6 +685,18 @@ export const coaches: Coach[] = [
     specialties: ['Junior Programs', 'Advanced Training'],
     bio: 'Former professional player specializing in youth development.',
     hourlyRate: 95,
+    coachingRate: 85,
+    password: 'password123',
+    isActive: true,
+    availability: [
+      { dayOfWeek: 'monday', startTime: '10:00', endTime: '18:00', isAvailable: true },
+      { dayOfWeek: 'tuesday', startTime: '10:00', endTime: '18:00', isAvailable: true },
+      { dayOfWeek: 'wednesday', startTime: '10:00', endTime: '18:00', isAvailable: true },
+      { dayOfWeek: 'thursday', startTime: '10:00', endTime: '18:00', isAvailable: true },
+      { dayOfWeek: 'friday', startTime: '10:00', endTime: '16:00', isAvailable: true },
+      { dayOfWeek: 'saturday', startTime: '00:00', endTime: '00:00', isAvailable: false },
+      { dayOfWeek: 'sunday', startTime: '00:00', endTime: '00:00', isAvailable: false },
+    ],
     createdAt: new Date().toISOString(),
   },
 ];
@@ -753,6 +778,9 @@ export const createClinicTimeSlots = (clinic: Clinic) => {
 };
 
 // Clinics data
+// Initialize social repository
+export const socialRepository = new SocialRepository();
+
 export const clinics: Clinic[] = [
   {
     id: '1',
@@ -1144,6 +1172,7 @@ export const refreshReservationData = () => {
   console.log(`- Available slots: ${timeSlots.filter(s => s.available).length}`);
   console.log(`- Reserved slots: ${timeSlots.filter(s => !s.available && !s.blocked && s.type !== 'clinic').length}`);
   console.log(`- Clinic slots: ${timeSlots.filter(s => s.type === 'clinic').length}`);
+  console.log(`- Social slots: ${timeSlots.filter(s => s.type === 'social').length}`);
   console.log(`- Blocked slots: ${timeSlots.filter(s => s.blocked).length}`);
 };
 
@@ -1151,15 +1180,86 @@ export const refreshReservationData = () => {
 export const initializeData = () => {
   // Create sample reservations
   createSampleReservations();
-  
+
   // Create time slots for existing clinics
   clinics.forEach(clinic => {
     createClinicTimeSlots(clinic);
   });
-  
+
+  // Create a sample social with time slots (only if no socials exist and user hasn't opted out)
+  const existingSocials = socialRepository.findAll();
+  const skipSampleData = true; // Social feature removed - always skip sample data
+
+  if (existingSocials.length === 0 && !skipSampleData) {
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    try {
+      const sampleSocial = socialRepository.create({
+        title: "Pickle + Beers @ Memorial Park",
+        hostId: "user-1",
+        hostName: "Demo Player",
+        date: tomorrow,
+        timeWindowStart: "18:00",
+        timeWindowEnd: "21:00",
+        timeSlots: [
+          { id: `slot-${Date.now()}-1`, time: "18:00", votes: [], isLocked: false },
+          { id: `slot-${Date.now()}-2`, time: "18:30", votes: ["user-1"], isLocked: false },
+          { id: `slot-${Date.now()}-3`, time: "19:00", votes: [], isLocked: false },
+          { id: `slot-${Date.now()}-4`, time: "19:30", votes: [], isLocked: false },
+          { id: `slot-${Date.now()}-5`, time: "20:00", votes: [], isLocked: false },
+          { id: `slot-${Date.now()}-6`, time: "20:30", votes: [], isLocked: false },
+        ]
+      });
+
+    // Create time slots on the schedule for each voting option
+    // Use the same pattern as createClinicTimeSlots - update existing slots instead of creating duplicates
+    sampleSocial.timeSlots.forEach((timeSlot, index) => {
+      const [hours, minutes] = timeSlot.time.split(':');
+      const startHour = parseInt(hours);
+      const endTime = `${(startHour + 1).toString().padStart(2, '0')}:${minutes}`;
+      const courtId = courts[0].id;
+
+      // Check for existing slot using the standard slot ID format
+      const slotId = `${courtId}-${tomorrow}-${startHour}`;
+      const existingSlotIndex = timeSlots.findIndex(slot => slot.id === slotId);
+
+      if (existingSlotIndex !== -1) {
+        // Update existing slot to be social type (like clinic creation does)
+        timeSlots[existingSlotIndex] = {
+          ...timeSlots[existingSlotIndex],
+          type: 'social',
+          socialId: sampleSocial.id,
+          available: true,
+          blocked: false,
+        };
+        console.log(`Updated existing time slot to social: ${timeSlot.time} on ${tomorrow} for court ${courts[0].name}`);
+      } else {
+        // Create new time slot for social (for half-hour slots that don't have existing hourly slots)
+        const newSlot = {
+          id: `timeslot-social-${Date.now()}-${index}`,
+          courtId: courtId,
+          date: tomorrow,
+          startTime: timeSlot.time,
+          endTime: endTime,
+          available: true,
+          blocked: false,
+          type: 'social' as const,
+          socialId: sampleSocial.id,
+          comments: []
+        };
+        timeSlots.push(newSlot);
+        console.log(`Created new social time slot: ${timeSlot.time} on ${tomorrow} for court ${courts[0].name}`);
+      }
+    });
+
+      console.log(`Sample social "${sampleSocial.title}" created with ${sampleSocial.timeSlots.length} time slots on schedule for date: ${tomorrow}`);
+    } catch (error) {
+      console.error('Error creating sample social:', error);
+    }
+  }
+
   // Ensure consistency
   ensureReservationConsistency();
-  
+
   // Log initial state
   console.log('Data initialization complete');
   refreshReservationData();
@@ -1526,6 +1626,106 @@ export const getTimeSlotsWithNotes = () => {
   });
 };
 
+// Clean up social time slots and data (feature removed)
+export const cleanupSocialSlots = () => {
+  console.log('Cleaning up social time slots and localStorage...');
+
+  // Clear social data from localStorage
+  try {
+    localStorage.removeItem('picklepop_socials');
+    console.log('Removed social data from localStorage');
+  } catch (error) {
+    console.error('Failed to clear social data from localStorage:', error);
+  }
+
+  // Clear all socials from the repository
+  const allSocials = socialRepository.findAll();
+  allSocials.forEach(social => {
+    socialRepository.delete(social.id);
+  });
+  console.log(`Deleted ${allSocials.length} socials from repository`);
+
+  const beforeCount = timeSlots.filter(s => s.type === 'social').length;
+
+  // Remove social time slots completely
+  const socialSlotIds = timeSlots
+    .filter(slot => slot.type === 'social')
+    .map(slot => slot.id);
+
+  // Remove them from the timeSlots array
+  for (let i = timeSlots.length - 1; i >= 0; i--) {
+    if (timeSlots[i].type === 'social') {
+      timeSlots.splice(i, 1);
+    }
+  }
+
+  const afterCount = timeSlots.filter(s => s.type === 'social').length;
+  console.log(`Cleaned up ${beforeCount - afterCount} social time slots`);
+};
+
+// Clean up social time slots and data FIRST (feature removed)
+// This must run BEFORE initializeData() to prevent social slots from being created
+const cleanupSocialSlotsFirst = () => {
+  console.log('Pre-initialization: Cleaning up social time slots and localStorage...');
+
+  // Clear social data from localStorage PERMANENTLY
+  try {
+    const hadSocials = localStorage.getItem('picklepop_socials');
+    if (hadSocials) {
+      localStorage.removeItem('picklepop_socials');
+      console.log('Removed social data from localStorage');
+    }
+    // Set a flag to prevent re-creation
+    localStorage.setItem('picklepop_socials_cleaned', 'true');
+  } catch (error) {
+    console.error('Failed to clear social data from localStorage:', error);
+  }
+};
+
+// ALWAYS run cleanup to ensure social data is removed
+cleanupSocialSlotsFirst();
+
 // Initialize data with consistency checks - called at the end to ensure all data arrays are defined
 initializeData();
+cleanupSocialSlots();
+
+// Debug function to inspect specific date/time slots
+(window as any).debugSlot = (date: string, hour: number, courtId?: string) => {
+  console.log(`\n=== DEBUG SLOT: ${date} ${hour}:00 ${courtId ? `Court ${courtId}` : 'All Courts'} ===`);
+
+  const slotsForDate = timeSlots.filter(slot => {
+    const matchesDate = slot.date === date;
+    const matchesHour = parseInt(slot.startTime.split(':')[0]) === hour;
+    const matchesCourt = !courtId || slot.courtId === courtId;
+    return matchesDate && matchesHour && matchesCourt;
+  });
+
+  console.log(`Found ${slotsForDate.length} slots:`);
+
+  slotsForDate.forEach(slot => {
+    const reservation = reservations.find(r => r.timeSlotId === slot.id);
+    const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
+
+    console.log(`\nSlot ID: ${slot.id}`);
+    console.log(`  Court: ${slot.courtId}`);
+    console.log(`  Time: ${slot.startTime} - ${slot.endTime}`);
+    console.log(`  Available: ${slot.available}`);
+    console.log(`  Blocked: ${slot.blocked}`);
+    console.log(`  Type: ${slot.type || 'none'}`);
+    console.log(`  Social ID: ${slot.socialId || 'none'}`);
+    console.log(`  Clinic ID: ${slot.clinicId || 'none'}`);
+    console.log(`  Has Reservation: ${!!reservation}`);
+    console.log(`  Has Clinic: ${!!clinic}`);
+
+    if (reservation) {
+      console.log(`  Reservation: ${reservation.playerName} (${reservation.playerEmail})`);
+    }
+    if (clinic) {
+      console.log(`  Clinic: ${clinic.name}`);
+    }
+  });
+
+  console.log('\n=== END DEBUG ===\n');
+  return slotsForDate;
+};
 

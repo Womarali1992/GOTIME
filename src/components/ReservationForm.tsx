@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { TimeSlot, Court, Participant } from "@/lib/types";
 import { dataService } from "@/lib/services/data-service";
+import { socialRepository } from "@/lib/data";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
 import { Badge } from "@/components/ui/badge";
-import { User, AlertCircle, CheckCircle } from "lucide-react";
+import { User, AlertCircle, CheckCircle, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import FriendSelector from "./FriendSelector";
 import { X } from "lucide-react";
@@ -37,6 +39,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
   const [success, setSuccess] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<ReservationStep>('details');
   const [friendSelectorExpanded, setFriendSelectorExpanded] = useState(false);
+  const [isSocialBooking, setIsSocialBooking] = useState(false);
 
   const { currentUser, isAuthenticated } = useUser();
   const users = dataService.userService.getAllUsers();
@@ -75,24 +78,132 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
         throw new Error("Phone number is required");
       }
 
-      // Create the reservation directly (all clinics are now free)
-      const result = dataService.reservationService.createReservation({
-        timeSlotId: selectedTimeSlot.id,
-        courtId: selectedTimeSlot.courtId,
-        playerName: name.trim(),
-        playerEmail: email.trim(),
-        playerPhone: phone.trim(),
-        players: totalPlayers,
-        participants: selectedParticipants
-      });
+      if (isSocialBooking) {
+        // Generate time slots for the social booking (minimum 3 required)
+        const generateTimeSlots = () => {
+          const slots = [];
+          const [startHour, startMin] = selectedTimeSlot.startTime.split(':').map(Number);
+          const [endHour, endMin] = selectedTimeSlot.endTime.split(':').map(Number);
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to create reservation");
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+          const duration = endMinutes - startMinutes;
+
+          // Create 3 time slot options within the booking window
+          if (duration >= 60) {
+            // If booking is 1 hour or more, create slots at start, middle, and end
+            for (let i = 0; i < 3; i++) {
+              const offset = Math.floor((duration / 3) * i);
+              const slotMinutes = startMinutes + offset;
+              const hour = Math.floor(slotMinutes / 60);
+              const min = slotMinutes % 60;
+              const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+
+              slots.push({
+                id: crypto.randomUUID(),
+                time: timeStr,
+                votes: i === 0 && currentUser ? [currentUser.id] : [],
+                isLocked: i === 0,
+              });
+            }
+          } else {
+            // For shorter durations, create the selected time and 2 nearby options
+            slots.push({
+              id: crypto.randomUUID(),
+              time: selectedTimeSlot.startTime,
+              votes: currentUser ? [currentUser.id] : [],
+              isLocked: true,
+            });
+
+            // Add a slot 15 minutes before if possible
+            if (startMinutes >= 15) {
+              const beforeMinutes = startMinutes - 15;
+              const hour = Math.floor(beforeMinutes / 60);
+              const min = beforeMinutes % 60;
+              slots.unshift({
+                id: crypto.randomUUID(),
+                time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
+                votes: [],
+                isLocked: false,
+              });
+            }
+
+            // Add a slot 15 minutes after
+            const afterMinutes = Math.min(endMinutes, startMinutes + 15);
+            const hour = Math.floor(afterMinutes / 60);
+            const min = afterMinutes % 60;
+            slots.push({
+              id: crypto.randomUUID(),
+              time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
+              votes: [],
+              isLocked: false,
+            });
+          }
+
+          return slots;
+        };
+
+        const timeSlots = generateTimeSlots();
+        const lockedSlot = timeSlots.find(slot => slot.isLocked);
+
+        // Create a social booking
+        const social = socialRepository.create({
+          title: `Social Game - ${court?.name || 'Court'}`,
+          hostId: currentUser?.id || crypto.randomUUID(),
+          hostName: name.trim(),
+          date: selectedTimeSlot.date,
+          timeWindowStart: selectedTimeSlot.startTime,
+          timeWindowEnd: selectedTimeSlot.endTime,
+          timeSlots: timeSlots,
+          lockedTimeSlotId: lockedSlot?.id,
+          courtId: selectedTimeSlot.courtId,
+        });
+
+        // Update the time slot to mark it as social
+        dataService.timeSlotService.updateTimeSlot(selectedTimeSlot.id, {
+          type: 'social',
+          socialId: social.id,
+          available: false,
+        });
+
+        // Create a reservation linked to the social
+        const result = dataService.reservationService.createReservation({
+          timeSlotId: selectedTimeSlot.id,
+          courtId: selectedTimeSlot.courtId,
+          playerName: name.trim(),
+          playerEmail: email.trim(),
+          playerPhone: phone.trim(),
+          players: totalPlayers,
+          participants: selectedParticipants,
+          socialId: social.id,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to create social booking");
+        }
+
+        setSuccess("Social booking created successfully!");
+      } else {
+        // Create a regular reservation
+        const result = dataService.reservationService.createReservation({
+          timeSlotId: selectedTimeSlot.id,
+          courtId: selectedTimeSlot.courtId,
+          playerName: name.trim(),
+          playerEmail: email.trim(),
+          playerPhone: phone.trim(),
+          players: totalPlayers,
+          participants: selectedParticipants
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to create reservation");
+        }
+
+        setSuccess("Reservation created successfully!");
       }
 
-      setSuccess("Reservation created successfully!");
       setTimeout(() => {
-        onComplete(result.reservation!.id);
+        onComplete('completed');
         setIsSubmitting(false);
       }, 800);
 
@@ -116,6 +227,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
     setError(null);
     setSuccess(null);
     setCurrentStep('details');
+    setIsSocialBooking(false);
     onCancel();
   };
 
@@ -204,7 +316,36 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                 )}
               </div>
             </div>
-            
+
+            {/* Booking Type Toggle - Only show for non-clinic reservations */}
+            {!clinic && (
+              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg max-w-md mx-auto">
+                <div className="flex items-center gap-3">
+                  {isSocialBooking ? (
+                    <Users className="h-5 w-5 text-blue-600" />
+                  ) : (
+                    <User className="h-5 w-5 text-blue-600" />
+                  )}
+                  <div>
+                    <Label htmlFor="booking-type" className="text-base font-semibold cursor-pointer">
+                      {isSocialBooking ? "Social Booking" : "Regular Booking"}
+                    </Label>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      {isSocialBooking
+                        ? "Book as a social game to play with friends"
+                        : "Book as a regular court reservation"
+                      }
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="booking-type"
+                  checked={isSocialBooking}
+                  onCheckedChange={setIsSocialBooking}
+                />
+              </div>
+            )}
+
             {/* Profile Information Section */}
             {isAuthenticated && currentUser && (
               <div className="space-y-2 max-w-md mx-auto">
@@ -313,9 +454,9 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting} className="w-full sm:w-32 text-sm">
-                {isSubmitting 
-                  ? (clinic ? "Processing..." : "Booking...") 
-                  : (clinic ? "Book Clinic" : "Book")
+                {isSubmitting
+                  ? (clinic ? "Processing..." : "Booking...")
+                  : (clinic ? "Book Clinic" : isSocialBooking ? "Book Social" : "Book")
                 }
               </Button>
             </div>

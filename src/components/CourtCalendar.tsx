@@ -130,48 +130,26 @@ const CourtCalendar = ({
 
 
         <div className={`grid gap-4 sm:gap-6 md:gap-8 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-12'}`}>
-          {/* Calendar Sidebar */}
+          {/* Calendar Sidebar - BOLD DESIGN */}
           <div className={isMobile ? 'w-full' : 'lg:col-span-4'}>
-            <Card className="sticky top-6 bg-card/80 backdrop-blur-sm border-0 shadow-xl w-full">
-              <CardHeader className="text-center pb-4">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                  <h2 className="text-lg sm:text-xl font-semibold">Select Date</h2>
+            <Card className="sticky top-6 bg-white border-0 w-full calendar-container">
+              <CardHeader className="text-center pb-4 pt-6 bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <CalendarIcon className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+                  <h2 className="text-2xl sm:text-3xl font-bold gradient-text">Select Date</h2>
                 </div>
-                <p className="text-xs sm:text-sm text-muted-foreground">
+                <p className="text-sm sm:text-base text-foreground/80 font-semibold">
                   Choose when you'd like to play
                 </p>
               </CardHeader>
-              <CardContent className="p-3 sm:p-4 md:p-6 w-full">
+              <CardContent className="p-4 sm:p-6 w-full bg-white">
                 <div className="w-full overflow-hidden">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
                     onSelect={handleDateSelect}
-                    className="rounded-xl border-0 shadow-lg bg-gradient-to-br from-card to-muted/20 w-full"
+                    className="w-full bg-white"
                     disabled={{ before: new Date() }}
-                    classNames={{
-                      months: "flex flex-col space-y-4 w-full",
-                      month: "space-y-4 w-full",
-                      caption: "flex justify-center pt-1 relative items-center",
-                      caption_label: "text-base sm:text-lg font-semibold text-foreground",
-                      nav: "space-x-1 flex items-center",
-                      nav_button: "h-7 w-7 sm:h-8 sm:w-8 bg-primary/10 hover:bg-primary/20 text-primary border-0 rounded-lg transition-colors",
-                      nav_button_previous: "absolute left-1",
-                      nav_button_next: "absolute right-1",
-                      table: "w-full border-collapse space-y-1",
-                      head_row: "flex w-full",
-                      head_cell: "text-muted-foreground rounded-md w-full font-medium text-xs sm:text-sm flex-1 text-center",
-                      row: "flex w-full mt-2",
-                      cell: "flex-1 h-8 w-full sm:h-10 text-center text-xs sm:text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-muted/30 [&:has([aria-selected])]:bg-muted/30 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                      day: "h-8 w-full sm:h-10 p-0 font-normal aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors flex items-center justify-center",
-                      day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground shadow-lg",
-                      day_today: "bg-secondary/20 text-secondary-foreground font-semibold",
-                      day_outside: "text-muted-foreground opacity-50 aria-selected:bg-muted/30 aria-selected:text-muted-foreground aria-selected:opacity-30",
-                      day_disabled: "text-muted-foreground opacity-50",
-                      day_range_middle: "aria-selected:bg-muted/30 aria-selected:text-accent-foreground",
-                      day_hidden: "invisible",
-                    }}
                   />
                 </div>
               </CardContent>

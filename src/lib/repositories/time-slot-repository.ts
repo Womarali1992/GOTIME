@@ -88,9 +88,15 @@ export class TimeSlotRepository extends BaseRepository<TimeSlot, CreateTimeSlot>
 
     // Validate that slot can be reserved
     if (slot.blocked) return false;
-    if (!slot.available && slot.type !== 'clinic') return false;
+    if (!slot.available && slot.type !== 'clinic' && slot.type !== 'social') return false;
 
-    return !!this.update(id, { available: false, type: 'reservation' });
+    // Don't override social or clinic types - they should keep their type
+    const updates: Partial<typeof slot> = { available: false };
+    if (slot.type !== 'social' && slot.type !== 'clinic') {
+      updates.type = 'reservation';
+    }
+
+    return !!this.update(id, updates);
   }
 
   markAsAvailable(id: string): boolean {

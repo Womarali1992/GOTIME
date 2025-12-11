@@ -257,27 +257,59 @@
   }
 
   /* ===========================================
-     CALENDAR STYLES
+     CALENDAR STYLES - BOLD DESIGN
      =========================================== */
 
   .calendar-container {
-    @apply bg-gradient-to-br from-card via-muted/20 to-card rounded-2xl shadow-xl border-0 overflow-hidden;
+    @apply bg-white rounded-2xl overflow-hidden;
+    border: 3px solid hsl(142 76% 56%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
   .calendar-day {
-    @apply transition-all duration-200 hover:scale-105 hover:shadow-md;
+    @apply transition-all duration-200 font-semibold;
+  }
+
+  .calendar-day:hover {
+    transform: scale(1.1);
+    background: hsl(142 76% 56% / 0.15);
   }
 
   .calendar-day-selected {
-    @apply bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/25;
+    background: hsl(142 76% 56%) !important;
+    color: white !important;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
   }
 
   .calendar-day-today {
-    @apply bg-gradient-to-br from-secondary/20 to-secondary/30 text-secondary-foreground font-semibold ring-2 ring-secondary/30;
+    background: hsl(217 91% 60% / 0.1) !important;
+    color: hsl(217 91% 60%) !important;
+    font-weight: 700;
+    box-shadow: 0 0 0 3px hsl(217 91% 60%);
   }
 
   .calendar-nav-button {
-    @apply bg-primary/10 hover:bg-primary/20 text-primary border-0 rounded-xl transition-all duration-200 hover:scale-105 hover:shadow-md;
+    background: hsl(142 76% 56%) !important;
+    color: white !important;
+    border: 0 !important;
+    border-radius: 0.75rem !important;
+    transition: all 0.2s !important;
+    font-weight: 700;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.25) !important;
+  }
+
+  .calendar-nav-button:hover {
+    transform: scale(1.15) !important;
+    background: hsl(142 76% 48%) !important;
+    box-shadow: 0 4px 16px rgba(76, 175, 80, 0.4) !important;
+  }
+
+  .calendar-nav-button svg {
+    stroke-width: 2.5;
   }
 
   /* ===========================================

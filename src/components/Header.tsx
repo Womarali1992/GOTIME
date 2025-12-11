@@ -1,12 +1,13 @@
 
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, User } from "lucide-react";
+import { Menu, User, GraduationCap } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import UserSettings from "@/components/UserSettings";
 import { useUser } from "@/contexts/UserContext";
+import { useCoach } from "@/contexts/CoachContext";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useDataService } from "@/hooks/use-data-service";
@@ -14,9 +15,11 @@ import { useDataService } from "@/hooks/use-data-service";
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
+  const location = useLocation();
   const { currentUser, isAuthenticated, logout } = useUser();
+  const { currentCoach, isAuthenticated: isCoachAuthenticated, logout: coachLogout } = useCoach();
   const dataService = useDataService();
-  
+
   // Safe way to get court name with fallback
   let courtName = "PickleBook";
   try {
@@ -26,9 +29,15 @@ const Header = () => {
     console.warn("Failed to get court name from settings, using fallback:", error);
   }
 
+  // Determine if we're on the coach portal
+  const isCoachPortal = location.pathname.startsWith('/coach');
+
   const navigation = [
     { name: "Book a Court", href: "/", current: true },
+    { name: "Find Players", href: "/socials", current: false },
+    { name: "Book a Coach", href: "/book-coach", current: false },
     { name: "Admin Dashboard", href: "/admin", current: false },
+    { name: "Coach Portal", href: "/coach-login", current: false },
   ];
 
   const closeSheet = () => setIsOpen(false);
@@ -58,10 +67,37 @@ const Header = () => {
 
         {/* Right side */}
         <div className="ml-auto flex items-center space-x-2 sm:space-x-4">
-          {/* User Settings */}
-          <UserSettings currentUserEmail={currentUser?.email} />
-          
-          {isAuthenticated && currentUser ? (
+          {/* User Settings (only show when not in coach portal) */}
+          {!isCoachPortal && <UserSettings currentUserEmail={currentUser?.email} />}
+
+          {/* Show appropriate user menu based on context */}
+          {isCoachPortal && isCoachAuthenticated && currentCoach ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="text-sm px-3 py-2 sm:px-4 sm:py-2 flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" />
+                  <span className="hidden sm:inline">{currentCoach.name}</span>
+                  <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                    Coach
+                  </Badge>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem disabled>
+                  <div className="flex flex-col space-y-1">
+                    <span className="font-medium">{currentCoach.name}</span>
+                    <span className="text-xs text-muted-foreground">{currentCoach.email}</span>
+                    <Badge variant="secondary" className="text-xs w-fit">
+                      Coach
+                    </Badge>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={coachLogout} className="text-red-600">
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : isAuthenticated && currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="text-sm px-3 py-2 sm:px-4 sm:py-2 flex items-center gap-2">

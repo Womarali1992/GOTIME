@@ -276,9 +276,9 @@ const DayView = ({
           <div className="mb-6">
           {/* Mobile: Grid layout to match table structure */}
           <div className="block sm:hidden">
-            <div className="grid grid-cols-4 gap-0 border border-border/30 rounded-lg overflow-hidden bg-card/80">
+            <div className="grid grid-cols-4 gap-2 rounded-lg overflow-hidden">
               {/* Time/Days header */}
-              <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 border-r border-border/20 flex items-center justify-center">
+              <div className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-2 flex items-center justify-center rounded-lg">
                 <div className="flex items-center justify-center">
                   <div className="flex items-center gap-0">
                     {/* Previous Navigation Button */}
@@ -286,7 +286,7 @@ const DayView = ({
                       variant="ghost"
                       size="sm"
                       onClick={handlePreviousNavigation}
-                      className="h-4 w-4 p-0 hover:bg-primary/10 rounded-full"
+                      className="h-4 w-4 p-0 hover:bg-white/30 rounded-full"
                       disabled={
                         isTimeFocusMode 
                           ? focusedTime === 8 
@@ -298,19 +298,19 @@ const DayView = ({
                             })()
                       }
                     >
-                      <ChevronLeft className="h-2 w-2" />
+                      <ChevronLeft className="h-2 w-2 text-emerald-700" />
                     </Button>
 
                     <div className="flex flex-col items-center justify-center text-center">
                       {isTimeFocusMode ? (
                         <>
-                          <Clock className="h-3 w-3 text-primary mx-auto" />
-                          <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-center">{focusedTime?.toString().padStart(2, '0')}:00</span>
+                          <Clock className="h-3 w-3 text-emerald-700 mx-auto" />
+                          <span className="text-sm font-black tracking-wide text-emerald-700 text-center">{focusedTime?.toString().padStart(2, '0')}:00</span>
                         </>
                       ) : (
                         <>
-                          <Calendar className="h-3 w-3 text-primary mx-auto" />
-                          <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent text-center">{format(selectedDate, "MMM d")}</span>
+                          <Calendar className="h-3 w-3 text-emerald-700 mx-auto" />
+                          <span className="text-sm font-black tracking-wide text-emerald-700 text-center">{format(selectedDate, "MMM d")}</span>
                         </>
                       )}
                     </div>
@@ -320,14 +320,14 @@ const DayView = ({
                       variant="ghost"
                       size="sm"
                       onClick={handleNextNavigation}
-                      className="h-4 w-4 p-0 hover:bg-primary/10 rounded-full"
+                      className="h-4 w-4 p-0 hover:bg-white/30 rounded-full"
                       disabled={
                         isTimeFocusMode 
                           ? focusedTime === 21 
                           : false
                       }
                     >
-                      <ChevronRight className="h-2 w-2" />
+                      <ChevronRight className="h-2 w-2 text-emerald-700" />
                     </Button>
                   </div>
                 </div>
@@ -335,26 +335,23 @@ const DayView = ({
               
               {/* Court headers */}
               {courts.map((court, index) => (
-                <div 
-                  key={court.id} 
-                  className={cn(
-                    "bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-2 flex flex-col items-center justify-center",
-                    index < courts.length - 1 ? "border-r border-border/20" : ""
-                  )}
+                <div
+                  key={court.id}
+                  className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-2 flex flex-col items-center justify-center rounded-lg"
                 >
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <h3 className="text-xs font-bold text-foreground leading-tight">
+                      <h3 className="text-xs font-black tracking-wide text-emerald-700 leading-tight">
                         {court.name}
                       </h3>
                     </div>
-                    <p className="text-muted-foreground text-xs mb-1 leading-tight">
+                    <p className="text-emerald-600/80 text-xs mb-1 leading-tight font-medium">
                       {court.location}
                     </p>
-                    <span className={`px-1 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`px-1 py-0.5 rounded-full text-xs font-semibold backdrop-blur-sm ${
                       court.indoor
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : 'bg-green-100 text-green-800 border border-green-200'
+                        ? 'bg-blue-400/30 text-blue-800 border border-blue-300/50'
+                        : 'bg-green-400/30 text-green-800 border border-green-300/50'
                     }`}>
                       {court.indoor ? "Indoor" : "Outdoor"}
                     </span>
@@ -366,14 +363,14 @@ const DayView = ({
 
           {/* Desktop: Grid layout */}
           <div className="hidden sm:grid grid-cols-4 gap-4">
-            <div className="flex items-center justify-center">
+            <div className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-4 rounded-xl flex items-center justify-center">
               <div className="flex items-center gap-3">
                 {/* Previous Navigation Button */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handlePreviousNavigation}
-                  className="h-8 w-8 p-0 hover:bg-primary/10 rounded-full"
+                  className="h-8 w-8 p-0 hover:bg-white/40 rounded-full transition-all"
                   disabled={
                     isTimeFocusMode 
                       ? focusedTime === 8 
@@ -385,24 +382,24 @@ const DayView = ({
                         })()
                   }
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4 text-emerald-700" />
                 </Button>
 
                 <div className="flex items-center gap-2">
                   {isTimeFocusMode ? (
                     <>
-                      <Clock className="h-5 w-5 text-primary" />
-                      <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                        <div>{focusedTime?.toString().padStart(2, '0')}:00</div>
-                        <div>Time Focus</div>
+                      <Clock className="h-5 w-5 text-emerald-700" />
+                      <div className="font-black tracking-wide text-emerald-700">
+                        <div className="text-lg">{focusedTime?.toString().padStart(2, '0')}:00</div>
+                        <div className="text-xs">Time Focus</div>
                       </div>
                     </>
                   ) : (
                     <>
-                      <Calendar className="h-5 w-5 text-primary" />
-                      <div className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-                        <div>{format(selectedDate, "EEEE")}</div>
-                        <div>{format(selectedDate, "MMM d")}</div>
+                      <Calendar className="h-5 w-5 text-emerald-700" />
+                      <div className="font-black tracking-wide text-emerald-700">
+                        <div className="text-lg">{format(selectedDate, "EEEE")}</div>
+                        <div className="text-sm">{format(selectedDate, "MMM d")}</div>
                       </div>
                     </>
                   )}
@@ -413,33 +410,33 @@ const DayView = ({
                   variant="ghost"
                   size="sm"
                   onClick={handleNextNavigation}
-                  className="h-8 w-8 p-0 hover:bg-primary/10 rounded-full"
+                  className="h-8 w-8 p-0 hover:bg-white/40 rounded-full transition-all"
                   disabled={
                     isTimeFocusMode 
                       ? focusedTime === 21 
                       : false
                   }
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 text-emerald-700" />
                 </Button>
               </div>
             </div>
             {courts.map((court) => (
-              <div key={court.id} className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-4 rounded-lg border border-border/20 min-h-[120px]">
+              <div key={court.id} className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-4 rounded-xl min-h-[120px] hover:shadow-xl hover:shadow-emerald-500/30 transition-all">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+                    <h3 className="text-xl font-black tracking-wide text-emerald-700">
                       {court.name}
                     </h3>
                   </div>
-                  <p className="text-muted-foreground text-sm mb-2">
+                  <p className="text-emerald-600/80 text-sm mb-2 font-semibold">
                     {court.location}
                   </p>
                   <div className="flex items-center justify-center gap-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm ${
                       court.indoor
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : 'bg-green-100 text-green-800 border border-green-200'
+                        ? 'bg-blue-400/30 text-blue-800 border border-blue-300/50'
+                        : 'bg-green-400/30 text-green-800 border border-green-300/50'
                     }`}>
                       {court.indoor ? "Indoor" : "Outdoor"}
                     </span>
@@ -460,11 +457,11 @@ const DayView = ({
                 <div className="block sm:hidden">
                   <div className="grid grid-cols-4 gap-0">
                     {/* Row Header Column - Time or Day */}
-                    <div 
+                    <div
                       className={cn(
-                        "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-2 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] rounded-l-lg",
-                        !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : "",
-                        isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : ""
+                        "bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-2 flex items-center justify-center transition-all min-h-[3rem] rounded-l-lg",
+                        !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-white/50 hover:via-emerald-200/40 hover:to-cyan-200/50 hover:shadow-xl hover:shadow-emerald-500/30" : "",
+                        isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-white/50 hover:via-emerald-200/40 hover:to-cyan-200/50 hover:shadow-xl hover:shadow-emerald-500/30" : ""
                       )}
                       onClick={() => {
                         if (row.type === 'hour') {
@@ -481,15 +478,17 @@ const DayView = ({
                           : undefined
                       }
                     >
-                      <div className="flex flex-col items-center gap-1">
+                      <div className="flex flex-col items-center justify-center">
                         {row.type === 'hour' ? (
-                          <Clock className="h-3 w-3 text-primary flex-shrink-0" />
+                          <span className="font-black text-lg tracking-wider text-emerald-700">{row.label}</span>
                         ) : (
-                          <Calendar className="h-3 w-3 text-primary flex-shrink-0" />
+                          <>
+                            <Calendar className="h-3 w-3 text-emerald-700 mb-0.5" />
+                            <span className="font-black text-xs tracking-wide text-emerald-700 text-center leading-tight">
+                              {row.label}
+                            </span>
+                          </>
                         )}
-                        <span className="text-xs font-semibold text-center leading-tight">
-                          {row.label}
-                        </span>
                       </div>
                     </div>
                     
@@ -524,14 +523,14 @@ const DayView = ({
                             className={cn(
                               "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-1",
                               clinic
-                                ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+                                ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                                 : blocked
-                                ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
+                                ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
                                 : reservation
-                                ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+                                ? "bg-blue-500/50 text-blue-900 border-2 border-blue-600/60 shadow-sm hover:bg-blue-500/60"
                                 : available
-                                ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
-                                : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                                ? "bg-green-500/50 text-green-900 border-2 border-green-600/60 shadow-sm hover:bg-green-500/60"
+                                : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
                               isPast && "opacity-50"
                             )}
                             onClick={() => {
@@ -557,24 +556,20 @@ const DayView = ({
                           >
                             {clinic ? (
                               <div className="flex flex-col items-center">
-                                <GraduationCap className="h-2 w-2 mb-0.5" />
-                                <span className="font-semibold text-xs leading-none">Clinic</span>
+                                <GraduationCap className="h-3 w-3 mb-0.5" />
+                                <span className="font-bold text-xs leading-none">Clinic</span>
                               </div>
                             ) : reservation ? (
                               <div className="flex flex-col items-center">
-                                <User className="h-2 w-2 mb-0.5" />
-                                <span className="font-semibold text-xs leading-none">Reserved</span>
+                                <User className="h-3 w-3 mb-0.5" />
+                                <span className="font-bold text-xs leading-none">Reserved</span>
                               </div>
                             ) : blocked ? (
-                              <div className="flex flex-col items-center">
-                                <span className="font-semibold text-xs leading-none">Blocked</span>
-                              </div>
+                              <span className="font-bold text-sm">Blocked</span>
+                            ) : available ? (
+                              <span className="font-bold text-sm">Open</span>
                             ) : (
-                              <div className="flex flex-col items-center">
-                                <span className="font-semibold text-xs leading-none">
-                                  {available ? "Available" : "N/A"}
-                                </span>
-                              </div>
+                              <span className="font-bold text-sm text-gray-400">N/A</span>
                             )}
                           </div>
                         </div>
@@ -586,11 +581,11 @@ const DayView = ({
                 {/* Desktop Layout */}
                 <div className="hidden sm:grid sm:grid-cols-4 gap-0">
                   {/* Row Header Column - Time or Day */}
-                  <div 
+                  <div
                     className={cn(
-                      "bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 p-3 flex items-center justify-center border-r border-border/20 transition-colors min-h-[3rem] min-w-[120px] rounded-l-xl shadow-lg",
-                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : "",
-                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-primary/10 hover:via-secondary/10 hover:to-primary/10" : ""
+                      "bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-3 flex items-center justify-center transition-all min-h-[3rem] min-w-[120px] rounded-l-xl",
+                      !isTimeFocusMode && row.type === 'hour' ? "cursor-pointer hover:from-white/50 hover:via-emerald-200/40 hover:to-cyan-200/50 hover:shadow-xl hover:shadow-emerald-500/30" : "",
+                      isTimeFocusMode && row.type === 'day' && onDateChange ? "cursor-pointer hover:from-white/50 hover:via-emerald-200/40 hover:to-cyan-200/50 hover:shadow-xl hover:shadow-emerald-500/30" : ""
                     )}
                     onClick={() => {
                       if (row.type === 'hour') {
@@ -607,15 +602,19 @@ const DayView = ({
                         : undefined
                     }
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center justify-center min-w-0">
                       {row.type === 'hour' ? (
-                        <Clock className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="font-black text-2xl tracking-wider text-emerald-700 whitespace-nowrap">
+                          {row.label}
+                        </span>
                       ) : (
-                        <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-emerald-700 flex-shrink-0" />
+                          <span className="font-black text-sm tracking-wide text-emerald-700 whitespace-nowrap">
+                            {row.label}
+                          </span>
+                        </div>
                       )}
-                      <span className="text-sm font-semibold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent whitespace-nowrap">
-                        {row.label}
-                      </span>
                     </div>
                   </div>
                   
@@ -650,14 +649,14 @@ const DayView = ({
                           className={cn(
                             "w-full h-full rounded text-sm md:text-base text-center flex items-center justify-center transition-all duration-200 p-2",
                             clinic
-                              ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+                              ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                               : blocked
-                              ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
+                              ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
                               : reservation
-                              ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+                              ? "bg-blue-500/50 text-blue-900 border-2 border-blue-600/60 shadow-sm hover:bg-blue-500/60"
                               : available
-                              ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
-                              : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                              ? "bg-green-500/50 text-green-900 border-2 border-green-600/60 shadow-sm hover:bg-green-500/60"
+                              : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
                             isPast && "opacity-50"
                           )}
                           onClick={() => {
@@ -716,15 +715,15 @@ const DayView = ({
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
+              <div className="w-3 h-3 bg-green-500/50 border-2 border-green-600/60 shadow-sm"></div>
               <span>Available</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
+              <div className="w-3 h-3 bg-yellow-500/50 border-2 border-yellow-600/60 shadow-sm"></div>
               <span>Clinic</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-gray-500/20 border border-gray-500/30"></div>
+              <div className="w-3 h-3 bg-gray-400/50 border-2 border-gray-500/60 shadow-sm"></div>
               <span>Blocked</span>
             </div>
           </div>

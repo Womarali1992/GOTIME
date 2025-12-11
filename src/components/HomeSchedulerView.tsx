@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MapPin, User, Users, GraduationCap } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, addDays, subDays, startOfDay, startOfWeek } from "date-fns";
 import { TimeSlot, Court, Clinic, Reservation, Comment } from "@/lib/types";
@@ -11,6 +11,9 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
 import { useDataService } from "@/hooks/use-data-service";
+import { socialRepository } from "@/lib/data";
+import type { Social } from "@/lib/validation/schemas";
+import SocialBookingDialog from "./SocialBookingDialog";
 
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
@@ -21,12 +24,18 @@ interface TimeSlotBlockData {
   startHour: number;
   endHour: number;
   isClinic: boolean;
+  isSocial: boolean;
   clinic: Clinic | null;
   slot: TimeSlot | null;
   available: boolean;
   reserved: boolean;
   blocked: boolean;
   isMyReservation: boolean;
+  coachUnavailable?: boolean;
+  social?: Social | null;
+  topVotedTime?: string | null;
+  voteCount?: number;
+  isLocked?: boolean;
 }
 
 interface ReservationWithDetails {
@@ -37,6 +46,7 @@ interface ReservationWithDetails {
 
 interface HomeSchedulerViewProps {
   onSelectTimeSlot: (timeSlot: TimeSlot) => void;
+  selectedCoachId?: string;
 }
 
 // Memoized component for time slot blocks to prevent unnecessary re-renders
@@ -60,6 +70,7 @@ const TimeSlotBlock = React.memo(({
   legendFilters: {
     available: boolean;
     clinic: boolean;
+    social: boolean;
     myReservations: boolean;
   };
   currentUserEmail: string;
@@ -73,30 +84,40 @@ const TimeSlotBlock = React.memo(({
     <div
       key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
       className={cn(
-        "text-sm sm:text-base text-center rounded cursor-pointer transition-all duration-200 hover:scale-105 relative",
-        isMobile ? "p-1" : "p-3",
-        block.isMyReservation
-          ? "bg-purple-500/20 text-purple-800 border border-purple-500/30 hover:bg-purple-500/30"
+        "text-sm sm:text-base text-center rounded transition-all duration-200 relative",
+        isMobile ? "p-1" : "p-2",
+        // Coach unavailable styling - show but disable
+        block.coachUnavailable
+          ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
+          : block.isSocial
+          ? "text-amber-900 border-2 border-amber-300/60 shadow-sm hover:scale-105 cursor-pointer"
           : block.isClinic
-          ? "bg-yellow-500/20 text-yellow-800 border border-yellow-500/30 hover:bg-yellow-500/30"
+          ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60 cursor-pointer hover:scale-105"
+          : block.isMyReservation
+          ? "bg-purple-500/50 text-purple-900 border-2 border-purple-600/60 shadow-sm hover:bg-purple-500/60 cursor-pointer hover:scale-105"
           : block.available && !block.blocked && !block.reserved
-          ? "bg-green-500/20 text-green-800 border border-green-500/30 hover:bg-green-500/30"
+          ? "bg-green-500/50 text-green-900 border-2 border-green-600/60 shadow-sm hover:bg-green-500/60 cursor-pointer hover:scale-105"
           : block.reserved
-          ? "bg-secondary/20 text-secondary-800 border border-secondary/30 hover:bg-secondary/30"
+          ? "bg-blue-500/50 text-blue-900 border-2 border-blue-600/60 shadow-sm hover:bg-blue-500/60 cursor-pointer hover:scale-105"
           : block.blocked
-          ? "bg-gray-500/20 text-gray-800 border border-gray-500/30"
-          : "bg-gray-100 text-gray-400 cursor-not-allowed",
-        isMultiHour && "flex items-center justify-center border-2 shadow-sm",
-        isMultiHour && block.isClinic && "border-yellow-500/50 bg-gradient-to-br from-yellow-500/20 to-yellow-500/30 hover:from-yellow-500/30 hover:to-yellow-500/40",
-        isMultiHour && block.isMyReservation && "border-purple-500/50 bg-gradient-to-br from-purple-500/20 to-purple-500/30 hover:from-purple-500/30 hover:to-purple-500/40",
-        isMultiHour && block.available && !block.isClinic && !block.isMyReservation && "border-green-500/50 bg-gradient-to-br from-green-500/20 to-green-500/30 hover:from-green-500/30 hover:to-green-500/40"
+          ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed"
+          : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
+        isMultiHour && "flex items-center justify-center",
+        isMultiHour && !block.coachUnavailable && block.isSocial && "border-amber-300/60 bg-gradient-to-br from-amber-100/80 to-amber-200/80 hover:from-amber-200/80 hover:to-amber-300/80",
+        isMultiHour && !block.coachUnavailable && block.isClinic && "border-yellow-600/60 bg-gradient-to-br from-yellow-500/50 to-yellow-500/60 hover:from-yellow-500/60 hover:to-yellow-500/70",
+        isMultiHour && !block.coachUnavailable && block.isMyReservation && "border-purple-600/60 bg-gradient-to-br from-purple-500/50 to-purple-500/60 hover:from-purple-500/60 hover:to-purple-500/70",
+        isMultiHour && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
       )}
       style={{
         height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
         minHeight: isMultiHour ? undefined : isMobile ? "4rem" : "3.5rem",
-        marginBottom: isMultiHour ? "0.5rem" : undefined
+        marginBottom: isMultiHour ? "0.5rem" : undefined,
+        backgroundColor: block.isSocial ? '#FFFBEB' : undefined
       }}
       onClick={() => {
+        // Don't allow clicking coach-unavailable slots
+        if (block.coachUnavailable) return;
+
         if (block.isClinic && isMultiHour) {
           const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
           if (slot) {
@@ -107,7 +128,11 @@ const TimeSlotBlock = React.memo(({
         }
       }}
       title={
-        block.isMyReservation
+        block.coachUnavailable
+          ? `Coach unavailable: ${block.startHour}:00 - ${block.endHour}:00`
+          : block.isSocial
+          ? `Social Game: ${block.startHour}:00 - ${block.endHour}:00`
+          : block.isMyReservation
           ? `My Reservation: ${block.startHour}:00 - ${block.endHour}:00`
           : block.clinic
           ? `${block.clinic.name}: ${block.clinic.description} ($${block.clinic.price})`
@@ -116,38 +141,89 @@ const TimeSlotBlock = React.memo(({
     >
       {isMultiHour ? (
         <div className="flex flex-col items-center justify-center h-full w-full overflow-hidden">
-          <span className="font-medium text-lg sm:text-base">{block.startHour}:00</span>
+          <span className="font-bold text-xl sm:text-lg">{block.startHour}:00</span>
           <span className="text-sm sm:text-xs opacity-75 font-medium">to</span>
-          <span className="font-medium text-lg sm:text-base">{block.endHour}:00</span>
+          <span className="font-bold text-xl sm:text-lg">{block.endHour}:00</span>
+          {block.isSocial && (
+            <div className="text-center mt-2">
+              <span className="text-xs px-2 py-1 bg-amber-600/30 rounded-full border border-amber-600/40 font-semibold flex items-center gap-1 justify-center">
+                <Users className="h-3 w-3" />
+                Social Game
+              </span>
+              {block.isLocked && block.topVotedTime && (
+                <div className="text-xs font-bold mt-1 text-amber-900">
+                  Locked: {block.topVotedTime}
+                </div>
+              )}
+              {!block.isLocked && block.topVotedTime && block.voteCount && block.voteCount > 0 && (
+                <div className="text-xs font-semibold mt-1 text-amber-900">
+                  Leading: {block.topVotedTime} ({block.voteCount} votes)
+                </div>
+              )}
+              {!block.isLocked && (!block.voteCount || block.voteCount === 0) && block.social && (
+                <div className="text-xs mt-1 text-amber-800">
+                  {block.social.timeWindowStart} - {block.social.timeWindowEnd}
+                </div>
+              )}
+            </div>
+          )}
           {block.isClinic && block.clinic && (
-            <span 
-              className="text-[10px] mt-2 px-2 py-1 bg-yellow-500/20 rounded border border-yellow-500/30 text-yellow-800 font-medium text-center break-words leading-tight max-w-full overflow-visible cursor-help"
+            <span
+              className="text-[10px] mt-2 px-2 py-1 bg-yellow-600/30 rounded border border-yellow-600/40 font-semibold text-center break-words leading-tight max-w-full overflow-visible cursor-help"
               title={block.clinic.name}
             >
               {block.clinic.name}
             </span>
           )}
           {block.isMyReservation && (
-            <span className="text-sm mt-2 px-3 py-1 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium">
+            <span className="text-sm mt-2 px-3 py-1 bg-purple-600/30 rounded-full border border-purple-600/40 font-semibold">
               My Reservation
             </span>
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-1 justify-center w-full h-full overflow-hidden">
-          <span className="text-lg sm:text-base font-medium">{block.startHour}:00</span>
-          {block.isClinic && block.clinic && (
-            <span 
-              className="text-[8px] sm:text-[9px] px-1 py-0.5 bg-yellow-500/20 rounded border border-yellow-500/30 text-yellow-800 font-medium break-words leading-tight text-center w-full overflow-visible cursor-help"
-              title={block.clinic.name}
-            >
-              {block.clinic.name}
-            </span>
-          )}
-          {block.isMyReservation && (
-            <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-purple-500/20 rounded-full border border-purple-500/30 text-purple-800 font-medium whitespace-nowrap">
-              My Reservation
-            </span>
+        <div className="flex flex-col items-center justify-center w-full h-full overflow-hidden">
+          {block.isSocial ? (
+            <>
+              <Users className="h-3 w-3 mb-0.5" />
+              {block.isLocked && block.topVotedTime ? (
+                <>
+                  <span className="font-bold text-sm">{block.topVotedTime}</span>
+                  <span className="text-[9px] font-semibold">Locked</span>
+                </>
+              ) : block.topVotedTime && block.voteCount && block.voteCount > 0 ? (
+                <>
+                  <span className="font-bold text-sm">{block.topVotedTime}</span>
+                  <span className="text-[9px] font-semibold">{block.voteCount} votes</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+                  <span className="text-[10px] font-semibold">Social</span>
+                </>
+              )}
+            </>
+          ) : block.isClinic ? (
+            <>
+              <GraduationCap className="h-3 w-3 mb-0.5" />
+              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+            </>
+          ) : block.isMyReservation ? (
+            <>
+              <User className="h-3 w-3 mb-0.5" />
+              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+            </>
+          ) : block.reserved ? (
+            <>
+              <User className="h-3 w-3 mb-0.5" />
+              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+            </>
+          ) : block.blocked ? (
+            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+          ) : block.available ? (
+            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+          ) : (
+            <span className="font-bold text-lg sm:text-xl text-gray-400">{block.startHour}:00</span>
           )}
         </div>
       )}
@@ -166,22 +242,30 @@ const TimeSlotBlock = React.memo(({
   );
 });
 
-const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
+const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerViewProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
   const [viewDays, setViewDays] = useState<number>(3);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null);
-  
+  const [selectedSocial, setSelectedSocial] = useState<{
+    social: Social;
+    reservation: any;
+    timeSlot: TimeSlot;
+    court: Court;
+  } | null>(null);
+
   // Legend filter states
   const [legendFilters, setLegendFilters] = useState<{
     available: boolean;
     clinic: boolean;
+    social: boolean;
     myReservations: boolean;
   }>({
     available: true,
     clinic: true,
+    social: true,
     myReservations: true,
   });
 
@@ -203,15 +287,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   const dataService = useDataService();
 
   const activeFilterLabel = useMemo(() => {
-    if (legendFilters.available && legendFilters.clinic && legendFilters.myReservations) return "All";
+    if (legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations) return "All";
     if (legendFilters.available) return "Available";
     if (legendFilters.clinic) return "Clinic";
+    if (legendFilters.social) return "Social";
     if (legendFilters.myReservations) return "My Reservations";
     return "All";
   }, [legendFilters]);
 
   const isAllOn = useMemo(() => (
-    legendFilters.available && legendFilters.clinic && legendFilters.myReservations
+    legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations
   ), [legendFilters]);
 
   // Toggle legend filter
@@ -221,20 +306,21 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   // - Click on a different filter while in exclusive mode -> switch exclusive filter
   const toggleLegendFilter = useCallback((filterType: keyof typeof legendFilters) => {
     setLegendFilters((prev) => {
-      const allOn = prev.available && prev.clinic && prev.myReservations;
+      const allOn = prev.available && prev.clinic && prev.social && prev.myReservations;
       const entries = Object.entries(prev) as Array<[keyof typeof prev, boolean]>;
       const numOn = entries.reduce((count, [, value]) => count + (value ? 1 : 0), 0);
       const isExclusive = numOn === 1 && prev[filterType];
 
       if (isExclusive) {
         // Turning off the active exclusive filter -> show all
-        return { available: true, clinic: true, myReservations: true };
+        return { available: true, clinic: true, social: true, myReservations: true };
       }
 
       // Otherwise switch to exclusive mode for the selected filter
       return {
         available: filterType === 'available',
         clinic: filterType === 'clinic',
+        social: filterType === 'social',
         myReservations: filterType === 'myReservations',
       };
     });
@@ -256,9 +342,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
     // This effect is kept for future dynamic loading if needed
   }, [currentDate, viewDays]);
 
-  // Time range to display (8am to 9pm)
+  // Time range to display (8am to 10pm, will show social times even outside this range)
   const startHour = 8;
-  const endHour = 21;
+  const endHour = 22;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Calculate days to display based on current date
@@ -382,10 +468,50 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
   }, [currentTime]);
 
   // Get availability for a specific court, day and hour - services single source of truth
-  const getSlotStatus = (court: Court, day: Date, hour: number) => {
+  const getSlotStatus = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    return dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
-  };
+    const status = dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
+
+    // If coach is selected, filter based on coach availability
+    if (selectedCoachId && status.slot) {
+      const coach = dataService.coachService.getCoachById(selectedCoachId);
+      if (!coach) return { ...status, available: false, coachUnavailable: true };
+
+      // Check if slot is available for booking (not already booked, blocked, or a clinic)
+      if (!status.available || status.blocked || status.reserved || status.isClinic) {
+        return { ...status, available: false };
+      }
+
+      // Check coach's weekly availability
+      const dayOfWeek = format(day, 'EEEE').toLowerCase();
+      const availability = coach.availability?.find(a => a.dayOfWeek === dayOfWeek);
+
+      if (!availability || !availability.isAvailable) {
+        return { ...status, available: false, coachUnavailable: true };
+      }
+
+      // Check if slot time falls within coach's availability window
+      if (status.slot.startTime < availability.startTime || status.slot.endTime > availability.endTime) {
+        return { ...status, available: false, coachUnavailable: true };
+      }
+
+      // Check for conflicting private sessions (if service exists)
+      if (dataService.privateSessionService) {
+        const isCoachAvailable = dataService.privateSessionService.isCoachAvailable(
+          selectedCoachId,
+          status.slot.date,
+          status.slot.startTime,
+          status.slot.endTime
+        );
+
+        if (!isCoachAvailable) {
+          return { ...status, available: false, coachUnavailable: true };
+        }
+      }
+    }
+
+    return status;
+  }, [selectedCoachId, dataService]);
 
   const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
@@ -397,7 +523,23 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
 
     if (relevantSlots.length > 0) {
       const slot = relevantSlots[0];
-      // Check if this is a reservation
+
+      // Check if this is a social booking
+      if (slot.type === 'social' && slot.socialId) {
+        const social = socialRepository.findById(slot.socialId);
+        const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
+        if (social && reservation) {
+          setSelectedSocial({
+            social,
+            reservation,
+            timeSlot: slot,
+            court
+          });
+        }
+        return;
+      }
+
+      // Check if this is a regular reservation
       const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
 
       if (reservation) {
@@ -651,38 +793,76 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                 startHour: number;
                                 endHour: number;
                                 isClinic: boolean;
+                                isSocial: boolean;
                                 clinic: Clinic | null;
                                 slot: TimeSlot | null;
                                 available: boolean;
                                 reserved: boolean;
                                 blocked: boolean;
                                 isMyReservation: boolean;
+                                coachUnavailable?: boolean;
+                                social?: Social | null;
+                                topVotedTime?: string | null;
+                                voteCount?: number;
+                                isLocked?: boolean;
                               }> = [];
-                              
+
                               let currentBlock: {
                                 startHour: number;
                                 endHour: number;
                                 isClinic: boolean;
+                                isSocial: boolean;
                                 clinic: Clinic | null;
                                 slot: TimeSlot | null;
                                 available: boolean;
                                 reserved: boolean;
                                 blocked: boolean;
                                 isMyReservation: boolean;
+                                coachUnavailable?: boolean;
+                                social?: Social | null;
+                                topVotedTime?: string | null;
+                                voteCount?: number;
+                                isLocked?: boolean;
                               } | null = null;
-                              
+
                               // Group consecutive time slots into blocks
                               for (let i = 0; i < hours.length; i++) {
                                 const hour = hours[i];
-                                const { available, reserved, blocked, isClinic, slot, clinic, reservation } = getSlotStatus(court, day, hour);
-                                
+                                const { available, reserved, blocked, isClinic, isSocial, slot, clinic, reservation, coachUnavailable } = getSlotStatus(court, day, hour);
+
                                 // Check if this is the current user's reservation
                                 const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
+
+                                // Get social voting information if this is a social slot
+                                let social: Social | null = null;
+                                let topVotedTime: string | null = null;
+                                let voteCount: number = 0;
+                                let isLocked: boolean = false;
+
+                                if (isSocial && slot?.socialId) {
+                                  social = socialRepository.findById(slot.socialId);
+                                  if (social) {
+                                    isLocked = !!social.lockedTimeSlotId;
+                                    if (isLocked) {
+                                      const lockedSlot = social.timeSlots.find(ts => ts.id === social.lockedTimeSlotId);
+                                      if (lockedSlot) {
+                                        topVotedTime = lockedSlot.time;
+                                        voteCount = lockedSlot.votes.length;
+                                      }
+                                    } else {
+                                      const sortedSlots = [...social.timeSlots].sort((a, b) => b.votes.length - a.votes.length);
+                                      if (sortedSlots.length > 0 && sortedSlots[0].votes.length > 0) {
+                                        topVotedTime = sortedSlots[0].time;
+                                        voteCount = sortedSlots[0].votes.length;
+                                      }
+                                    }
+                                  }
+                                }
                                 
                                 if (isClinic && clinic) {
                                   // If this is a clinic and it's the same clinic as the previous hour
-                                  if (currentBlock && 
-                                      currentBlock.isClinic && 
+                                  if (currentBlock &&
+                                      currentBlock.isClinic &&
                                       currentBlock.clinic?.id === clinic.id &&
                                       currentBlock.endHour === hour) {
                                     // Extend the current block
@@ -696,12 +876,14 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                       startHour: hour,
                                       endHour: hour + 1,
                                       isClinic: true,
+                                      isSocial: false,
                                       clinic,
                                       slot,
                                       available,
                                       reserved,
                                       blocked: !!blocked,
-                                      isMyReservation
+                                      isMyReservation,
+                                      coachUnavailable
                                     };
                                   }
                                 } else {
@@ -710,17 +892,23 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                                     timeSlotBlocks.push(currentBlock);
                                     currentBlock = null;
                                   }
-                                  
+
                                   timeSlotBlocks.push({
                                     startHour: hour,
                                     endHour: hour + 1,
                                     isClinic: false,
+                                    isSocial: !!isSocial,
                                     clinic: null,
                                     slot,
                                     available,
                                     reserved,
                                     blocked: !!blocked,
-                                    isMyReservation
+                                    isMyReservation,
+                                    coachUnavailable,
+                                    social: isSocial ? social : null,
+                                    topVotedTime: isSocial ? topVotedTime : null,
+                                    voteCount: isSocial ? voteCount : 0,
+                                    isLocked: isSocial ? isLocked : false
                                   });
                                 }
                               }
@@ -732,7 +920,17 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
                               
                               return timeSlotBlocks
                                 .filter((block) => {
+                                  // Always show coach-unavailable slots when coach is selected (they should be visible but disabled)
+                                  if (block.coachUnavailable) {
+                                    return true;
+                                  }
+
                                   // Apply legend filters
+                                  // Social blocks should only be filtered by social filter
+                                  if (block.isSocial) {
+                                    return legendFilters.social;
+                                  }
+
                                   // Clinic blocks should only be filtered by clinic filter
                                   if (block.isClinic) {
                                     return legendFilters.clinic;
@@ -950,6 +1148,18 @@ const HomeSchedulerView = ({ onSelectTimeSlot }: HomeSchedulerViewProps) => {
              </div>
            </div>
          </div>
+       )}
+
+       {/* Social Booking Dialog */}
+       {selectedSocial && (
+         <SocialBookingDialog
+           social={selectedSocial.social}
+           reservation={selectedSocial.reservation}
+           timeSlot={selectedSocial.timeSlot}
+           court={selectedSocial.court}
+           isOpen={true}
+           onClose={() => setSelectedSocial(null)}
+         />
        )}
     </>
   );

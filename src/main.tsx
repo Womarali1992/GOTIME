@@ -3,6 +3,7 @@ import App from './App.tsx'
 import './index.css'
 import { HashRouter } from 'react-router-dom'
 import { UserProvider } from './contexts/UserContext'
+import { CoachProvider } from './contexts/CoachContext'
 import DataProvider from './components/DataProvider'
 
 const rootElement = document.getElementById("root");
@@ -13,9 +14,11 @@ if (rootElement) {
   root.render(
     <HashRouter>
       <UserProvider>
-        <DataProvider>
-          <App />
-        </DataProvider>
+        <CoachProvider>
+          <DataProvider>
+            <App />
+          </DataProvider>
+        </CoachProvider>
       </UserProvider>
     </HashRouter>
   );

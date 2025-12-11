@@ -7,20 +7,27 @@ import type { TimeSlot, Comment, DaySettings } from '../validation/schemas';
 export interface TimeSlotWithStatus extends TimeSlot {
   reservation?: any;
   clinic?: any;
+  social?: any;
   isAvailable: boolean;
   isReserved: boolean;
   isBlocked: boolean;
   isClinic: boolean;
-  status: 'available' | 'reserved' | 'blocked' | 'clinic';
+  isSocial: boolean;
+  status: 'available' | 'reserved' | 'blocked' | 'clinic' | 'social';
 }
 
 export class TimeSlotService {
+  private getOperatingHours?: () => DaySettings[];
+
   constructor(
     private timeSlotRepository: TimeSlotRepository,
     private reservationRepository: ReservationRepository,
     private clinicRepository: ClinicRepository,
-    private courtRepository: CourtRepository
-  ) {}
+    private courtRepository: CourtRepository,
+    getOperatingHours?: () => DaySettings[]
+  ) {
+    this.getOperatingHours = getOperatingHours;
+  }
 
   // Core CRUD operations
   getAllTimeSlots(): TimeSlot[] {
@@ -29,6 +36,10 @@ export class TimeSlotService {
 
   getTimeSlotById(id: string): TimeSlot | undefined {
     return this.timeSlotRepository.findById(id);
+  }
+
+  updateTimeSlot(id: string, data: Partial<TimeSlot>): TimeSlot {
+    return this.timeSlotRepository.update(id, data);
   }
 
   // Time slot generation
@@ -88,27 +99,78 @@ export class TimeSlotService {
 
   // Query methods with status
   getTimeSlotsForDate(date: string, courtId?: string): TimeSlotWithStatus[] {
-    // First check if the day is open according to current settings
+    // Check if the day is open according to current operating hours settings
     const slotDate = new Date(date);
     const dayOfWeek = slotDate.getDay();
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayName = dayNames[dayOfWeek] as DaySettings['dayOfWeek'];
-    
-    // The service doesn't hold a reference to a dataService; assume days are open by existing slots
-    // If slots exist for the date, proceed; otherwise, return empty
-    const allSlotsForDate = this.timeSlotRepository.findByDate(date);
-    const anyOpen = allSlotsForDate.length > 0;
-    const daySettings = anyOpen ? { isOpen: true } as Partial<DaySettings> : undefined;
-    
-    // If the day is closed, return empty array
-    if (!daySettings || !daySettings.isOpen) {
-      return [];
+
+    // Get operating hours from the settings
+    if (this.getOperatingHours) {
+      const operatingHours = this.getOperatingHours();
+      const daySettings = operatingHours.find(day => day.dayOfWeek === dayName);
+
+      // If the day is closed according to settings, return empty array
+      if (!daySettings || !daySettings.isOpen) {
+        return [];
+      }
+
+      // Check if slots exist for this date, if not, generate them
+      const existingSlots = this.timeSlotRepository.findByDate(date);
+      if (existingSlots.length === 0) {
+        // Generate slots for this specific date
+        this.generateTimeSlotsForDate(date, operatingHours);
+      }
     }
-    
+
     const slots = this.timeSlotRepository.findByDate(date);
     const filteredSlots = courtId ? slots.filter(slot => slot.courtId === courtId) : slots;
-    
+
     return filteredSlots.map(slot => this.enrichTimeSlotWithStatus(slot));
+  }
+
+  // Helper method to generate time slots for a specific date
+  private generateTimeSlotsForDate(date: string, operatingHours: DaySettings[]): void {
+    const slotDate = new Date(date);
+    const dayOfWeek = slotDate.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[dayOfWeek] as DaySettings['dayOfWeek'];
+
+    const daySettings = operatingHours.find(day => day.dayOfWeek === dayName);
+    if (!daySettings || !daySettings.isOpen) return;
+
+    const startHour = parseInt(daySettings.startTime.split(':')[0]);
+    const endHour = parseInt(daySettings.endTime.split(':')[0]);
+
+    const courts = this.courtRepository.findAll();
+    courts.forEach(court => {
+      for (let hour = startHour; hour < endHour; hour++) {
+        const startTime = `${hour.toString().padStart(2, '0')}:00`;
+        const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+
+        const slotId = `${court.id}-${date}-${hour}`;
+
+        // Check if slot already exists
+        if (!this.timeSlotRepository.findById(slotId)) {
+          const now = new Date();
+          const slotDateTime = new Date(slotDate);
+          slotDateTime.setHours(hour, 0, 0, 0);
+          const isPast = slotDateTime < now;
+
+          const timeSlot: Omit<TimeSlot, 'id'> = {
+            courtId: court.id,
+            startTime,
+            endTime,
+            date,
+            available: !isPast,
+            blocked: false,
+            comments: [],
+          };
+
+          this.timeSlotRepository.create(timeSlot);
+        }
+      }
+    });
   }
 
   getTimeSlotsForDateRange(startDate: string, endDate: string): TimeSlotWithStatus[] {
@@ -287,21 +349,24 @@ export class TimeSlotService {
   // Helper methods
   private enrichTimeSlotWithStatus(slot: TimeSlot): TimeSlotWithStatus {
     const reservation = this.reservationRepository.findByTimeSlotId(slot.id);
-    const clinic = slot.type === 'clinic' && slot.clinicId 
-      ? this.clinicRepository.findById(slot.clinicId) 
+    const clinic = slot.type === 'clinic' && slot.clinicId
+      ? this.clinicRepository.findById(slot.clinicId)
       : null;
 
     const isBlocked = slot.blocked;
     const isClinic = slot.type === 'clinic' && clinic !== null;
-    const isReserved = !slot.available && !isBlocked && !isClinic && reservation !== null;
-    // Fixed: Clinic slots should NOT be considered available for regular booking
-    const isAvailable = slot.available && !isBlocked && !isClinic;
+    const isSocial = slot.type === 'social';
+    const isReserved = !slot.available && !isBlocked && !isClinic && !isSocial && reservation !== null;
+    // Fixed: Clinic and social slots should NOT be considered available for regular booking
+    const isAvailable = slot.available && !isBlocked && !isClinic && !isSocial;
 
-    let status: 'available' | 'reserved' | 'blocked' | 'clinic';
+    let status: 'available' | 'reserved' | 'blocked' | 'clinic' | 'social';
     if (isBlocked) {
       status = 'blocked';
     } else if (isClinic) {
       status = 'clinic';
+    } else if (isSocial) {
+      status = 'social';
     } else if (isReserved) {
       status = 'reserved';
     } else {
@@ -316,6 +381,7 @@ export class TimeSlotService {
       isReserved,
       isBlocked,
       isClinic,
+      isSocial,
       status
     };
   }
@@ -325,19 +391,48 @@ export class TimeSlotService {
     reserved: boolean;
     blocked: boolean;
     isClinic: boolean;
+    isSocial?: boolean;
     slot: TimeSlotWithStatus | null;
     reservation: any;
     clinic: any;
-    status: 'available' | 'reserved' | 'blocked' | 'clinic' | 'unavailable';
+    status: 'available' | 'reserved' | 'blocked' | 'clinic' | 'social' | 'unavailable';
   } {
+    // Check if the day is open according to current operating hours settings
+    const slotDate = new Date(date);
+    const dayOfWeek = slotDate.getDay();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[dayOfWeek] as DaySettings['dayOfWeek'];
+
+    // Get operating hours from the settings
+    if (this.getOperatingHours) {
+      const operatingHours = this.getOperatingHours();
+      const daySettings = operatingHours.find(day => day.dayOfWeek === dayName);
+
+      // If the day is closed according to settings, return unavailable
+      if (!daySettings || !daySettings.isOpen) {
+        return {
+          available: false,
+          reserved: false,
+          blocked: false,
+          isClinic: false,
+          isSocial: false,
+          slot: null,
+          reservation: null,
+          clinic: null,
+          status: 'unavailable'
+        };
+      }
+    }
+
     const slot = this.timeSlotRepository.findUniqueSlot(courtId, date, `${hour.toString().padStart(2, '0')}:00`);
-    
+
     if (!slot) {
       return {
         available: false,
         reserved: false,
         blocked: false,
         isClinic: false,
+        isSocial: false,
         slot: null,
         reservation: null,
         clinic: null,
@@ -352,6 +447,7 @@ export class TimeSlotService {
       reserved: enrichedSlot.isReserved,
       blocked: enrichedSlot.isBlocked,
       isClinic: enrichedSlot.isClinic,
+      isSocial: enrichedSlot.isSocial,
       slot: enrichedSlot,
       reservation: enrichedSlot.reservation,
       clinic: enrichedSlot.clinic,

@@ -86,23 +86,23 @@ export class ReservationRepository extends BaseRepository<Reservation, CreateRes
   // Validation methods
   validateReservationCreation(timeSlotId: string, timeSlots: { id: string; available: boolean; blocked: boolean; type?: string }[]): { isValid: boolean; error?: string } {
     const timeSlot = timeSlots.find(slot => slot.id === timeSlotId);
-    
+
     if (!timeSlot) {
       return { isValid: false, error: 'Time slot not found' };
     }
-    
+
     if (timeSlot.blocked) {
       return { isValid: false, error: 'Cannot book a blocked time slot' };
     }
-    
-    if (!timeSlot.available && timeSlot.type !== 'clinic') {
+
+    if (!timeSlot.available && timeSlot.type !== 'clinic' && timeSlot.type !== 'social') {
       return { isValid: false, error: 'Time slot is not available for reservation' };
     }
-    
-    if (this.isTimeSlotReserved(timeSlotId) && timeSlot.type !== 'clinic') {
+
+    if (this.isTimeSlotReserved(timeSlotId) && timeSlot.type !== 'clinic' && timeSlot.type !== 'social') {
       return { isValid: false, error: 'Time slot already has a reservation' };
     }
-    
+
     return { isValid: true };
   }
 }

@@ -40,8 +40,10 @@ export const TimeSlotSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   available: z.boolean(),
   blocked: z.boolean(),
-  type: z.enum(['clinic', 'reservation']).optional(),
+  type: z.enum(['clinic', 'reservation', 'private_coaching', 'social']).optional(),
   clinicId: z.string().optional(),
+  privateSessionId: z.string().optional(),
+  socialId: z.string().optional(),
   comments: z.array(CommentSchema).default([]),
 });
 
@@ -63,6 +65,7 @@ export const ReservationSchema = z.object({
   playerPhone: z.string().min(10, 'Phone number must be at least 10 digits'),
   players: z.number().min(1, 'At least 1 player required').max(4, 'Maximum 4 players allowed'),
   participants: z.array(ParticipantSchema).optional().default([]),
+  socialId: z.string().optional(), // Links to social if this booking is for a social event
   createdAt: z.string(),
   comments: z.array(CommentSchema).default([]),
   // Payment-related fields for clinic reservations
@@ -91,6 +94,15 @@ export const CoachSchema = z.object({
   specialties: z.array(z.string()).min(1, 'At least one specialty required'),
   bio: z.string().min(10, 'Bio must be at least 10 characters'),
   hourlyRate: z.number().min(0, 'Hourly rate must be positive'),
+  coachingRate: z.number().min(0, 'Coaching rate must be positive').optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  isActive: z.boolean().default(true),
+  availability: z.array(z.object({
+    dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+    endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+    isAvailable: z.boolean(),
+  })).optional().default([]),
   createdAt: z.string(),
 });
 
@@ -106,6 +118,45 @@ export const ClinicSchema = z.object({
   maxParticipants: z.number().min(1, 'At least 1 participant required'),
   price: z.number().min(0, 'Price must be positive'),
   createdAt: z.string(),
+});
+
+export const PrivateSessionSchema = z.object({
+  id: z.string(),
+  coachId: z.string(),
+  clientId: z.string(),
+  courtId: z.string(),
+  timeSlotId: z.string(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  price: z.number().min(0, 'Price must be positive'),
+  status: z.enum(['pending', 'confirmed', 'completed', 'cancelled']).default('pending'),
+  notes: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+});
+
+export const TimeSlotVoteSchema = z.object({
+  id: z.string(),
+  time: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  votes: z.array(z.string()).default([]), // user IDs who voted for this time
+  isLocked: z.boolean().default(false),
+});
+
+export const SocialSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1, 'Title is required'),
+  hostId: z.string(),
+  hostName: z.string(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  timeWindowStart: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  timeWindowEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  timeSlots: z.array(TimeSlotVoteSchema).min(3, 'At least 3 time slots required'),
+  lockedTimeSlotId: z.string().optional(),
+  reservationId: z.string().optional(), // Links to reservation when social is booked
+  courtId: z.string().optional(), // Court where the social will be held
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
 });
 
 export const DaySettingsSchema = z.object({
@@ -143,7 +194,9 @@ export const CreateReservationSchema = ReservationSchema.omit({ id: true, create
 export const CreateUserSchema = UserSchema.omit({ id: true, createdAt: true });
 export const CreateCoachSchema = CoachSchema.omit({ id: true, createdAt: true });
 export const CreateClinicSchema = ClinicSchema.omit({ id: true, createdAt: true });
+export const CreatePrivateSessionSchema = PrivateSessionSchema.omit({ id: true, createdAt: true });
 export const CreateCommentSchema = CommentSchema.omit({ id: true, createdAt: true });
+export const CreateSocialSchema = SocialSchema.omit({ id: true, createdAt: true });
 
 
 
@@ -152,7 +205,9 @@ export const UpdateReservationSchema = ReservationSchema.partial().required({ id
 export const UpdateUserSchema = UserSchema.partial().required({ id: true });
 export const UpdateCoachSchema = CoachSchema.partial().required({ id: true });
 export const UpdateClinicSchema = ClinicSchema.partial().required({ id: true });
+export const UpdatePrivateSessionSchema = PrivateSessionSchema.partial().required({ id: true });
 export const UpdateTimeSlotSchema = TimeSlotSchema.partial().required({ id: true });
+export const UpdateSocialSchema = SocialSchema.partial().required({ id: true });
 
 
 
@@ -164,9 +219,13 @@ export type Participant = z.infer<typeof ParticipantSchema>;
 export type Reservation = z.infer<typeof ReservationSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type Coach = z.infer<typeof CoachSchema>;
+export type CoachAvailability = z.infer<typeof CoachSchema>['availability'][number];
 export type Clinic = z.infer<typeof ClinicSchema>;
+export type PrivateSession = z.infer<typeof PrivateSessionSchema>;
 export type DaySettings = z.infer<typeof DaySettingsSchema>;
 export type ReservationSettings = z.infer<typeof ReservationSettingsSchema>;
+export type TimeSlotVote = z.infer<typeof TimeSlotVoteSchema>;
+export type Social = z.infer<typeof SocialSchema>;
 
 
 
@@ -176,7 +235,9 @@ export type CreateReservation = z.infer<typeof CreateReservationSchema>;
 export type CreateUser = z.infer<typeof CreateUserSchema>;
 export type CreateCoach = z.infer<typeof CreateCoachSchema>;
 export type CreateClinic = z.infer<typeof CreateClinicSchema>;
+export type CreatePrivateSession = z.infer<typeof CreatePrivateSessionSchema>;
 export type CreateComment = z.infer<typeof CreateCommentSchema>;
+export type CreateSocial = z.infer<typeof CreateSocialSchema>;
 
 
 
@@ -184,6 +245,8 @@ export type UpdateReservation = z.infer<typeof UpdateReservationSchema>;
 export type UpdateUser = z.infer<typeof UpdateUserSchema>;
 export type UpdateCoach = z.infer<typeof UpdateCoachSchema>;
 export type UpdateClinic = z.infer<typeof UpdateClinicSchema>;
+export type UpdatePrivateSession = z.infer<typeof UpdatePrivateSessionSchema>;
 export type UpdateTimeSlot = z.infer<typeof UpdateTimeSlotSchema>;
+export type UpdateSocial = z.infer<typeof UpdateSocialSchema>;
 
 

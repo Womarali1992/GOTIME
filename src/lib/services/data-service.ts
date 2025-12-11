@@ -4,7 +4,8 @@ import { ReservationRepository } from '../repositories/reservation-repository';
 import { UserRepository } from '../repositories/user-repository';
 import { CoachRepository } from '../repositories/coach-repository';
 import { ClinicRepository } from '../repositories/clinic-repository';
-import { timeSlots as dataTimeSlots, clinics as dataClinics, coaches as dataCoaches, users as dataUsers } from '../data';
+import { PrivateSessionRepository } from '../repositories/private-session-repository';
+import { timeSlots as dataTimeSlots, clinics as dataClinics, coaches as dataCoaches, users as dataUsers, reservationSettings } from '../data';
 
 
 
@@ -13,11 +14,12 @@ import { TimeSlotService } from './time-slot-service';
 import { UserService } from './user-service';
 import { CoachService } from './coach-service';
 import { ClinicService } from './clinic-service';
+import { PrivateSessionService } from './private-session-service';
 
 
-import type { 
-  Court, TimeSlot, Reservation, User, Coach, Clinic, 
-  DaySettings, ReservationSettings 
+import type {
+  Court, TimeSlot, Reservation, User, Coach, Clinic, PrivateSession,
+  DaySettings, ReservationSettings
 } from '../validation/schemas';
 
 // Initial courts data
@@ -53,6 +55,8 @@ const defaultDaySettings = [
   { dayOfWeek: 'sunday', isOpen: true, startTime: '09:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 },
 ];
 
+const SETTINGS_STORAGE_KEY = 'picklepop_reservation_settings';
+
 const initialReservationSettings: ReservationSettings = {
   id: '1',
   courtName: 'Pickleball Court',
@@ -66,6 +70,29 @@ const initialReservationSettings: ReservationSettings = {
   operatingHours: defaultDaySettings,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+};
+
+// Load settings from localStorage if available
+const loadSettingsFromStorage = (): ReservationSettings => {
+  try {
+    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...initialReservationSettings, ...parsed };
+    }
+  } catch (error) {
+    console.error('Failed to load settings from localStorage:', error);
+  }
+  return { ...initialReservationSettings };
+};
+
+// Save settings to localStorage
+const saveSettingsToStorage = (settings: ReservationSettings): void => {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error('Failed to save settings to localStorage:', error);
+  }
 };
 
 // Helper function to get settings for a specific day
@@ -159,7 +186,8 @@ const initialCoaches: Coach[] = dataCoaches;
 // Sample clinics
 const initialClinics: Clinic[] = dataClinics;
 
-
+// Sample private sessions
+const initialPrivateSessions: PrivateSession[] = [];
 
 export class DataService {
   // Repositories
@@ -169,6 +197,7 @@ export class DataService {
   private userRepository: UserRepository;
   private coachRepository: CoachRepository;
   private clinicRepository: ClinicRepository;
+  private privateSessionRepository: PrivateSessionRepository;
 
 
 
@@ -178,6 +207,7 @@ export class DataService {
   public userService: UserService;
   public coachService: CoachService;
   public clinicService: ClinicService;
+  public privateSessionService: PrivateSessionService;
 
 
   // Settings
@@ -191,6 +221,7 @@ export class DataService {
     this.userRepository = new UserRepository(initialUsers);
     this.coachRepository = new CoachRepository(initialCoaches);
     this.clinicRepository = new ClinicRepository(initialClinics);
+    this.privateSessionRepository = new PrivateSessionRepository(initialPrivateSessions);
 
 
 
@@ -205,7 +236,8 @@ export class DataService {
       this.timeSlotRepository,
       this.reservationRepository,
       this.clinicRepository,
-      this.courtRepository
+      this.courtRepository,
+      () => this._reservationSettings.operatingHours
     );
 
     this.userService = new UserService(this.userRepository);
@@ -216,11 +248,21 @@ export class DataService {
       this.coachRepository,
       this.courtRepository
     );
+    this.privateSessionService = new PrivateSessionService(
+      this.privateSessionRepository,
+      this.timeSlotRepository,
+      this.coachRepository,
+      this.courtRepository,
+      this.userRepository
+    );
 
 
 
-    // Initialize settings
-    this._reservationSettings = { ...initialReservationSettings };
+    // Initialize settings from localStorage or defaults
+    this._reservationSettings = loadSettingsFromStorage();
+
+    // Sync to module-level settings in data.ts
+    Object.assign(reservationSettings, this._reservationSettings);
 
 
 
@@ -239,6 +281,15 @@ export class DataService {
     return this.courtRepository.findById(id);
   }
 
+  // Time slot management
+  deleteTimeSlot(id: string): boolean {
+    return this.timeSlotRepository.delete(id);
+  }
+
+  createTimeSlot(data: Omit<TimeSlot, 'id' | 'createdAt'>): TimeSlot {
+    return this.timeSlotRepository.create(data);
+  }
+
   // Settings management
   getReservationSettings(): ReservationSettings {
     return { ...this._reservationSettings };
@@ -250,6 +301,13 @@ export class DataService {
       ...newSettings,
       updatedAt: new Date().toISOString(),
     };
+
+    // Sync to module-level settings in data.ts
+    Object.assign(reservationSettings, this._reservationSettings);
+
+    // Persist to localStorage
+    saveSettingsToStorage(this._reservationSettings);
+
     return { ...this._reservationSettings };
   }
 
@@ -381,6 +439,7 @@ export class DataService {
     users: number;
     coaches: number;
     clinics: number;
+    privateSessions: number;
     dataIntegrity: { isValid: boolean; errorCount: number; warningCount: number };
   } {
     const integrity = this.validateDataIntegrity();
@@ -392,6 +451,7 @@ export class DataService {
       users: this.userRepository.count(),
       coaches: this.coachRepository.count(),
       clinics: this.clinicRepository.count(),
+      privateSessions: this.privateSessionRepository.count(),
       dataIntegrity: {
         isValid: integrity.isValid,
         errorCount: integrity.errors.length,
