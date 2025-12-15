@@ -35,27 +35,20 @@ router.get('/', (req, res) => {
 router.get('/date/:date', async (req, res) => {
   const { date } = req.params;
 
-  // Get settings (fall back to defaults if missing)
+  // Get settings
   const settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
-  const DEFAULT_OPERATING_HOURS = [
-    { dayOfWeek: 'monday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'tuesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'wednesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'thursday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'friday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'saturday', isOpen: true, startTime: '08:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'sunday', isOpen: true, startTime: '10:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 }
-  ];
+  if (!settings) {
+    return res.status(500).json({ error: 'Settings not found' });
+  }
 
-  const operatingHours = settings ? JSON.parse(settings.operatingHours || '[]') : [];
-  const effectiveOperatingHours = operatingHours.length ? operatingHours : DEFAULT_OPERATING_HOURS;
+  const operatingHours = JSON.parse(settings.operatingHours || '[]');
 
   // Check if day is open
   const slotDate = new Date(date);
   const dayOfWeek = slotDate.getDay();
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayName = dayNames[dayOfWeek];
-  const daySettings = effectiveOperatingHours.find(day => day.dayOfWeek === dayName);
+  const daySettings = operatingHours.find(day => day.dayOfWeek === dayName);
 
   if (!daySettings || !daySettings.isOpen) {
     return res.json([]);
@@ -234,100 +227,6 @@ router.delete('/:id', (req, res) => {
   }
 
   res.status(204).send();
-});
-
-// Generate time slots endpoint - single source of truth for time slot generation
-router.post('/generate', (req, res) => {
-  const { date, courtId } = req.body;
-
-  if (!date) {
-    return res.status(400).json({ error: 'Date is required' });
-  }
-
-  // Get settings (fall back to defaults if missing)
-  const settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
-  const DEFAULT_OPERATING_HOURS = [
-    { dayOfWeek: 'monday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'tuesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'wednesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'thursday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'friday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'saturday', isOpen: true, startTime: '08:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 },
-    { dayOfWeek: 'sunday', isOpen: true, startTime: '10:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 }
-  ];
-
-  const operatingHours = settings ? JSON.parse(settings.operatingHours || '[]') : [];
-  const effectiveOperatingHours = operatingHours.length ? operatingHours : DEFAULT_OPERATING_HOURS;
-
-  // Check if day is open
-  const slotDate = new Date(date);
-  const dayOfWeek = slotDate.getDay();
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayName = dayNames[dayOfWeek];
-  const daySettings = effectiveOperatingHours.find(day => day.dayOfWeek === dayName);
-
-  if (!daySettings || !daySettings.isOpen) {
-    return res.json({ generated: 0, message: 'Day is closed' });
-  }
-
-  // Get courts (optionally filter by courtId)
-  let courts;
-  if (courtId) {
-    const court = db.prepare('SELECT * FROM courts WHERE id = ?').get(courtId);
-    courts = court ? [court] : [];
-  } else {
-    courts = db.prepare('SELECT * FROM courts').all();
-  }
-
-  const startHour = parseInt(daySettings.startTime.split(':')[0]);
-  const endHour = parseInt(daySettings.endTime.split(':')[0]);
-  const createdAt = new Date().toISOString();
-  let generatedCount = 0;
-
-  for (const court of courts) {
-    for (let hour = startHour; hour < endHour; hour++) {
-      const startTime = `${hour.toString().padStart(2, '0')}:00`;
-      const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
-      const slotId = `${court.id}-${date}-${hour}`;
-
-      // Check if slot exists
-      const existingSlot = db.prepare('SELECT * FROM time_slots WHERE id = ?').get(slotId);
-
-      if (!existingSlot) {
-        // Determine if slot is in the past
-        const now = new Date();
-        const slotDateTime = new Date(slotDate);
-        slotDateTime.setHours(hour, 0, 0, 0);
-        const isPast = slotDateTime < now;
-
-        // Create the slot
-        const insert = db.prepare(`
-          INSERT INTO time_slots (id, courtId, date, startTime, endTime, available, blocked, comments, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        insert.run(
-          slotId,
-          court.id,
-          date,
-          startTime,
-          endTime,
-          isPast ? 0 : 1,
-          0,
-          JSON.stringify([]),
-          createdAt,
-          createdAt
-        );
-
-        generatedCount++;
-      }
-    }
-  }
-
-  res.json({
-    generated: generatedCount,
-    message: `Generated ${generatedCount} time slots for ${date}${courtId ? ` (court: ${courtId})` : ''}`
-  });
 });
 
 export default router;
