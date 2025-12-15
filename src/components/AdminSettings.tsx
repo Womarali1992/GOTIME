@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Calendar, Users, CreditCard, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import { ReservationSettings, DaySettings } from '@/lib/types';
-import { dataService } from '@/lib/services/data-service';
+import { apiDataService } from '@/lib/services/api-data-service';
 import { validateReservationSettings, validateDaySettings } from '@/lib/utils';
 
 interface AdminSettingsProps {
@@ -17,72 +17,94 @@ interface AdminSettingsProps {
 }
 
 const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
-  const [settings, setSettings] = useState<ReservationSettings>(dataService.getReservationSettings());
+  const [settings, setSettings] = useState<ReservationSettings | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setSettings(dataService.getReservationSettings());
+    loadSettings();
   }, []);
 
+  const loadSettings = async () => {
+    setLoading(true);
+    const loadedSettings = await apiDataService.getReservationSettings();
+    if (loadedSettings) {
+      setSettings(loadedSettings);
+    }
+    setLoading(false);
+  };
+
   const handleSettingChange = (key: keyof ReservationSettings, value: any) => {
-    setSettings(prev => ({
-      ...prev,
+    if (!settings) return;
+    setSettings({
+      ...settings,
       [key]: value,
-    }));
+    });
     setHasChanges(true);
   };
 
   const handleDaySettingChange = (dayIndex: number, key: keyof DaySettings, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      operatingHours: prev.operatingHours.map((day, index) =>
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      operatingHours: settings.operatingHours.map((day, index) =>
         index === dayIndex ? { ...day, [key]: value } : day
       ),
-    }));
+    });
     setHasChanges(true);
   };
 
   const handleSave = async () => {
+    if (!settings) return;
+
     try {
       // Validate settings before saving
       const generalErrors = validateReservationSettings(settings);
       const dayErrors = validateDaySettings(settings.operatingHours);
       const allErrors = [...generalErrors, ...dayErrors];
-      
+
       if (allErrors.length > 0) {
         // Show validation errors
         console.error('Validation errors:', allErrors);
         alert(`Please fix the following errors:\n\n${allErrors.join('\n')}`);
         return;
       }
-      
-      const updatedSettings = dataService.updateReservationSettings(settings);
+
+      console.log('Saving settings to database:', settings);
+      const updatedSettings = await apiDataService.updateReservationSettings(settings);
+      console.log('Settings updated in database:', updatedSettings);
+
+      // Also save to localStorage so local DataService picks it up
+      localStorage.setItem('picklepop_reservation_settings', JSON.stringify(updatedSettings));
+
       setSettings(updatedSettings);
       setIsEditing(false);
       setHasChanges(false);
-      
+
       if (onSettingsUpdate) {
         onSettingsUpdate(updatedSettings);
       }
-      
-      // In a real app, you'd make an API call here
-      console.log('Settings saved:', updatedSettings);
-      alert('Settings saved successfully!');
+
+      console.log('Settings saved successfully');
+      alert('Settings saved successfully! The page will reload to apply changes.');
+
+      // Reload the page to ensure all time slots are regenerated
+      window.location.reload();
     } catch (error) {
       console.error('Error saving settings:', error);
       alert('Error saving settings. Please try again.');
     }
   };
 
-  const handleReset = () => {
-    setSettings(dataService.getReservationSettings());
+  const handleReset = async () => {
+    await loadSettings();
     setHasChanges(false);
     setIsEditing(false);
   };
 
-  const handleCancel = () => {
-    setSettings(dataService.getReservationSettings());
+  const handleCancel = async () => {
+    await loadSettings();
     setHasChanges(false);
     setIsEditing(false);
   };
@@ -106,6 +128,10 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
     { value: 30, label: '30 minutes' },
     { value: 45, label: '45 minutes' },
   ];
+
+  if (loading || !settings) {
+    return <div className="flex items-center justify-center p-12">Loading settings...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -179,7 +205,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                   type="number"
                   min="1"
                   max="168"
-                  value={settings.advanceBookingLimit}
+                  value={settings.advanceBookingLimit || 24}
                   onChange={(e) => handleSettingChange('advanceBookingLimit', parseInt(e.target.value))}
                   disabled={!isEditing}
                   className="flex-1"
@@ -199,7 +225,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                   type="number"
                   min="0"
                   max="24"
-                  value={settings.cancellationDeadline}
+                  value={settings.cancellationDeadline || 2}
                   onChange={(e) => handleSettingChange('cancellationDeadline', parseInt(e.target.value))}
                   disabled={!isEditing}
                   className="flex-1"
@@ -218,7 +244,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                 type="number"
                 min="1"
                 max="8"
-                value={settings.maxPlayersPerSlot}
+                value={settings.maxPlayersPerSlot || 4}
                 onChange={(e) => handleSettingChange('maxPlayersPerSlot', parseInt(e.target.value))}
                 disabled={!isEditing}
               />
@@ -230,8 +256,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                 id="minPlayersPerSlot"
                 type="number"
                 min="1"
-                max={settings.maxPlayersPerSlot}
-                value={settings.minPlayersPerSlot}
+                max={settings.maxPlayersPerSlot || 4}
+                value={settings.minPlayersPerSlot || 1}
                 onChange={(e) => handleSettingChange('minPlayersPerSlot', parseInt(e.target.value))}
                 disabled={!isEditing}
               />
@@ -372,7 +398,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                   <div className="space-y-2">
                     <Label>Slot Duration</Label>
                     <Select
-                      value={day.timeSlotDuration.toString()}
+                      value={day.timeSlotDuration?.toString() || '60'}
                       onValueChange={(value) => handleDaySettingChange(index, 'timeSlotDuration', parseInt(value))}
                       disabled={!isEditing}
                     >
@@ -392,7 +418,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
                   <div className="space-y-2">
                     <Label>Break Time</Label>
                     <Select
-                      value={day.breakTime.toString()}
+                      value={day.breakTime?.toString() || '0'}
                       onValueChange={(value) => handleDaySettingChange(index, 'breakTime', parseInt(value))}
                       disabled={!isEditing}
                     >
@@ -433,19 +459,19 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.advanceBookingLimit}h
+                {settings.advanceBookingLimit || 24}h
               </div>
               <div className="text-sm text-muted-foreground">Advance Booking</div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.maxPlayersPerSlot}
+                {settings.maxPlayersPerSlot || 4}
               </div>
               <div className="text-sm text-muted-foreground">Max Players</div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.timeSlotVisibilityPeriod.replace('_', ' ').replace('weeks', 'wks').replace('week', 'wk')}
+                {settings.timeSlotVisibilityPeriod?.replace('_', ' ').replace('weeks', 'wks').replace('week', 'wk') || '4 weeks'}
               </div>
               <div className="text-sm text-muted-foreground">Visibility Period</div>
             </div>

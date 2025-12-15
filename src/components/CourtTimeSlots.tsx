@@ -1,5 +1,6 @@
 import { format, addDays, subDays } from "date-fns";
 import { Clock, GraduationCap, StickyNote, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
 import type { Court, TimeSlot, Reservation, Coach, Clinic, Comment } from "@/lib/types";
 
 type ReservationCommentContext = {
@@ -55,6 +55,7 @@ interface CourtTimeSlotsProps {
   onBlockTimeSlot: (timeSlotId: string) => void;
   onUnblockTimeSlot: (timeSlotId: string) => void;
   onCreateClinicForTimeSlot: (timeSlotId: string) => void;
+  onConvertToSocial: (reservationId: string) => void;
 }
 
 const CourtTimeSlots = ({
@@ -69,14 +70,35 @@ const CourtTimeSlots = ({
   onBlockTimeSlot,
   onUnblockTimeSlot,
   onCreateClinicForTimeSlot,
+  onConvertToSocial,
 }: CourtTimeSlotsProps) => {
   // Filter state
   const [selectedCourt, setSelectedCourt] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [dayView, setDayView] = useState<"1" | "3">("3");
-  
+  const [operatingHours, setOperatingHours] = useState<any[]>([]);
+
   // Navigation state for current date
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+
+  // Load operating hours from backend (only once on mount)
+  useEffect(() => {
+    let isMounted = true;
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/settings');
+        if (response.ok && isMounted) {
+          const settings = await response.json();
+          setOperatingHours(settings.operatingHours || []);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   // Group all time slots by date
   const slotsByDate: Record<string, TimeSlot[]> = {};
@@ -89,18 +111,24 @@ const CourtTimeSlots = ({
 
   const sortedDates = Object.keys(slotsByDate).sort();
 
-  // Filter dates based on day view and current date navigation
+  // Filter dates based on day view, current date navigation, and operating hours
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const currentDateString = currentDate.toISOString().split('T')[0];
-  const filteredDates = dayView === "1" 
-    ? [currentDateString].filter(date => sortedDates.includes(date))
-    : Array.from({ length: 3 }, (_, i) => {
-        const date = addDays(currentDate, i);
-        return date.toISOString().split('T')[0];
-      }).filter(date => sortedDates.includes(date));
+
+  const filteredDates = [currentDateString]
+    .filter(date => sortedDates.includes(date))
+    .filter(dateStr => {
+    // Filter out closed days based on operating hours
+    const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    const dayName = dayNames[dayOfWeek];
+    const daySettings = operatingHours.find(d => d.dayOfWeek === dayName);
+    return daySettings && daySettings.isOpen;
+  }).slice(0, 1); // Single-day view for this overview
 
   // Navigation functions
   const navigatePrevious = () => {
-    const previousDate = subDays(currentDate, dayView === "1" ? 1 : 3);
+    const previousDate = subDays(currentDate, 1);
     // Don't go before today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -110,7 +138,7 @@ const CourtTimeSlots = ({
   };
 
   const navigateNext = () => {
-    const nextDate = addDays(currentDate, dayView === "1" ? 1 : 3);
+    const nextDate = addDays(currentDate, 1);
     setCurrentDate(nextDate);
   };
 
@@ -146,23 +174,23 @@ const CourtTimeSlots = ({
     <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 w-full">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground">Time Slots Overview</h2>
+            <h2 className="text-2xl sm:text-4xl font-bold leading-tight text-foreground">Time Slots Overview</h2>
             <div className="text-sm text-muted-foreground mt-1">
               {reservations.filter((r) => r.comments && r.comments.length > 0).length} reservation
               {reservations.filter((r) => r.comments && r.comments.length > 0).length !== 1 ? "s" : ""} with notes
             </div>
           </div>
           
-          {/* Navigation arrows */}
-          <div className="flex items-center gap-2">
+          {/* Navigation row separated to allow larger date text */}
+          <div className="flex items-center gap-3 w-full">
             <Button
               variant="outline"
               size="sm"
               onClick={navigatePrevious}
               disabled={(() => {
-                const previousDate = subDays(currentDate, dayView === "1" ? 1 : 3);
+                const previousDate = subDays(currentDate, 1);
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 return previousDate < today;
@@ -171,11 +199,8 @@ const CourtTimeSlots = ({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="text-sm font-medium text-foreground min-w-[100px] text-center">
-              {dayView === "1" 
-                ? format(currentDate, "MMM d, yyyy")
-                : `${format(currentDate, "MMM d")} - ${format(addDays(currentDate, 2), "MMM d, yyyy")}`
-              }
+            <div className="text-2xl sm:text-4xl font-semibold text-foreground min-w-[160px] text-center leading-tight">
+              {format(currentDate, "MMM d, yyyy")}
             </div>
             <Button
               variant="outline"
@@ -234,29 +259,6 @@ const CourtTimeSlots = ({
                 <SelectItem value="clinic">Clinic</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        {/* Day Toggle */}
-        <div className="flex flex-col gap-1.5 min-w-[140px]">
-          <label className="text-xs font-medium text-foreground">View</label>
-          <div className="flex bg-muted rounded-lg p-0.5 h-8">
-            <Button
-              variant={dayView === "1" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setDayView("1")}
-              className="h-7 px-3 text-xs flex-1"
-            >
-              1 Day
-            </Button>
-            <Button
-              variant={dayView === "3" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setDayView("3")}
-              className="h-7 px-3 text-xs flex-1"
-            >
-              3 Days
-            </Button>
           </div>
         </div>
       </div>
@@ -367,14 +369,25 @@ const CourtTimeSlots = ({
                                   </Badge>
                                 ) : reservation ? (
                                   <div className="flex flex-wrap items-center gap-2">
-                                    {(!reservation.comments || reservation.comments.length === 0) && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30"
-                                      >
-                                        Reserved
-                                      </Badge>
-                                    )}
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-blue-500/20 !text-blue-700 border-blue-500/30 cursor-pointer hover:bg-blue-500/30"
+                                        >
+                                          Reserved
+                                          <ChevronDown className="ml-1 h-3 w-3" />
+                                        </Badge>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="z-[9999]" sideOffset={5}>
+                                        <DropdownMenuItem
+                                          onClick={() => onConvertToSocial(reservation.id)}
+                                          className="text-orange-600 focus:text-orange-600"
+                                        >
+                                          Convert to Social
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                     <Button
                                       variant="outline"
                                       size="sm"

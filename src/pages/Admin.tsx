@@ -34,7 +34,8 @@ const Admin = () => {
   const [showAddClinic, setShowAddClinic] = useState(false);
   const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
   const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
-  
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+
   // Comments editing state
   const [editingReservationComments, setEditingReservationComments] = useState<any>(null);
   const [editingUserComments, setEditingUserComments] = useState<any>(null);
@@ -105,22 +106,22 @@ const Admin = () => {
         name: "Console Test Clinic " + Date.now(),
         description: "This is a test clinic created directly from the browser console to bypass form validation issues",
         coachId: coaches[0]?.id || "1",
-        courtId: courts[0]?.id || "1", 
+        courtId: courts[0]?.id || "1",
         date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
         startTime: "10:00",
         endTime: "11:00",
         maxParticipants: 6,
         price: 50
       };
-      
+
       const clinicData = testData || defaultTestData;
       console.log("Using clinic data:", clinicData);
-      
+
       handleAddClinic(clinicData);
     };
-    
+
     console.log("Debug function exposed: call debugCreateClinic() in console to test clinic creation");
-  }, [coaches, courts, handleAddClinic]);
+  }, [coaches, courts]);
 
   const handleAddUserToReservation = (reservationData: any) => {
     try {
@@ -199,6 +200,29 @@ const Admin = () => {
     }
   };
 
+  const handleConvertToSocial = async (reservationId: string) => {
+    try {
+      const reservation = reservations.find(r => r.id === reservationId);
+      if (!reservation) {
+        console.error("Reservation not found");
+        return;
+      }
+
+      const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+      if (!timeSlot) {
+        console.error("Time slot not found");
+        return;
+      }
+
+      const court = courts.find(c => c.id === reservation.courtId);
+
+      // This feature is deprecated - socials should be created from scratch
+      console.log("Convert to social feature temporarily disabled during migration");
+    } catch (error) {
+      console.error("Error converting reservation to social:", error);
+    }
+  };
+
   // Group ALL time slots by date, not just reservations
   const slotsByDate: Record<string, typeof timeSlots> = {};
   
@@ -234,19 +258,15 @@ const Admin = () => {
           </p>
         </div>
         
-        <Tabs defaultValue="scheduler" className="space-y-4 sm:space-y-6">
+        <Tabs defaultValue="reservations" className="space-y-4 sm:space-y-6">
           <div className="mb-4 sm:mb-6">
             {/* Mobile: Grid layout with 2 columns */}
             <div className="sm:hidden">
               <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 grid grid-cols-2 gap-1 p-1 h-auto">
-                <TabsTrigger value="scheduler" className="text-xs px-2 py-2">Scheduler</TabsTrigger>
-                <TabsTrigger value="calendar" className="text-xs px-2 py-2">Calendar</TabsTrigger>
                 <TabsTrigger value="reservations" className="text-xs px-2 py-2">Reservations</TabsTrigger>
                 <TabsTrigger value="courts" className="text-xs px-2 py-2">Courts</TabsTrigger>
                 <TabsTrigger value="users" className="text-xs px-2 py-2">Users</TabsTrigger>
-                <TabsTrigger value="coaches" className="text-xs px-2 py-2">Coaches</TabsTrigger>
                 <TabsTrigger value="clinics" className="text-xs px-2 py-2">Clinics</TabsTrigger>
-                <TabsTrigger value="notes" className="text-xs px-2 py-2">Notes</TabsTrigger>
                 <TabsTrigger value="settings" className="text-xs px-2 py-2">Settings</TabsTrigger>
               </TabsList>
             </div>
@@ -254,62 +274,69 @@ const Admin = () => {
             {/* Desktop: Horizontal scrollable layout */}
             <div className="hidden sm:block overflow-x-auto scrollbar-hide flex justify-center">
               <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
-                <TabsTrigger value="scheduler" className="text-sm px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
-                <TabsTrigger value="calendar" className="text-sm px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
                 <TabsTrigger value="reservations" className="text-sm px-3 py-2 whitespace-nowrap">Reservations</TabsTrigger>
                 <TabsTrigger value="courts" className="text-sm px-3 py-2 whitespace-nowrap">Courts</TabsTrigger>
                 <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
-                <TabsTrigger value="coaches" className="text-sm px-3 py-2 whitespace-nowrap">Coaches</TabsTrigger>
                 <TabsTrigger value="clinics" className="text-sm px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
-                <TabsTrigger value="notes" className="text-sm px-3 py-2 whitespace-nowrap">Notes</TabsTrigger>
                 <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap">Settings</TabsTrigger>
               </TabsList>
             </div>
           </div>
           
-          <TabsContent value="scheduler" className="space-y-6">
-            <SchedulerChart
-              key={refreshKey}
-              courts={courts}
-              timeSlots={timeSlots}
-              onScheduleCourt={setSchedulingCourt}
-              onDateChange={(date) => {
-                // Ensure time slots exist for the selected date range
-                const startDate = date;
-                const endDate = new Date(date);
-                endDate.setDate(endDate.getDate() + 6); // Generate slots for a week
-                dataService.ensureTimeSlotsForDateRange(startDate, endDate);
-              }}
-            />
-          </TabsContent>
-          
-          <TabsContent value="calendar" className="space-y-6">
-            <AdminCalendarView />
-          </TabsContent>
-
-
-
           <TabsContent value="reservations" className="space-y-6">
-            <CourtTimeSlots
-              courts={courts}
-              timeSlots={timeSlots}
-              reservations={reservations}
-              coaches={coaches}
-              clinics={clinics}
-              onAddUserToReservationRequested={(timeSlotId) => {
-                setSelectedTimeSlotForForm(timeSlotId || "");
-                setShowAddUserToReservation(true);
-              }}
-              onOpenReservationComments={(context) => {
-                setEditingReservationComments(context);
-              }}
-              onOpenTimeSlotComments={(context) => {
-                setEditingTimeSlotComments(context);
-              }}
-              onBlockTimeSlot={handleBlockTimeSlot}
-              onUnblockTimeSlot={handleUnblockTimeSlot}
-              onCreateClinicForTimeSlot={handleCreateClinic}
-            />
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-1 gap-1">
+                <TabsTrigger value="overview" className="text-sm px-3 py-2 whitespace-nowrap">Overview</TabsTrigger>
+                <TabsTrigger value="scheduler" className="text-sm px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
+                <TabsTrigger value="calendar" className="text-sm px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-6">
+                <CourtTimeSlots
+                  courts={courts}
+                  timeSlots={timeSlots}
+                  reservations={reservations}
+                  coaches={coaches}
+                  clinics={clinics}
+                  onAddUserToReservationRequested={(timeSlotId) => {
+                    setSelectedTimeSlotForForm(timeSlotId || "");
+                    setShowAddUserToReservation(true);
+                  }}
+                  onOpenReservationComments={(context) => {
+                    setEditingReservationComments(context);
+                  }}
+                  onOpenTimeSlotComments={(context) => {
+                    setEditingTimeSlotComments(context);
+                  }}
+                  onBlockTimeSlot={handleBlockTimeSlot}
+                  onUnblockTimeSlot={handleUnblockTimeSlot}
+                  onCreateClinicForTimeSlot={handleCreateClinic}
+                  onConvertToSocial={handleConvertToSocial}
+                />
+              </TabsContent>
+
+              <TabsContent value="scheduler" className="space-y-6">
+                <SchedulerChart
+                  courts={courts}
+                  timeSlots={timeSlots}
+                  onScheduleCourt={setSchedulingCourt}
+                  onAddUserToReservation={(timeSlotId) => {
+                    setSelectedTimeSlotForForm(timeSlotId);
+                    setShowAddUserToReservation(true);
+                  }}
+                />
+              </TabsContent>
+
+              <TabsContent value="calendar" className="space-y-6">
+                <AdminCalendarView
+                  refreshKey={calendarRefreshKey}
+                  onAddUserToReservation={(timeSlotId) => {
+                    setSelectedTimeSlotForForm(timeSlotId);
+                    setShowAddUserToReservation(true);
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
           
           <TabsContent value="courts" className="space-y-6">
@@ -321,40 +348,61 @@ const Admin = () => {
           </TabsContent>
           
           <TabsContent value="users" className="space-y-6">
-            <UsersSection 
-              users={users} 
-              onAddUser={() => setShowAddUser(true)} 
-              onEditUserComments={(user) => setEditingUserComments(user)} 
-            />
-          </TabsContent>
+            <Tabs defaultValue="users" className="space-y-4">
+              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-1 gap-1">
+                <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
+                <TabsTrigger value="notes" className="text-sm px-3 py-2 whitespace-nowrap">Notes</TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="coaches" className="space-y-6">
-            <CoachesSection coaches={coaches} onAddCoach={() => setShowAddCoach(true)} />
+              <TabsContent value="users" className="space-y-6">
+                <UsersSection 
+                  users={users} 
+                  onAddUser={() => setShowAddUser(true)} 
+                  onEditUserComments={(user) => setEditingUserComments(user)} 
+                />
+              </TabsContent>
+
+              <TabsContent value="notes" className="space-y-6">
+                <NotesSection 
+                  enrichedTimeSlots={dataService.getTimeSlotsWithNotes()}
+                  itemsWithComments={dataService.getAllItemsWithComments()}
+                  courts={courts}
+                  timeSlots={timeSlots}
+                  reservations={reservations}
+                  users={users}
+                  coaches={coaches}
+                  onOpenReservationComments={(ctx) => setEditingReservationComments(ctx)}
+                  onOpenUserComments={(user) => setEditingUserComments(user)}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="clinics" className="space-y-6">
-            <ClinicsSection clinics={clinics} coaches={coaches} courts={courts} onAddClinic={() => setShowAddClinic(true)} />
-          </TabsContent>
+            <Tabs defaultValue="clinics" className="space-y-4">
+              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-1 gap-1">
+                <TabsTrigger value="clinics" className="text-sm px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
+                <TabsTrigger value="coaches" className="text-sm px-3 py-2 whitespace-nowrap">Coaches</TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="notes" className="space-y-6">
-            <NotesSection 
-              enrichedTimeSlots={dataService.getTimeSlotsWithNotes()}
-              itemsWithComments={dataService.getAllItemsWithComments()}
-              courts={courts}
-              timeSlots={timeSlots}
-              reservations={reservations}
-              users={users}
-              coaches={coaches}
-              onOpenReservationComments={(ctx) => setEditingReservationComments(ctx)}
-              onOpenUserComments={(user) => setEditingUserComments(user)}
-            />
+              <TabsContent value="clinics" className="space-y-6">
+                <ClinicsSection clinics={clinics} coaches={coaches} courts={courts} onAddClinic={() => setShowAddClinic(true)} />
+              </TabsContent>
+
+              <TabsContent value="coaches" className="space-y-6">
+                <CoachesSection coaches={coaches} onAddCoach={() => setShowAddCoach(true)} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="settings">
-            <AdminSettings onSettingsUpdate={(updatedSettings) => {
-              console.log('Settings updated:', updatedSettings);
-              // In a real app, you might want to refresh data or show a notification
-            }} />
+            <div className="space-y-6">
+              <AdminSettings onSettingsUpdate={(updatedSettings) => {
+                console.log('Settings updated:', updatedSettings);
+                // Trigger calendar refresh
+                setCalendarRefreshKey(prev => prev + 1);
+              }} />
+            </div>
           </TabsContent>
         </Tabs>
       </main>

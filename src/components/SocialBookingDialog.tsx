@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Users, Calendar, Clock, MapPin, UserPlus, CheckCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
-import { dataService } from "@/lib/services/data-service";
+import { apiDataService } from "@/lib/services/api-data-service";
 import type { Social, TimeSlot, Court, Reservation } from "@/lib/types";
 
 interface SocialBookingDialogProps {
@@ -59,13 +59,13 @@ export default function SocialBookingDialog({
       const updatedParticipants = [...participants, newParticipant];
 
       // Update the reservation
-      const result = dataService.reservationService.updateReservation(reservation.id, {
+      const updatedReservation = await apiDataService.updateReservation(reservation.id, {
         participants: updatedParticipants,
         players: updatedParticipants.length + 1, // +1 for the organizer
       });
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to join social game");
+      if (!updatedReservation) {
+        throw new Error("Failed to join social game");
       }
 
       setSuccess("Successfully joined the social game!");

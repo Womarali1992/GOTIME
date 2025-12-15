@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { TimeSlot, Coach } from "@/lib/types";
 import { dataService } from "@/lib/services/data-service";
-import { socialRepository } from "@/lib/data";
+import { apiDataService } from "@/lib/services/api-data-service";
 import { format } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
 import { GraduationCap, DollarSign, Clock, CheckCircle, AlertCircle, Users } from "lucide-react";
@@ -169,17 +169,17 @@ export default function BookPrivateSessionDialog({
         const timeSlots = generateTimeSlots();
         const lockedSlot = timeSlots.find(slot => slot.isLocked);
 
-        // Create a social booking instead of private session
-        const social = socialRepository.create({
+        // Create a social booking via API
+        const social = await apiDataService.createSocial({
           title: `Social Game - ${court?.name || 'Court'}`,
-          hostId: currentUser.id,
-          hostName: currentUser.name,
+          description: notes || '',
           date: selectedTimeSlot.date,
-          timeWindowStart: selectedTimeSlot.startTime,
-          timeWindowEnd: selectedTimeSlot.endTime,
-          timeSlots: timeSlots,
-          lockedTimeSlotId: lockedSlot?.id,
-          courtId: selectedTimeSlot.courtId,
+          startTime: selectedTimeSlot.startTime,
+          endTime: selectedTimeSlot.endTime,
+          timeSlotId: selectedTimeSlot.id,
+          status: 'active',
+          votes: [],
+          createdById: currentUser.id,
         });
 
         // Update the time slot to mark it as social

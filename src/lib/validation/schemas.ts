@@ -136,25 +136,16 @@ export const PrivateSessionSchema = z.object({
   updatedAt: z.string().optional(),
 });
 
-export const TimeSlotVoteSchema = z.object({
-  id: z.string(),
-  time: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
-  votes: z.array(z.string()).default([]), // user IDs who voted for this time
-  isLocked: z.boolean().default(false),
-});
-
 export const SocialSchema = z.object({
   id: z.string(),
   title: z.string().min(1, 'Title is required'),
   hostId: z.string(),
   hostName: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
-  timeWindowStart: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
-  timeWindowEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
-  timeSlots: z.array(TimeSlotVoteSchema).min(3, 'At least 3 time slots required'),
-  lockedTimeSlotId: z.string().optional(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
   reservationId: z.string().optional(), // Links to reservation when social is booked
-  courtId: z.string().optional(), // Court where the social will be held
+  courtId: z.string(), // Court where the social will be held
   createdAt: z.string(),
   updatedAt: z.string().optional(),
 });

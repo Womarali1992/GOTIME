@@ -14,11 +14,16 @@ import { User as UserType } from "@/lib/types";
 
 interface UserSettingsProps {
   currentUserEmail?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
 }
 
-const UserSettings = ({ currentUserEmail = "john@example.com" }: UserSettingsProps) => {
+const UserSettings = ({ currentUserEmail = "john@example.com", open: controlledOpen, onOpenChange: controlledOnOpenChange, trigger }: UserSettingsProps) => {
   const { users, userService } = useDataService();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = controlledOnOpenChange || setInternalOpen;
   const [activeTab, setActiveTab] = useState<'profile' | 'friends'>('profile');
   const [searchTerm, setSearchTerm] = useState("");
   const [friends, setFriends] = useState<string[]>([]);
@@ -64,12 +69,7 @@ const UserSettings = ({ currentUserEmail = "john@example.com" }: UserSettingsPro
   if (!currentUser) {
     return (
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Settings</span>
-          </Button>
-        </DialogTrigger>
+        {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>User Not Found</DialogTitle>
@@ -84,12 +84,7 @@ const UserSettings = ({ currentUserEmail = "john@example.com" }: UserSettingsPro
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2">
-          <Settings className="h-4 w-4" />
-          <span className="hidden sm:inline">Settings</span>
-        </Button>
-      </DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>User Settings</DialogTitle>

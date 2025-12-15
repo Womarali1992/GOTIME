@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { TimeSlot, Court, Participant } from "@/lib/types";
 import { dataService } from "@/lib/services/data-service";
-import { socialRepository } from "@/lib/data";
+import { apiDataService } from "@/lib/services/api-data-service";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
@@ -79,95 +79,30 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
       }
 
       if (isSocialBooking) {
-        // Generate time slots for the social booking (minimum 3 required)
-        const generateTimeSlots = () => {
-          const slots = [];
-          const [startHour, startMin] = selectedTimeSlot.startTime.split(':').map(Number);
-          const [endHour, endMin] = selectedTimeSlot.endTime.split(':').map(Number);
+        // Validate user is logged in for social bookings
+        if (!currentUser) {
+          throw new Error("You must be logged in to create a social booking");
+        }
 
-          const startMinutes = startHour * 60 + startMin;
-          const endMinutes = endHour * 60 + endMin;
-          const duration = endMinutes - startMinutes;
-
-          // Create 3 time slot options within the booking window
-          if (duration >= 60) {
-            // If booking is 1 hour or more, create slots at start, middle, and end
-            for (let i = 0; i < 3; i++) {
-              const offset = Math.floor((duration / 3) * i);
-              const slotMinutes = startMinutes + offset;
-              const hour = Math.floor(slotMinutes / 60);
-              const min = slotMinutes % 60;
-              const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-
-              slots.push({
-                id: crypto.randomUUID(),
-                time: timeStr,
-                votes: i === 0 && currentUser ? [currentUser.id] : [],
-                isLocked: i === 0,
-              });
-            }
-          } else {
-            // For shorter durations, create the selected time and 2 nearby options
-            slots.push({
-              id: crypto.randomUUID(),
-              time: selectedTimeSlot.startTime,
-              votes: currentUser ? [currentUser.id] : [],
-              isLocked: true,
-            });
-
-            // Add a slot 15 minutes before if possible
-            if (startMinutes >= 15) {
-              const beforeMinutes = startMinutes - 15;
-              const hour = Math.floor(beforeMinutes / 60);
-              const min = beforeMinutes % 60;
-              slots.unshift({
-                id: crypto.randomUUID(),
-                time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
-                votes: [],
-                isLocked: false,
-              });
-            }
-
-            // Add a slot 15 minutes after
-            const afterMinutes = Math.min(endMinutes, startMinutes + 15);
-            const hour = Math.floor(afterMinutes / 60);
-            const min = afterMinutes % 60;
-            slots.push({
-              id: crypto.randomUUID(),
-              time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
-              votes: [],
-              isLocked: false,
-            });
-          }
-
-          return slots;
-        };
-
-        const timeSlots = generateTimeSlots();
-        const lockedSlot = timeSlots.find(slot => slot.isLocked);
-
-        // Create a social booking
-        const social = socialRepository.create({
+        // Create a social booking via API
+        const social = await apiDataService.createSocial({
           title: `Social Game - ${court?.name || 'Court'}`,
-          hostId: currentUser?.id || crypto.randomUUID(),
-          hostName: name.trim(),
+          description: '',
           date: selectedTimeSlot.date,
-          timeWindowStart: selectedTimeSlot.startTime,
-          timeWindowEnd: selectedTimeSlot.endTime,
-          timeSlots: timeSlots,
-          lockedTimeSlotId: lockedSlot?.id,
-          courtId: selectedTimeSlot.courtId,
+          startTime: selectedTimeSlot.startTime,
+          endTime: selectedTimeSlot.endTime,
+          timeSlotId: selectedTimeSlot.id,
+          status: 'active',
+          votes: [],
+          createdById: currentUser.id,
         });
 
-        // Update the time slot to mark it as social
-        dataService.timeSlotService.updateTimeSlot(selectedTimeSlot.id, {
-          type: 'social',
-          socialId: social.id,
-          available: false,
-        });
+        if (!social) {
+          throw new Error("Failed to create social booking");
+        }
 
-        // Create a reservation linked to the social
-        const result = dataService.reservationService.createReservation({
+        // Create a reservation for the social game
+        const reservation = dataService.reservationService.createReservation({
           timeSlotId: selectedTimeSlot.id,
           courtId: selectedTimeSlot.courtId,
           playerName: name.trim(),
@@ -178,14 +113,20 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
           socialId: social.id,
         });
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to create social booking");
+        if (!reservation) {
+          throw new Error("Failed to create reservation for social");
         }
 
-        setSuccess("Social booking created successfully!");
+        // Update the time slot to mark it as a social
+        dataService.timeSlotService.updateTimeSlot(selectedTimeSlot.id, {
+          socialId: social.id,
+          type: 'social',
+        });
+
+        setSuccess("Social booking created successfully! Friends can now join.");
       } else {
         // Create a regular reservation
-        const result = dataService.reservationService.createReservation({
+        const reservation = dataService.reservationService.createReservation({
           timeSlotId: selectedTimeSlot.id,
           courtId: selectedTimeSlot.courtId,
           playerName: name.trim(),
@@ -195,8 +136,8 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
           participants: selectedParticipants
         });
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to create reservation");
+        if (!reservation) {
+          throw new Error("Failed to create reservation");
         }
 
         setSuccess("Reservation created successfully!");

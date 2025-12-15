@@ -57,8 +57,8 @@ const CreateSocialForm = ({
 
   const [title, setTitle] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate || new Date());
-  const [windowStart, setWindowStart] = useState(defaultWindow.start);
-  const [windowEnd, setWindowEnd] = useState(defaultWindow.end);
+  const [startTime, setStartTime] = useState(defaultWindow.start);
+  const [endTime, setEndTime] = useState(defaultWindow.end);
   const [selectedCourt, setSelectedCourt] = useState<string>(initialCourtId || "");
 
   // Update state when initial props change
@@ -79,8 +79,8 @@ const CreateSocialForm = ({
       const [hours, minutes] = initialTime.split(':');
       const startHour = parseInt(hours);
       const endHour = startHour + 1;
-      setWindowStart(initialTime);
-      setWindowEnd(`${endHour.toString().padStart(2, '0')}:${minutes || '00'}`);
+      setStartTime(initialTime);
+      setEndTime(`${endHour.toString().padStart(2, '0')}:${minutes || '00'}`);
     }
   }, [initialTime]);
 
@@ -98,47 +98,6 @@ const CreateSocialForm = ({
 
   const timeOptions = generateTimeOptions();
 
-  // Generate suggested time slots based on window (only :00 and :30)
-  const generateSuggestedSlots = (start: string, end: string) => {
-    const startHour = parseInt(start.split(':')[0]);
-    const startMinute = parseInt(start.split(':')[1]);
-    const endHour = parseInt(end.split(':')[0]);
-    const endMinute = parseInt(end.split(':')[1]);
-
-    const slots = [];
-    const startTimeMinutes = startHour * 60 + startMinute;
-    const endTimeMinutes = endHour * 60 + endMinute;
-
-    // Generate all :00 and :30 slots within the window
-    let currentMinutes = startTimeMinutes;
-
-    // Round up to next :00 or :30
-    const remainder = currentMinutes % 30;
-    if (remainder !== 0) {
-      currentMinutes += (30 - remainder);
-    }
-
-    // Generate slots at :00 and :30 intervals
-    let slotIndex = 0;
-    while (currentMinutes <= endTimeMinutes) {
-      const hour = Math.floor(currentMinutes / 60);
-      const minute = currentMinutes % 60;
-      const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-
-      slots.push({
-        id: `slot-${Date.now()}-${slotIndex}`,
-        time: timeStr,
-        votes: [],
-        isLocked: false
-      });
-
-      currentMinutes += 30;
-      slotIndex++;
-    }
-
-    return slots;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -147,24 +106,21 @@ const CreateSocialForm = ({
       return;
     }
 
-    const timeSlots = generateSuggestedSlots(windowStart, windowEnd);
-
     onSave({
       title,
       hostId: currentUserId,
       hostName: currentUserName,
       date: format(selectedDate, "yyyy-MM-dd"),
-      timeWindowStart: windowStart,
-      timeWindowEnd: windowEnd,
-      timeSlots,
+      startTime,
+      endTime,
       courtId: selectedCourt,
     });
 
     // Reset form
     setTitle("");
     setSelectedDate(new Date());
-    setWindowStart("18:00");
-    setWindowEnd("21:00");
+    setStartTime("18:00");
+    setEndTime("21:00");
     setSelectedCourt("");
     onClose();
   };
@@ -258,9 +214,9 @@ const CreateSocialForm = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="windowStart" className="gradient-text">Window Start</Label>
-              <Select value={windowStart} onValueChange={setWindowStart}>
-                <SelectTrigger id="windowStart" className="gradient-border glass-card">
+              <Label htmlFor="startTime" className="gradient-text">Start Time</Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger id="startTime" className="gradient-border glass-card">
                   <SelectValue placeholder="Select start" />
                 </SelectTrigger>
                 <SelectContent>
@@ -277,14 +233,14 @@ const CreateSocialForm = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="windowEnd" className="gradient-text">Window End</Label>
-              <Select value={windowEnd} onValueChange={setWindowEnd}>
-                <SelectTrigger id="windowEnd" className="gradient-border glass-card">
+              <Label htmlFor="endTime" className="gradient-text">End Time</Label>
+              <Select value={endTime} onValueChange={setEndTime}>
+                <SelectTrigger id="endTime" className="gradient-border glass-card">
                   <SelectValue placeholder="Select end" />
                 </SelectTrigger>
                 <SelectContent>
                   {timeOptions.filter(time => {
-                    const startMinutes = parseInt(windowStart.split(':')[0]) * 60 + parseInt(windowStart.split(':')[1]);
+                    const startMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
                     const timeMinutes = parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]);
                     return timeMinutes > startMinutes;
                   }).map((time) => (
@@ -301,7 +257,7 @@ const CreateSocialForm = ({
           </div>
 
           <div className="text-sm text-muted-foreground">
-            The app will auto-generate time slots within your window for players to vote on.
+            Create a social game at a specific time. Other players can join through the booking.
           </div>
 
           <DialogFooter>

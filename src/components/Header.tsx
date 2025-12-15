@@ -2,7 +2,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, User, GraduationCap } from "lucide-react";
+import { Menu, User, GraduationCap, Settings } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import UserSettings from "@/components/UserSettings";
@@ -14,6 +14,7 @@ import { useDataService } from "@/hooks/use-data-service";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isMobile = useIsMobile();
   const location = useLocation();
   const { currentUser, isAuthenticated, logout } = useUser();
@@ -67,9 +68,6 @@ const Header = () => {
 
         {/* Right side */}
         <div className="ml-auto flex items-center space-x-2 sm:space-x-4">
-          {/* User Settings (only show when not in coach portal) */}
-          {!isCoachPortal && <UserSettings currentUserEmail={currentUser?.email} />}
-
           {/* Show appropriate user menu based on context */}
           {isCoachPortal && isCoachAuthenticated && currentCoach ? (
             <DropdownMenu>
@@ -118,6 +116,12 @@ const Header = () => {
                     </Badge>
                   </div>
                 </DropdownMenuItem>
+                {!isCoachPortal && (
+                  <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={logout} className="text-red-600">
                   Sign Out
                 </DropdownMenuItem>
@@ -153,14 +157,34 @@ const Header = () => {
                     {item.name}
                   </Link>
                 ))}
-                <div className="px-4 py-3">
-                  <UserSettings />
-                </div>
+                {!isCoachPortal && isAuthenticated && currentUser && (
+                  <button
+                    onClick={() => {
+                      setIsSettingsOpen(true);
+                      closeSheet();
+                    }}
+                    className="block px-4 py-3 text-base font-medium text-foreground hover:text-primary/80 hover:bg-muted/50 rounded-lg transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </div>
+                  </button>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
         </div>
       </div>
+      
+      {/* User Settings Dialog (controlled from dropdown) */}
+      {!isCoachPortal && (
+        <UserSettings 
+          currentUserEmail={currentUser?.email} 
+          open={isSettingsOpen} 
+          onOpenChange={setIsSettingsOpen}
+        />
+      )}
     </header>
   );
 };

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Search, X, User, StickyNote } from 'lucide-react';
 import { User as UserType } from '@/lib/types';
 import DuprRatingBadge from './DuprRatingBadge';
@@ -256,7 +257,7 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
           {filteredAndSortedUsers.map(user => (
             <Card 
               key={user.id} 
@@ -296,44 +297,63 @@ const UserSearchForm: React.FC<UserSearchFormProps> = ({
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {user.comments && user.comments.length > 0 && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                    <div className="flex items-center justify-between mb-2">
+              <CardContent className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value={`notes-${user.id}`} className="border-none">
+                    <AccordionTrigger className="text-sm bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded px-3 py-2">
                       <div className="flex items-center gap-2">
                         <StickyNote className="h-4 w-4" />
-                        <span className="font-medium">Admin Comments:</span>
+                        <span>
+                          {user.comments && user.comments.length > 0 
+                            ? `Notes (${user.comments.length})` 
+                            : 'Notes'}
+                        </span>
                       </div>
-                      <span className="text-xs font-medium">
-                        {user.comments.length} comment{user.comments.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="text-xs text-yellow-700 mb-1">
-                      Latest: {new Date(user.comments[user.comments.length - 1].createdAt).toLocaleDateString()}
-                    </div>
-                    <div className="line-clamp-2">
-                      {user.comments[user.comments.length - 1].text}
-                    </div>
-                  </div>
-                )}
-                
-                {onEditComments && (
-                  <div className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditComments(user);
-                      }}
-                      className="border-yellow-300 hover:bg-yellow-50 text-xs px-2 py-1"
-                    >
-                      <StickyNote className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">{user.comments && user.comments.length > 0 ? `Edit Comments (${user.comments.length})` : 'Add Comments'}</span>
-                      <span className="sm:hidden">Notes</span>
-                    </Button>
-                  </div>
-                )}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-3 pt-2">
+                        {user.comments && user.comments.length > 0 ? (
+                          <div className="space-y-3">
+                            {user.comments.map((comment, index) => (
+                              <div key={index} className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-medium">Comment {index + 1}</span>
+                                  <span className="text-xs text-yellow-700">
+                                    {new Date(comment.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <div className="text-yellow-900">
+                                  {comment.text}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground italic">
+                            No notes yet
+                          </div>
+                        )}
+                        
+                        {onEditComments && (
+                          <div className="flex justify-end pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditComments(user);
+                              }}
+                              className="border-yellow-300 hover:bg-yellow-50 text-xs px-2 py-1"
+                            >
+                              <StickyNote className="h-3 w-3 mr-1" />
+                              {user.comments && user.comments.length > 0 ? 'Edit Notes' : 'Add Notes'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </CardContent>
             </Card>
           ))}

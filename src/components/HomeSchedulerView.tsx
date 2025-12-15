@@ -11,9 +11,7 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
 import { useDataService } from "@/hooks/use-data-service";
-import { socialRepository } from "@/lib/data";
 import type { Social } from "@/lib/validation/schemas";
-import SocialBookingDialog from "./SocialBookingDialog";
 
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
@@ -33,9 +31,6 @@ interface TimeSlotBlockData {
   isMyReservation: boolean;
   coachUnavailable?: boolean;
   social?: Social | null;
-  topVotedTime?: string | null;
-  voteCount?: number;
-  isLocked?: boolean;
 }
 
 interface ReservationWithDetails {
@@ -90,11 +85,11 @@ const TimeSlotBlock = React.memo(({
         block.coachUnavailable
           ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
           : block.isSocial
-          ? "text-amber-900 border-2 border-amber-300/60 shadow-sm hover:scale-105 cursor-pointer"
-          : block.isClinic
-          ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60 cursor-pointer hover:scale-105"
+          ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60 cursor-pointer hover:scale-105"
           : block.isMyReservation
           ? "bg-purple-500/50 text-purple-900 border-2 border-purple-600/60 shadow-sm hover:bg-purple-500/60 cursor-pointer hover:scale-105"
+          : block.isClinic
+          ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60 cursor-pointer hover:scale-105"
           : block.available && !block.blocked && !block.reserved
           ? "bg-green-500/50 text-green-900 border-2 border-green-600/60 shadow-sm hover:bg-green-500/60 cursor-pointer hover:scale-105"
           : block.reserved
@@ -103,16 +98,15 @@ const TimeSlotBlock = React.memo(({
           ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed"
           : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
         isMultiHour && "flex items-center justify-center",
-        isMultiHour && !block.coachUnavailable && block.isSocial && "border-amber-300/60 bg-gradient-to-br from-amber-100/80 to-amber-200/80 hover:from-amber-200/80 hover:to-amber-300/80",
+        isMultiHour && !block.coachUnavailable && block.isSocial && "border-orange-500/60 bg-gradient-to-br from-orange-300/50 to-orange-300/60 hover:from-orange-300/60 hover:to-orange-300/70",
         isMultiHour && !block.coachUnavailable && block.isClinic && "border-yellow-600/60 bg-gradient-to-br from-yellow-500/50 to-yellow-500/60 hover:from-yellow-500/60 hover:to-yellow-500/70",
         isMultiHour && !block.coachUnavailable && block.isMyReservation && "border-purple-600/60 bg-gradient-to-br from-purple-500/50 to-purple-500/60 hover:from-purple-500/60 hover:to-purple-500/70",
-        isMultiHour && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
+        isMultiHour && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && !block.isSocial && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
       )}
       style={{
         height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
         minHeight: isMultiHour ? undefined : isMobile ? "4rem" : "3.5rem",
-        marginBottom: isMultiHour ? "0.5rem" : undefined,
-        backgroundColor: block.isSocial ? '#FFFBEB' : undefined
+        marginBottom: isMultiHour ? "0.5rem" : undefined
       }}
       onClick={() => {
         // Don't allow clicking coach-unavailable slots
@@ -144,27 +138,15 @@ const TimeSlotBlock = React.memo(({
           <span className="font-bold text-xl sm:text-lg">{block.startHour}:00</span>
           <span className="text-sm sm:text-xs opacity-75 font-medium">to</span>
           <span className="font-bold text-xl sm:text-lg">{block.endHour}:00</span>
-          {block.isSocial && (
+          {block.isSocial && block.social && (
             <div className="text-center mt-2">
-              <span className="text-xs px-2 py-1 bg-amber-600/30 rounded-full border border-amber-600/40 font-semibold flex items-center gap-1 justify-center">
+              <span className="text-xs px-2 py-1 bg-orange-600/30 rounded-full border border-orange-600/40 font-semibold flex items-center gap-1 justify-center">
                 <Users className="h-3 w-3" />
                 Social Game
               </span>
-              {block.isLocked && block.topVotedTime && (
-                <div className="text-xs font-bold mt-1 text-amber-900">
-                  Locked: {block.topVotedTime}
-                </div>
-              )}
-              {!block.isLocked && block.topVotedTime && block.voteCount && block.voteCount > 0 && (
-                <div className="text-xs font-semibold mt-1 text-amber-900">
-                  Leading: {block.topVotedTime} ({block.voteCount} votes)
-                </div>
-              )}
-              {!block.isLocked && (!block.voteCount || block.voteCount === 0) && block.social && (
-                <div className="text-xs mt-1 text-amber-800">
-                  {block.social.timeWindowStart} - {block.social.timeWindowEnd}
-                </div>
-              )}
+              <div className="text-xs mt-1 text-orange-800 font-semibold">
+                {block.social.title}
+              </div>
             </div>
           )}
           {block.isClinic && block.clinic && (
@@ -186,22 +168,8 @@ const TimeSlotBlock = React.memo(({
           {block.isSocial ? (
             <>
               <Users className="h-3 w-3 mb-0.5" />
-              {block.isLocked && block.topVotedTime ? (
-                <>
-                  <span className="font-bold text-sm">{block.topVotedTime}</span>
-                  <span className="text-[9px] font-semibold">Locked</span>
-                </>
-              ) : block.topVotedTime && block.voteCount && block.voteCount > 0 ? (
-                <>
-                  <span className="font-bold text-sm">{block.topVotedTime}</span>
-                  <span className="text-[9px] font-semibold">{block.voteCount} votes</span>
-                </>
-              ) : (
-                <>
-                  <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-                  <span className="text-[10px] font-semibold">Social</span>
-                </>
-              )}
+              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="text-[10px] font-semibold">Social</span>
             </>
           ) : block.isClinic ? (
             <>
@@ -249,13 +217,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null);
-  const [selectedSocial, setSelectedSocial] = useState<{
-    social: Social;
-    reservation: any;
-    timeSlot: TimeSlot;
-    court: Court;
-  } | null>(null);
-
+  
   // Legend filter states
   const [legendFilters, setLegendFilters] = useState<{
     available: boolean;
@@ -342,9 +304,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     // This effect is kept for future dynamic loading if needed
   }, [currentDate, viewDays]);
 
-  // Time range to display (8am to 10pm, will show social times even outside this range)
+  // Time range to display (8am to 9pm)
   const startHour = 8;
-  const endHour = 22;
+  const endHour = 21;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   // Calculate days to display based on current date
@@ -523,23 +485,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
 
     if (relevantSlots.length > 0) {
       const slot = relevantSlots[0];
-
-      // Check if this is a social booking
-      if (slot.type === 'social' && slot.socialId) {
-        const social = socialRepository.findById(slot.socialId);
-        const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
-        if (social && reservation) {
-          setSelectedSocial({
-            social,
-            reservation,
-            timeSlot: slot,
-            court
-          });
-        }
-        return;
-      }
-
-      // Check if this is a regular reservation
+      // Check if this is a reservation
       const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
 
       if (reservation) {
@@ -802,9 +748,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                 isMyReservation: boolean;
                                 coachUnavailable?: boolean;
                                 social?: Social | null;
-                                topVotedTime?: string | null;
-                                voteCount?: number;
-                                isLocked?: boolean;
                               }> = [];
 
                               let currentBlock: {
@@ -820,9 +763,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                 isMyReservation: boolean;
                                 coachUnavailable?: boolean;
                                 social?: Social | null;
-                                topVotedTime?: string | null;
-                                voteCount?: number;
-                                isLocked?: boolean;
                               } | null = null;
 
                               // Group consecutive time slots into blocks
@@ -833,30 +773,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                 // Check if this is the current user's reservation
                                 const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
 
-                                // Get social voting information if this is a social slot
+                                // Get social information if this is a social slot
                                 let social: Social | null = null;
-                                let topVotedTime: string | null = null;
-                                let voteCount: number = 0;
-                                let isLocked: boolean = false;
-
                                 if (isSocial && slot?.socialId) {
-                                  social = socialRepository.findById(slot.socialId);
-                                  if (social) {
-                                    isLocked = !!social.lockedTimeSlotId;
-                                    if (isLocked) {
-                                      const lockedSlot = social.timeSlots.find(ts => ts.id === social.lockedTimeSlotId);
-                                      if (lockedSlot) {
-                                        topVotedTime = lockedSlot.time;
-                                        voteCount = lockedSlot.votes.length;
-                                      }
-                                    } else {
-                                      const sortedSlots = [...social.timeSlots].sort((a, b) => b.votes.length - a.votes.length);
-                                      if (sortedSlots.length > 0 && sortedSlots[0].votes.length > 0) {
-                                        topVotedTime = sortedSlots[0].time;
-                                        voteCount = sortedSlots[0].votes.length;
-                                      }
-                                    }
-                                  }
+                                  social = socials.find(s => s.id === slot.socialId) || null;
                                 }
                                 
                                 if (isClinic && clinic) {
@@ -905,10 +825,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                     blocked: !!blocked,
                                     isMyReservation,
                                     coachUnavailable,
-                                    social: isSocial ? social : null,
-                                    topVotedTime: isSocial ? topVotedTime : null,
-                                    voteCount: isSocial ? voteCount : 0,
-                                    isLocked: isSocial ? isLocked : false
+                                    social: isSocial ? social : null
                                   });
                                 }
                               }
@@ -1148,18 +1065,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
              </div>
            </div>
          </div>
-       )}
-
-       {/* Social Booking Dialog */}
-       {selectedSocial && (
-         <SocialBookingDialog
-           social={selectedSocial.social}
-           reservation={selectedSocial.reservation}
-           timeSlot={selectedSocial.timeSlot}
-           court={selectedSocial.court}
-           isOpen={true}
-           onClose={() => setSelectedSocial(null)}
-         />
        )}
     </>
   );
