@@ -1,23 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import SocialsSection from "@/components/SocialsSection";
-import { apiDataService } from "@/lib/services/api-data-service";
-import type { Social, CreateSocial } from "@/lib/validation/schemas";
+import { useBookings } from "@/hooks/use-bookings";
+import type { CreateSocial } from "@/lib/validation/schemas";
 import { toast } from "sonner";
-import { useDataService } from "@/hooks/use-data-service";
 
 const Socials = () => {
   const [currentUserId] = useState("user-1");
   const [currentUserName] = useState("Guest Player");
-  const dataService = useDataService();
-  const { socials, refresh } = dataService;
+  const {
+    socials,
+    createSocial,
+    updateSocial,
+    deleteSocial,
+    addVoteToSocial
+  } = useBookings();
 
   const handleCreateSocial = async (data: CreateSocial) => {
     try {
-      const newSocial = await apiDataService.createSocial(data as any);
+      // Use centralized hook - auto-refreshes state
+      await createSocial(data as any);
       toast.success("Social created!");
-      refresh();
     } catch (error) {
       toast.error("Failed to create social");
       console.error(error);
@@ -26,9 +30,9 @@ const Socials = () => {
 
   const handleVoteForTimeSlot = async (socialId: string, timeSlotId: string) => {
     try {
-      await apiDataService.addVoteToSocial(socialId, currentUserId, 'yes');
+      // Use centralized hook - auto-refreshes state
+      await addVoteToSocial(socialId, currentUserId, 'yes');
       toast.success("Vote recorded!");
-      refresh();
     } catch (error) {
       toast.error("Failed to vote");
       console.error(error);
@@ -37,9 +41,9 @@ const Socials = () => {
 
   const handleLockTimeSlot = async (socialId: string, timeSlotId: string) => {
     try {
-      await apiDataService.updateSocial(socialId, { status: 'locked' });
+      // Use centralized hook - auto-refreshes state
+      await updateSocial(socialId, { status: 'locked' });
       toast.success("Time slot locked!");
-      refresh();
     } catch (error) {
       toast.error("Failed to lock time slot");
       console.error(error);
@@ -48,9 +52,9 @@ const Socials = () => {
 
   const handleUnlockTimeSlot = async (socialId: string) => {
     try {
-      await apiDataService.updateSocial(socialId, { status: 'active' });
+      // Use centralized hook - auto-refreshes state
+      await updateSocial(socialId, { status: 'active' });
       toast.success("Time slot unlocked!");
-      refresh();
     } catch (error) {
       toast.error("Failed to unlock time slot");
       console.error(error);
@@ -59,9 +63,9 @@ const Socials = () => {
 
   const handleDeleteSocial = async (socialId: string) => {
     try {
-      await apiDataService.deleteSocial(socialId);
+      // Use centralized hook - auto-refreshes state
+      await deleteSocial(socialId);
       toast.success("Social deleted!");
-      refresh();
     } catch (error) {
       toast.error("Failed to delete social");
       console.error(error);

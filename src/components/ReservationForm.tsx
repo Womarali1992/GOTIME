@@ -1,13 +1,10 @@
-
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { TimeSlot, Court, Participant } from "@/lib/types";
-import { dataService } from "@/lib/services/data-service";
+import { TimeSlot, Participant } from "@/lib/types";
+import { useBookings } from "@/hooks/use-bookings";
 import { apiDataService } from "@/lib/services/api-data-service";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -42,11 +39,33 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
   const [isSocialBooking, setIsSocialBooking] = useState(false);
 
   const { currentUser, isAuthenticated } = useUser();
-  const users = dataService.userService.getAllUsers();
-  const court = dataService.getCourtById(selectedTimeSlot.courtId);
+  const {
+    users,
+    courts,
+    createReservation,
+    createSocial,
+    updateTimeSlot
+  } = useBookings();
+
+  const [clinic, setClinic] = useState<any>(null);
+  const [coach, setCoach] = useState<any>(null);
   const date = new Date(selectedTimeSlot.date);
-  const clinic = selectedTimeSlot.clinicId ? dataService.clinicService.getClinicById(selectedTimeSlot.clinicId) : null;
-  const coach = clinic ? dataService.coachService.getCoachById(clinic.coachId) : null;
+  const court = courts.find(c => c.id === selectedTimeSlot.courtId);
+
+  // Load clinic/coach data on mount (if applicable)
+  useEffect(() => {
+    const loadClinicData = async () => {
+      if (selectedTimeSlot.clinicId) {
+        const clinicData = await apiDataService.getClinicById(selectedTimeSlot.clinicId);
+        setClinic(clinicData);
+        if (clinicData) {
+          const coachData = await apiDataService.getCoachById(clinicData.coachId);
+          setCoach(coachData);
+        }
+      }
+    };
+    loadClinicData();
+  }, [selectedTimeSlot.clinicId]);
 
   // Auto-populate form fields from user profile when component mounts or user changes
   useEffect(() => {
@@ -54,6 +73,14 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
       setName(currentUser.name || "");
       setEmail(currentUser.email || "");
       setPhone(currentUser.phone || "");
+    } else {
+      // Clear fields for guests
+      if (!isAuthenticated || !currentUser) {
+        setName("");
+        setEmail("");
+        setPhone("");
+        setUseProfileInfo(false);
+      }
     }
   }, [currentUser, isAuthenticated, useProfileInfo]);
   
@@ -78,14 +105,11 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
         throw new Error("Phone number is required");
       }
 
-      if (isSocialBooking) {
-        // Validate user is logged in for social bookings
-        if (!currentUser) {
-          throw new Error("You must be logged in to create a social booking");
-        }
+      let reservation;
 
-        // Create a social booking via API
-        const social = await apiDataService.createSocial({
+      if (isSocialBooking) {
+        // Create a social booking via centralized hook (auto-refreshes state)
+        const social = await createSocial({
           title: `Social Game - ${court?.name || 'Court'}`,
           description: '',
           date: selectedTimeSlot.date,
@@ -94,15 +118,15 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
           timeSlotId: selectedTimeSlot.id,
           status: 'active',
           votes: [],
-          createdById: currentUser.id,
+          createdById: currentUser?.id || null,
         });
 
         if (!social) {
           throw new Error("Failed to create social booking");
         }
 
-        // Create a reservation for the social game
-        const reservation = dataService.reservationService.createReservation({
+        // Create a reservation for the social game (auto-refreshes state)
+        reservation = await createReservation({
           timeSlotId: selectedTimeSlot.id,
           courtId: selectedTimeSlot.courtId,
           playerName: name.trim(),
@@ -117,16 +141,16 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
           throw new Error("Failed to create reservation for social");
         }
 
-        // Update the time slot to mark it as a social
-        dataService.timeSlotService.updateTimeSlot(selectedTimeSlot.id, {
+        // Update the time slot to mark it as a social (auto-refreshes state)
+        await updateTimeSlot(selectedTimeSlot.id, {
           socialId: social.id,
           type: 'social',
         });
 
         setSuccess("Social booking created successfully! Friends can now join.");
       } else {
-        // Create a regular reservation
-        const reservation = dataService.reservationService.createReservation({
+        // Create a regular reservation (auto-refreshes state across all views)
+        reservation = await createReservation({
           timeSlotId: selectedTimeSlot.id,
           courtId: selectedTimeSlot.courtId,
           playerName: name.trim(),
@@ -144,7 +168,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
       }
 
       setTimeout(() => {
-        onComplete('completed');
+        onComplete(reservation.id);
         setIsSubmitting(false);
       }, 800);
 
@@ -282,12 +306,18 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                 <Switch
                   id="booking-type"
                   checked={isSocialBooking}
-                  onCheckedChange={setIsSocialBooking}
+                  onCheckedChange={(checked) => {
+                    setIsSocialBooking(checked);
+                    // Clear error when switching to regular booking
+                    if (!checked) {
+                      setError(null);
+                    }
+                  }}
                 />
               </div>
             )}
 
-            {/* Profile Information Section */}
+            {/* Profile Information Section - Only show if logged in */}
             {isAuthenticated && currentUser && (
               <div className="space-y-2 max-w-md mx-auto">
                 <div className="flex items-center justify-between">
@@ -332,7 +362,19 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               </div>
             )}
             
-{/* Only show form fields when NOT using profile info */}
+            {/* Guest booking message */}
+            {!isAuthenticated && (
+              <div className="space-y-2 max-w-md mx-auto">
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Booking as a guest?</strong> No problem! Just fill in your details below. 
+                    You can sign in later to save your information for faster bookings.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+{/* Show form fields when NOT using profile info OR when guest */}
             {(!useProfileInfo || !isAuthenticated || !currentUser) && (
               <>
                 <div className="space-y-2">
@@ -374,8 +416,8 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               </>
             )}
             
-            {/* Friend Selection for Regular Reservations */}
-            {!clinic && (
+            {/* Friend Selection for Regular Reservations - Only show if logged in */}
+            {!clinic && isAuthenticated && currentUser && (
               <div className="max-w-md mx-auto overflow-x-hidden">
                 <FriendSelector
                   users={users}

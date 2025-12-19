@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Users, Calendar, Clock, MapPin, UserPlus, CheckCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
-import { apiDataService } from "@/lib/services/api-data-service";
+import { useBookings } from "@/hooks/use-bookings";
 import type { Social, TimeSlot, Court, Reservation } from "@/lib/types";
 
 interface SocialBookingDialogProps {
@@ -27,6 +27,7 @@ export default function SocialBookingDialog({
   onClose,
 }: SocialBookingDialogProps) {
   const { currentUser, isAuthenticated } = useUser();
+  const { updateReservation } = useBookings();
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -47,7 +48,6 @@ export default function SocialBookingDialog({
     setError(null);
 
     try {
-      // Add current user to participants
       const newParticipant = {
         id: currentUser.id,
         name: currentUser.name,
@@ -58,10 +58,10 @@ export default function SocialBookingDialog({
 
       const updatedParticipants = [...participants, newParticipant];
 
-      // Update the reservation
-      const updatedReservation = await apiDataService.updateReservation(reservation.id, {
+      // Use centralized hook - auto-refreshes state across all views
+      const updatedReservation = await updateReservation(reservation.id, {
         participants: updatedParticipants,
-        players: updatedParticipants.length + 1, // +1 for the organizer
+        players: updatedParticipants.length + 1,
       });
 
       if (!updatedReservation) {

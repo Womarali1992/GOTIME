@@ -1,12 +1,8 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useDataService } from "@/hooks/use-data-service";
+import { useBookings } from "@/hooks/use-bookings";
 import { format } from "date-fns";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import React, { useState } from "react";
@@ -24,17 +20,29 @@ import CoachesSection from "@/components/CoachesSection";
 import ClinicsSection from "@/components/ClinicsSection";
 import NotesSection from "@/components/NotesSection";
 import AdminModalsController from "@/components/AdminModalsController";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 const Admin = () => {
   const dataService = useDataService();
+  const {
+    createReservation,
+    updateReservation,
+    deleteReservation,
+    updateSocial,
+    deleteSocial,
+  } = useBookings();
+
   const [editingCourt, setEditingCourt] = useState<any>(null);
   const [schedulingCourt, setSchedulingCourt] = useState<any>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddCoach, setShowAddCoach] = useState(false);
   const [showAddClinic, setShowAddClinic] = useState(false);
   const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<any>(null);
+  const [editingSocial, setEditingSocial] = useState<any>(null);
+  const [viewingSocial, setViewingSocial] = useState<{social: any, reservation: any} | null>(null);
   const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
-  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   // Comments editing state
   const [editingReservationComments, setEditingReservationComments] = useState<any>(null);
@@ -42,12 +50,12 @@ const Admin = () => {
   const [editingTimeSlotComments, setEditingTimeSlotComments] = useState<any>(null);
 
   // Destructure data from the service
-  const { 
-    courts, 
-    timeSlots, 
-    reservations, 
-    users, 
-    coaches, 
+  const {
+    courts,
+    timeSlots,
+    reservations,
+    users,
+    coaches,
     clinics,
     refreshKey
   } = dataService;
@@ -123,9 +131,11 @@ const Admin = () => {
     console.log("Debug function exposed: call debugCreateClinic() in console to test clinic creation");
   }, [coaches, courts]);
 
-  const handleAddUserToReservation = (reservationData: any) => {
+  const handleAddUserToReservation = async (reservationData: any) => {
+    console.log("Creating reservation with data:", reservationData);
     try {
-      const result = dataService.reservationService.createReservation({
+      // Use centralized hook - auto-refreshes state across all views
+      const reservation = await createReservation({
         timeSlotId: reservationData.timeSlotId,
         courtId: reservationData.courtId,
         playerName: reservationData.playerName,
@@ -134,16 +144,19 @@ const Admin = () => {
         players: reservationData.players,
         participants: reservationData.participants || [],
         comments: reservationData.comments || [],
+        createdById: reservationData.createdById,
       });
-      if (!result.success) {
-        console.error("Error creating reservation:", result.error);
-      } else {
-        console.log("Added user to reservation:", result.reservation);
-      }
-      dataService.refresh();
+      console.log("Created reservation:", reservation);
+      toast.success("Reservation Created", {
+        description: `Successfully created reservation for ${reservationData.playerName}`
+      });
     } catch (error) {
-      console.error("Error adding user to reservation:", error);
-      // In a real app, you'd show a toast notification here
+      console.error("Error creating reservation:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      toast.error("Failed to Create Reservation", {
+        description: errorMessage
+      });
+      throw error;
     }
   };
 
@@ -223,6 +236,154 @@ const Admin = () => {
     }
   };
 
+  const handleEditReservation = async (reservationId: string, updates: any) => {
+    console.log("Updating reservation:", reservationId, updates);
+    try {
+      // Use centralized hook - auto-refreshes state across all views
+      await updateReservation(reservationId, updates);
+    } catch (error) {
+      console.error("Error updating reservation:", error);
+      throw error;
+    }
+  };
+
+  const handleDeleteReservation = async (reservationId: string) => {
+    console.log("Deleting reservation:", reservationId);
+    try {
+      const reservation = reservations.find(r => r.id === reservationId);
+      // Use centralized hook - auto-refreshes state across all views
+      await deleteReservation(reservationId);
+      toast.success("Reservation Cancelled", {
+        description: reservation
+          ? `Successfully cancelled reservation for ${reservation.playerName}`
+          : "Reservation cancelled successfully"
+      });
+    } catch (error) {
+      console.error("Error deleting reservation:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      toast.error("Failed to Cancel Reservation", {
+        description: errorMessage
+      });
+      throw error;
+    }
+  };
+
+  const handleAddUserToSocial = async (socialId: string, userId: string) => {
+    console.log("Adding user to social:", socialId, userId);
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      const socialReservation = reservations.find(r => r.socialId === socialId);
+      if (!socialReservation) {
+        throw new Error("Reservation not found for this social game");
+      }
+
+      const updatedParticipants = [
+        ...(socialReservation.participants || []),
+        {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          isOrganizer: false
+        }
+      ];
+
+      // Use centralized hook - auto-refreshes state across all views
+      await updateReservation(socialReservation.id, {
+        participants: updatedParticipants
+      });
+
+      // Update local viewing state to reflect changes immediately
+      if (viewingSocial?.social.id === socialId) {
+        const updatedReservation = { ...socialReservation, participants: updatedParticipants };
+        setViewingSocial({ ...viewingSocial, reservation: updatedReservation });
+      }
+    } catch (error) {
+      console.error("Error adding user to social:", error);
+      throw error;
+    }
+  };
+
+  const handleRemoveUserFromSocial = async (socialId: string, userId: string) => {
+    console.log("Removing user from social:", socialId, userId);
+    try {
+      const socialReservation = reservations.find(r => r.socialId === socialId);
+      if (!socialReservation) {
+        throw new Error("Reservation not found for this social game");
+      }
+
+      const updatedParticipants = (socialReservation.participants || []).filter(
+        (p: any) => p.id !== userId
+      );
+
+      // Use centralized hook - auto-refreshes state across all views
+      await updateReservation(socialReservation.id, {
+        participants: updatedParticipants
+      });
+
+      // Update local viewing state to reflect changes immediately
+      if (viewingSocial?.social.id === socialId) {
+        const updatedReservation = { ...socialReservation, participants: updatedParticipants };
+        setViewingSocial({ ...viewingSocial, reservation: updatedReservation });
+      }
+    } catch (error) {
+      console.error("Error removing user from social:", error);
+      throw error;
+    }
+  };
+
+  const handleEditSocial = async (socialId: string, updates: any) => {
+    console.log("Updating social game:", socialId, updates);
+    try {
+      // Use centralized hook - auto-refreshes state across all views
+      await updateSocial(socialId, updates);
+      toast.success("Social Game Updated", {
+        description: `Successfully updated social game: ${updates.title || 'Social game'}`
+      });
+    } catch (error) {
+      console.error("Error updating social game:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      toast.error("Failed to Update Social Game", {
+        description: errorMessage
+      });
+      throw error;
+    }
+  };
+
+  const handleDeleteSocial = async (socialId: string) => {
+    console.log("Deleting social game:", socialId);
+    try {
+      const social = dataService.socials.find(s => s.id === socialId);
+      const socialReservation = reservations.find(r => r.socialId === socialId);
+
+      // Delete the reservation first if it exists (auto-refreshes state)
+      if (socialReservation) {
+        await deleteReservation(socialReservation.id);
+      }
+
+      // Then delete the social game (auto-refreshes state)
+      await deleteSocial(socialId);
+
+      toast.success("Social Game Cancelled", {
+        description: social
+          ? `Successfully cancelled social game: ${social.title}`
+          : "Social game cancelled successfully"
+      });
+      setViewingSocial(null);
+    } catch (error) {
+      console.error("Error deleting social game:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      toast.error("Failed to Cancel Social Game", {
+        description: errorMessage
+      });
+      throw error;
+    }
+  };
+
   // Group ALL time slots by date, not just reservations
   const slotsByDate: Record<string, typeof timeSlots> = {};
   
@@ -262,34 +423,36 @@ const Admin = () => {
           <div className="mb-4 sm:mb-6">
             {/* Mobile: Grid layout with 2 columns */}
             <div className="sm:hidden">
-              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 grid grid-cols-2 gap-1 p-1 h-auto">
-                <TabsTrigger value="reservations" className="text-xs px-2 py-2">Reservations</TabsTrigger>
-                <TabsTrigger value="courts" className="text-xs px-2 py-2">Courts</TabsTrigger>
-                <TabsTrigger value="users" className="text-xs px-2 py-2">Users</TabsTrigger>
-                <TabsTrigger value="clinics" className="text-xs px-2 py-2">Clinics</TabsTrigger>
-                <TabsTrigger value="settings" className="text-xs px-2 py-2">Settings</TabsTrigger>
+              <TabsList className="bg-gradient-to-r from-purple-50/80 via-orange-50/60 to-purple-50/80 backdrop-blur supports-[backdrop-filter]:bg-purple-50/60 border border-purple-200/50 grid grid-cols-2 gap-1 p-1 h-auto w-full">
+                <TabsTrigger value="reservations" className="text-xs px-2 py-2 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Reservations</TabsTrigger>
+                <TabsTrigger value="courts" className="text-xs px-2 py-2 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Courts</TabsTrigger>
+                <TabsTrigger value="users" className="text-xs px-2 py-2 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Users</TabsTrigger>
+                <TabsTrigger value="clinics" className="text-xs px-2 py-2 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Clinics</TabsTrigger>
+                <TabsTrigger value="settings" className="text-xs px-2 py-2 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Settings</TabsTrigger>
               </TabsList>
             </div>
             
             {/* Desktop: Horizontal scrollable layout */}
-            <div className="hidden sm:block overflow-x-auto scrollbar-hide flex justify-center">
-              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-2 gap-1 min-w-max">
-                <TabsTrigger value="reservations" className="text-sm px-3 py-2 whitespace-nowrap">Reservations</TabsTrigger>
-                <TabsTrigger value="courts" className="text-sm px-3 py-2 whitespace-nowrap">Courts</TabsTrigger>
-                <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap">Users</TabsTrigger>
-                <TabsTrigger value="clinics" className="text-sm px-3 py-2 whitespace-nowrap">Clinics</TabsTrigger>
-                <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap">Settings</TabsTrigger>
+            <div className="hidden sm:block overflow-x-auto scrollbar-hide">
+              <TabsList className="bg-gradient-to-r from-purple-50/80 via-orange-50/60 to-purple-50/80 backdrop-blur supports-[backdrop-filter]:bg-purple-50/60 border border-purple-200/50 flex w-full h-auto p-2 gap-1">
+                <TabsTrigger value="reservations" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Reservations</TabsTrigger>
+                <TabsTrigger value="courts" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Courts</TabsTrigger>
+                <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Users</TabsTrigger>
+                <TabsTrigger value="clinics" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Clinics</TabsTrigger>
+                <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Settings</TabsTrigger>
               </TabsList>
             </div>
           </div>
           
           <TabsContent value="reservations" className="space-y-6">
             <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border border-border/50 inline-flex h-auto p-1 gap-1">
-                <TabsTrigger value="overview" className="text-sm px-3 py-2 whitespace-nowrap">Overview</TabsTrigger>
-                <TabsTrigger value="scheduler" className="text-sm px-3 py-2 whitespace-nowrap">Scheduler</TabsTrigger>
-                <TabsTrigger value="calendar" className="text-sm px-3 py-2 whitespace-nowrap">Calendar</TabsTrigger>
-              </TabsList>
+              <div className="flex justify-between items-center mb-4">
+                <TabsList className="bg-gradient-to-r from-purple-50/80 via-orange-50/60 to-purple-50/80 backdrop-blur supports-[backdrop-filter]:bg-purple-50/60 border border-purple-200/50 flex w-full h-auto p-1 gap-1">
+                  <TabsTrigger value="overview" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Overview</TabsTrigger>
+                  <TabsTrigger value="scheduler" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Scheduler</TabsTrigger>
+                  <TabsTrigger value="calendar" className="text-sm px-3 py-2 whitespace-nowrap flex-1 data-[state=active]:bg-green-400/60 data-[state=active]:text-green-900 data-[state=inactive]:text-purple-800 data-[state=inactive]:hover:bg-orange-100/50">Calendar</TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value="overview" className="space-y-6">
                 <CourtTimeSlots
@@ -298,6 +461,8 @@ const Admin = () => {
                   reservations={reservations}
                   coaches={coaches}
                   clinics={clinics}
+                  users={users}
+                  refreshKey={refreshKey}
                   onAddUserToReservationRequested={(timeSlotId) => {
                     setSelectedTimeSlotForForm(timeSlotId || "");
                     setShowAddUserToReservation(true);
@@ -312,6 +477,11 @@ const Admin = () => {
                   onUnblockTimeSlot={handleUnblockTimeSlot}
                   onCreateClinicForTimeSlot={handleCreateClinic}
                   onConvertToSocial={handleConvertToSocial}
+                  onEditReservation={(reservation) => setEditingReservation(reservation)}
+                  onCancelReservation={handleDeleteReservation}
+                  onEditSocial={(social) => setEditingSocial(social)}
+                  onCancelSocial={handleDeleteSocial}
+                  onViewSocial={(social, reservation) => setViewingSocial({ social, reservation })}
                 />
               </TabsContent>
 
@@ -329,11 +499,15 @@ const Admin = () => {
 
               <TabsContent value="calendar" className="space-y-6">
                 <AdminCalendarView
-                  refreshKey={calendarRefreshKey}
+                  refreshKey={refreshKey}
                   onAddUserToReservation={(timeSlotId) => {
                     setSelectedTimeSlotForForm(timeSlotId);
                     setShowAddUserToReservation(true);
                   }}
+                  onEditReservation={(reservation) => setEditingReservation(reservation)}
+                  onCancelReservation={handleDeleteReservation}
+                  onEditSocial={(social) => setEditingSocial(social)}
+                  onCancelSocial={handleDeleteSocial}
                 />
               </TabsContent>
             </Tabs>
@@ -408,6 +582,7 @@ const Admin = () => {
       </main>
       
       <Footer />
+      <Toaster />
 
       <AdminModalsController
         editingCourt={editingCourt}
@@ -431,6 +606,22 @@ const Admin = () => {
           setSelectedTimeSlotForForm("");
         }}
         onSaveAddUserToReservation={handleAddUserToReservation}
+        editingReservation={editingReservation}
+        onCloseEditReservation={() => setEditingReservation(null)}
+        onSaveEditReservation={handleEditReservation}
+        onDeleteReservation={handleDeleteReservation}
+        editingSocial={editingSocial}
+        onCloseEditSocial={() => setEditingSocial(null)}
+        onSaveEditSocial={handleEditSocial}
+        onDeleteSocial={handleDeleteSocial}
+        onEditSocialRequested={(social) => {
+          setViewingSocial(null);
+          setEditingSocial(social);
+        }}
+        viewingSocial={viewingSocial}
+        onCloseViewSocial={() => setViewingSocial(null)}
+        onAddUserToSocial={handleAddUserToSocial}
+        onRemoveUserFromSocial={handleRemoveUserFromSocial}
         timeSlots={timeSlots}
         users={users}
         clinics={clinics}

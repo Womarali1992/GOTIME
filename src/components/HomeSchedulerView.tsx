@@ -11,11 +11,13 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
 import { useDataService } from "@/hooks/use-data-service";
+import { useBookings } from "@/hooks/use-bookings";
 import type { Social } from "@/lib/validation/schemas";
 
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
 import CourtHeader from "./CourtHeader";
+import EditReservationDialog from "./EditReservationDialog";
 
 // Type definitions for time slot blocks
 interface TimeSlotBlockData {
@@ -81,8 +83,11 @@ const TimeSlotBlock = React.memo(({
       className={cn(
         "text-sm sm:text-base text-center rounded transition-all duration-200 relative",
         isMobile ? "p-1" : "p-2",
-        // Coach unavailable styling - show but disable
-        block.coachUnavailable
+        // Past slots should always be grey (check first, before other conditions)
+        isPast
+          ? "bg-gray-400/50 text-gray-600 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
+          // Coach unavailable styling - show but disable
+          : block.coachUnavailable
           ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
           : block.isSocial
           ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60 cursor-pointer hover:scale-105"
@@ -98,10 +103,10 @@ const TimeSlotBlock = React.memo(({
           ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed"
           : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
         isMultiHour && "flex items-center justify-center",
-        isMultiHour && !block.coachUnavailable && block.isSocial && "border-orange-500/60 bg-gradient-to-br from-orange-300/50 to-orange-300/60 hover:from-orange-300/60 hover:to-orange-300/70",
-        isMultiHour && !block.coachUnavailable && block.isClinic && "border-yellow-600/60 bg-gradient-to-br from-yellow-500/50 to-yellow-500/60 hover:from-yellow-500/60 hover:to-yellow-500/70",
-        isMultiHour && !block.coachUnavailable && block.isMyReservation && "border-purple-600/60 bg-gradient-to-br from-purple-500/50 to-purple-500/60 hover:from-purple-500/60 hover:to-purple-500/70",
-        isMultiHour && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && !block.isSocial && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
+        isMultiHour && !isPast && !block.coachUnavailable && block.isSocial && "border-orange-500/60 bg-gradient-to-br from-orange-300/50 to-orange-300/60 hover:from-orange-300/60 hover:to-orange-300/70",
+        isMultiHour && !isPast && !block.coachUnavailable && block.isClinic && "border-yellow-600/60 bg-gradient-to-br from-yellow-500/50 to-yellow-500/60 hover:from-yellow-500/60 hover:to-yellow-500/70",
+        isMultiHour && !isPast && !block.coachUnavailable && block.isMyReservation && "border-purple-600/60 bg-gradient-to-br from-purple-500/50 to-purple-500/60 hover:from-purple-500/60 hover:to-purple-500/70",
+        isMultiHour && !isPast && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && !block.isSocial && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
       )}
       style={{
         height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
@@ -109,8 +114,8 @@ const TimeSlotBlock = React.memo(({
         marginBottom: isMultiHour ? "0.5rem" : undefined
       }}
       onClick={() => {
-        // Don't allow clicking coach-unavailable slots
-        if (block.coachUnavailable) return;
+        // Don't allow clicking past slots or coach-unavailable slots
+        if (isPast || block.coachUnavailable) return;
 
         if (block.isClinic && isMultiHour) {
           const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
@@ -122,7 +127,9 @@ const TimeSlotBlock = React.memo(({
         }
       }}
       title={
-        block.coachUnavailable
+        isPast
+          ? `Past: ${block.startHour}:00 - ${block.endHour}:00`
+          : block.coachUnavailable
           ? `Coach unavailable: ${block.startHour}:00 - ${block.endHour}:00`
           : block.isSocial
           ? `Social Game: ${block.startHour}:00 - ${block.endHour}:00`
@@ -212,11 +219,12 @@ const TimeSlotBlock = React.memo(({
 
 const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerViewProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
-  const [viewDays, setViewDays] = useState<number>(3);
+  const [viewDays, setViewDays] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   
   // Legend filter states
   const [legendFilters, setLegendFilters] = useState<{
@@ -234,6 +242,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   const [weekOffset, setWeekOffset] = useState<number>(0);
   const [selectedCourt, setSelectedCourt] = useState<string | undefined>(undefined);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const lastAutoAdvanceRef = useRef<Date | null>(null);
   
   // Refs for click-outside functionality
 
@@ -244,9 +253,15 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   // Get current user from context
   const { currentUser } = useUser();
   const currentUserEmail = currentUser?.email || "";
-  
+
   // Get data service
-  const dataService = useDataService();
+  const { courts, reservations, clinics, coaches, socials, refreshKey } = useDataService();
+
+  // Get booking operations from centralized hook
+  const { updateReservation, deleteReservation } = useBookings();
+  
+  // Load time slots dynamically for the dates being displayed
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const activeFilterLabel = useMemo(() => {
     if (legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations) return "All";
@@ -312,6 +327,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   // Calculate days to display based on current date
   const daysToShow = useMemo(() => {
     const today = startOfDay(new Date());
+    const now = currentTime;
     
     if (viewDays === 3) {
       // For 3-day view: center the selected date unless it's today
@@ -323,7 +339,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
           return addDays(currentDate, i);
         }).filter(day => day >= today);
       } else {
-        // If selected date is not today, center it (show: previous day, selected day, next day)
+        // If selected date is not today, try to center it (show: previous day, selected day, next day)
         const centerDays = [
           subDays(currentDate, 1),
           currentDate,
@@ -331,8 +347,21 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
         ].filter(day => day >= today);
         
         // If filtering removes the first day (because it's in the past), 
-        // show selected date + next 2 days instead
+        // show selected date as first column (selected date + next 2 days)
         if (centerDays.length < 3) {
+          return Array.from({ length: viewDays }, (_, i) => {
+            return addDays(currentDate, i);
+          }).filter(day => day >= today);
+        }
+        
+        // Check if the first day in the centered view has any future slots
+        // If all slots are past, show currentDate as first column instead
+        const firstDay = centerDays[0];
+        const firstDayEndTime = new Date(firstDay);
+        firstDayEndTime.setHours(21, 0, 0, 0); // 9pm
+        
+        // If the first day's last slot (9pm) is in the past, show currentDate as first
+        if (firstDayEndTime < now) {
           return Array.from({ length: viewDays }, (_, i) => {
             return addDays(currentDate, i);
           }).filter(day => day >= today);
@@ -346,7 +375,26 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
         return addDays(currentDate, i);
       }).filter(day => day >= today);
     }
-  }, [currentDate, viewDays]);
+  }, [currentDate, viewDays, currentTime]);
+
+  // Load time slots dynamically for the dates being displayed
+  // Reload when daysToShow changes OR when data is refreshed (refreshKey changes)
+  useEffect(() => {
+    const loadTimeSlots = async () => {
+      if (daysToShow.length === 0) return;
+      
+      const slotsToLoad = daysToShow.map(day => format(day, "yyyy-MM-dd"));
+      try {
+        const allSlots = await Promise.all(
+          slotsToLoad.map(date => apiDataService.getTimeSlotsForDate(date))
+        );
+        setTimeSlots(allSlots.flat());
+      } catch (error) {
+        console.error('Failed to load time slots:', error);
+      }
+    };
+    loadTimeSlots();
+  }, [daysToShow, refreshKey]);
 
   // Helper function to calculate week offset for a given date
   const calculateWeekOffset = (targetDate: Date) => {
@@ -360,6 +408,70 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     
     return diffInWeeks;
   };
+
+  // Auto-advance to next day if all time slots have passed (for 3-day view)
+  useEffect(() => {
+    if (viewDays === 3 && daysToShow.length > 0) {
+      const now = currentTime;
+      const today = startOfDay(new Date());
+      
+      // Only check the first (earliest) day shown - if it's all past, advance
+      const firstDay = daysToShow[0];
+      const firstDayKey = format(firstDay, "yyyy-MM-dd");
+      
+      // Prevent multiple rapid advances for the same day
+      if (lastAutoAdvanceRef.current && format(lastAutoAdvanceRef.current, "yyyy-MM-dd") === firstDayKey) {
+        return;
+      }
+      
+      // Calculate which courts to check
+      const displayCourts = selectedCourt ? courts.filter(court => court.id === selectedCourt) : courts;
+      
+      if (displayCourts.length === 0) return;
+      
+      // Check if all time slots (8am-9pm) for all courts on the first day are in the past
+      const firstDayAllPast = displayCourts.every(court => {
+        return hours.every(hour => {
+          const slotDateTime = new Date(firstDay);
+          slotDateTime.setHours(hour, 0, 0, 0);
+          return slotDateTime < now;
+        });
+      });
+
+      if (firstDayAllPast) {
+        // Find the first day with at least one future slot
+        const maxDate = addDays(today, 30 - 1);
+        let targetDate = addDays(firstDay, 1);
+        
+        // Search for the first day with at least one future slot
+        while (targetDate <= maxDate) {
+          const dayHasFutureSlot = displayCourts.some(court => {
+            return hours.some(hour => {
+              const slotDateTime = new Date(targetDate);
+              slotDateTime.setHours(hour, 0, 0, 0);
+              return slotDateTime >= now;
+            });
+          });
+          
+          if (dayHasFutureSlot) {
+            // Found a day with future slots - set currentDate to this day
+            // The 3-day view centering logic will handle showing it properly
+            lastAutoAdvanceRef.current = firstDay;
+            setCurrentDate(targetDate);
+            
+            // Update week offset
+            const newWeekOffset = calculateWeekOffset(targetDate);
+            if (newWeekOffset !== weekOffset) {
+              setWeekOffset(newWeekOffset);
+            }
+            break;
+          }
+          
+          targetDate = addDays(targetDate, 1);
+        }
+      }
+    }
+  }, [currentDate, viewDays, daysToShow, currentTime, courts, selectedCourt, hours, weekOffset]);
 
   // Navigate through dates - prevent going to past dates and sync week offset
   const previousDay = useCallback(() => {
@@ -429,14 +541,60 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     return slotDate < now;
   }, [currentTime]);
 
-  // Get availability for a specific court, day and hour - services single source of truth
+  // Get availability for a specific court, day and hour
   const getSlotStatus = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const status = dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
+
+    // Find time slots for this court, date, and hour
+    const relevantSlots = timeSlots.filter(
+      slot => slot.courtId === court.id &&
+              slot.date === formattedDate &&
+              parseInt(slot.startTime.split(":")[0]) === hour
+    );
+
+    if (relevantSlots.length === 0) {
+      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null };
+    }
+
+    const slot = relevantSlots[0];
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
+    
+    // Check if this time slot is in the past
+    const slotDateTime = new Date(day);
+    const [slotHours, slotMinutes] = slot.startTime.split(':').map(Number);
+    slotDateTime.setHours(slotHours, slotMinutes || 0, 0, 0);
+    const isSlotInPast = slotDateTime < currentTime;
+    
+    // Check if this is a social and if it hasn't passed yet
+    let isSocial = false;
+    if (slot.socialId) {
+      const social = socials.find(s => s.id === slot.socialId);
+      if (social) {
+        // Check if the social's end time has passed
+        const now = currentTime;
+        const socialDate = new Date(social.date);
+        const [hours, minutes] = social.endTime.split(':').map(Number);
+        socialDate.setHours(hours, minutes || 0, 0, 0);
+        isSocial = socialDate >= now; // Only show if end time hasn't passed
+      }
+    }
+
+    const status = {
+      available: slot.available && !isSlotInPast, // Mark as unavailable if in the past
+      reserved: !!reservation,
+      blocked: slot.blocked || false,
+      isClinic: !!clinic,
+      isSocial,
+      slot,
+      clinic,
+      reservation,
+      coachUnavailable: false
+    };
 
     // If coach is selected, filter based on coach availability
-    if (selectedCoachId && status.slot) {
-      const coach = dataService.coachService.getCoachById(selectedCoachId);
+    if (selectedCoachId && slot) {
+      const coach = coaches.find(c => c.id === selectedCoachId);
       if (!coach) return { ...status, available: false, coachUnavailable: true };
 
       // Check if slot is available for booking (not already booked, blocked, or a clinic)
@@ -453,40 +611,28 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
       }
 
       // Check if slot time falls within coach's availability window
-      if (status.slot.startTime < availability.startTime || status.slot.endTime > availability.endTime) {
+      if (slot.startTime < availability.startTime || slot.endTime > availability.endTime) {
         return { ...status, available: false, coachUnavailable: true };
-      }
-
-      // Check for conflicting private sessions (if service exists)
-      if (dataService.privateSessionService) {
-        const isCoachAvailable = dataService.privateSessionService.isCoachAvailable(
-          selectedCoachId,
-          status.slot.date,
-          status.slot.startTime,
-          status.slot.endTime
-        );
-
-        if (!isCoachAvailable) {
-          return { ...status, available: false, coachUnavailable: true };
-        }
       }
     }
 
     return status;
-  }, [selectedCoachId, dataService]);
+  }, [selectedCoachId, timeSlots, reservations, clinics, coaches, socials, currentTime]);
 
   const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+    const courtTimeSlots = timeSlots.filter(
+      slot => slot.courtId === court.id && slot.date === formattedDate
+    );
 
-    const relevantSlots = timeSlots.filter(
+    const relevantSlots = courtTimeSlots.filter(
       slot => parseInt(slot.startTime.split(":")[0]) === hour
     );
 
     if (relevantSlots.length > 0) {
       const slot = relevantSlots[0];
       // Check if this is a reservation
-      const reservation = dataService.reservations.find(res => res.timeSlotId === slot.id);
+      const reservation = reservations.find(res => res.timeSlotId === slot.id);
 
       if (reservation) {
         // Show reservation popup
@@ -495,20 +641,22 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
           timeSlot: slot,
           court
         });
-      } else if (slot.available) {
-        // Handle available slot booking
+      } else if (slot.available || currentUser?.membershipType === 'admin') {
+        // Handle available slot booking, or allow admins to book even unavailable/blocked slots
         onSelectTimeSlot(slot);
       }
     }
-  }, [onSelectTimeSlot, dataService.reservations, dataService.timeSlotService]);
+  }, [onSelectTimeSlot, timeSlots, reservations, currentUser]);
 
   // Helper function to get the first available time slot for a clinic block
   const getFirstAvailableSlotForBlock = useCallback((court: Court, day: Date, startHour: number, endHour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlots = dataService.timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+    const courtTimeSlots = timeSlots.filter(
+      slot => slot.courtId === court.id && slot.date === formattedDate
+    );
 
     for (let hour = startHour; hour < endHour; hour++) {
-      const relevantSlots = timeSlots.filter(
+      const relevantSlots = courtTimeSlots.filter(
         slot => parseInt(slot.startTime.split(":")[0]) === hour
       );
 
@@ -518,7 +666,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     }
 
     return null;
-  }, []);
+  }, [timeSlots]);
 
 
 
@@ -561,12 +709,40 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     }
   }, []);
 
+  // Handle edit reservation
+  const handleEditReservation = useCallback(() => {
+    if (selectedReservation) {
+      setEditingReservation(selectedReservation.reservation);
+      setSelectedReservation(null); // Close the details popup
+    }
+  }, [selectedReservation]);
+
+  // Handle save reservation - uses centralized hook, auto-refreshes state
+  const handleSaveReservation = useCallback(async (reservationId: string, updates: Partial<Reservation>) => {
+    try {
+      await updateReservation(reservationId, updates);
+    } catch (error) {
+      console.error('Error updating reservation:', error);
+      throw error;
+    }
+  }, [updateReservation]);
+
+  // Handle delete reservation - uses centralized hook, auto-refreshes state
+  const handleDeleteReservation = useCallback(async (reservationId: string) => {
+    try {
+      await deleteReservation(reservationId);
+    } catch (error) {
+      console.error('Error deleting reservation:', error);
+      throw error;
+    }
+  }, [deleteReservation]);
+
   return (
     <>
       {/* CourtHeader now contains the top bar with view toggles and court/date info */}
       <CourtHeader
         courtId={selectedCourt || "all"}
-        courtName={selectedCourt ? (dataService.courts.find(court => court.id === selectedCourt)?.name || "All Courts") : "All Courts"}
+        courtName={selectedCourt ? (courts.find(court => court.id === selectedCourt)?.name || "All Courts") : "All Courts"}
         currentDate={currentDate}
         onDateSelect={handleDateSelect}
         weekOffset={weekOffset}
@@ -605,11 +781,12 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
             <DayView
               selectedDate={currentDate}
               onClose={() => {}} // No close needed for inline view
-              courts={dataService.courts}
-              timeSlots={dataService.timeSlots}
-              reservations={dataService.reservations}
-              clinics={dataService.clinics}
-              coaches={dataService.coaches}
+              courts={courts}
+              timeSlots={timeSlots}
+              reservations={reservations}
+              clinics={clinics}
+              coaches={coaches}
+              socials={socials}
               isOpen={true}
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
@@ -626,9 +803,9 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
           ) : (
             // Schedule View (Week view)
             <div className={cn(isMobile ? "overflow-x-hidden w-full max-w-full" : "overflow-x-auto")}>
-              <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}> 
+              <div className={cn("relative", isMobile ? "w-full max-w-full" : "min-w-max")}>
                 {/* Court rows with date headers over each column */}
-                {(selectedCourt ? dataService.courts.filter(court => court.id === selectedCourt) : dataService.courts).map((court) => (
+                {(selectedCourt ? courts.filter(court => court.id === selectedCourt) : courts).map((court) => (
                   <div key={court.id} className={cn("mb-8", isMobile && "w-full max-w-full overflow-hidden")}>
                     {/* Court Header Bar - only show when viewing all courts */}
                     {!selectedCourt && (
@@ -891,11 +1068,12 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
         <DayView
           selectedDate={selectedDateForDayView}
           onClose={() => setSelectedDateForDayView(null)}
-          courts={dataService.courts}
-          timeSlots={dataService.timeSlots}
-          reservations={dataService.reservations}
-          clinics={dataService.clinics}
-          coaches={dataService.coaches}
+          courts={courts}
+          timeSlots={timeSlots}
+          reservations={reservations}
+          clinics={clinics}
+          coaches={coaches}
+          socials={socials}
           isOpen={selectedDateForDayView !== null}
         />
       )}
@@ -925,11 +1103,11 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                </div>
                
                <div className="space-y-4">
-                 {dataService.reservations
+                 {reservations
                    .filter(res => res.playerEmail === currentUserEmail)
                    .map(reservation => {
-                     const timeSlot = dataService.timeSlots.find(ts => ts.id === reservation.timeSlotId);
-                     const court = dataService.courts.find(c => c.id === reservation.courtId);
+                     const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+                     const court = courts.find(c => c.id === reservation.courtId);
                      const date = timeSlot ? new Date(timeSlot.date) : new Date();
                      
                      return (
@@ -957,7 +1135,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                      );
                    })}
                  
-                 {dataService.reservations.filter(res => res.playerEmail === currentUserEmail).length === 0 && (
+                 {reservations.filter(res => res.playerEmail === currentUserEmail).length === 0 && (
                    <div className="text-center py-8 text-gray-500">
                      <p>You don't have any reservations yet.</p>
                    </div>
@@ -1061,11 +1239,30 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                      </div>
                    </div>
                  </div>
+                 
+                 {/* Edit Button */}
+                 <div className="flex justify-end pt-4 border-t">
+                   <Button
+                     onClick={handleEditReservation}
+                     className="w-full sm:w-auto"
+                   >
+                     Edit Reservation
+                   </Button>
+                 </div>
                </div>
              </div>
            </div>
          </div>
        )}
+
+       {/* Edit Reservation Dialog */}
+       <EditReservationDialog
+         isOpen={editingReservation !== null}
+         onClose={() => setEditingReservation(null)}
+         onSave={handleSaveReservation}
+         onDelete={handleDeleteReservation}
+         reservation={editingReservation}
+       />
     </>
   );
 };

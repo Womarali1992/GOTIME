@@ -2,13 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, User, GraduationCap, X, MapPin, Calendar } from "lucide-react";
-import { format, addDays, subDays } from "date-fns";
-import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
+import { Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, User, GraduationCap, X, MapPin, Calendar, Users } from "lucide-react";
+import { format, addDays, subDays, startOfDay } from "date-fns";
+import { TimeSlot, Court, Reservation, Clinic, Coach, Social } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { dataService } from "@/lib/services/data-service";
+import { useUser } from "@/contexts/UserContext";
+import { useBookings } from "@/hooks/use-bookings";
 import CourtHeader from "./CourtHeader";
+import EditReservationDialog from "./EditReservationDialog";
 
 interface DayViewProps {
   selectedDate: Date;
@@ -18,6 +20,7 @@ interface DayViewProps {
   reservations: Reservation[];
   clinics: Clinic[];
   coaches: Coach[];
+  socials?: Social[];
   isOpen: boolean;
   isModal?: boolean; // New prop to control modal vs inline display
   onSelectTimeSlot?: (timeSlot: TimeSlot) => void; // Add slot selection callback
@@ -30,21 +33,23 @@ interface DayViewProps {
   legendFilters?: {
     available: boolean;
     clinic: boolean;
+    social: boolean;
     myReservations: boolean;
   };
-  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; myReservations: boolean; }) => void;
+  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; social: boolean; myReservations: boolean; }) => void;
   selectedCourt?: string | undefined;
   onCourtChange?: (courtId: string | undefined) => void;
 }
 
-const DayView = ({ 
-  selectedDate, 
-  onClose, 
-  courts, 
+const DayView = ({
+  selectedDate,
+  onClose,
+  courts,
   timeSlots,
-  reservations, 
-  clinics, 
+  reservations,
+  clinics,
   coaches,
+  socials = [],
   isOpen,
   isModal = true,
   onSelectTimeSlot,
@@ -53,13 +58,17 @@ const DayView = ({
   onWeekChange,
   viewDays = 1,
   onViewDaysChange,
-  legendFilters = { available: true, clinic: true, myReservations: true },
+  legendFilters = { available: true, clinic: true, social: true, myReservations: true },
   onLegendFiltersChange,
   selectedCourt,
   onCourtChange
 }: DayViewProps) => {
   const formattedDate = format(selectedDate, "yyyy-MM-dd");
   const displayDate = format(selectedDate, "MMM d");
+  
+  // Get current user from context
+  const { currentUser } = useUser();
+  const isAdmin = currentUser?.membershipType === 'admin';
   
   // Time focus mode state
   const [isTimeFocusMode, setIsTimeFocusMode] = useState(false);
@@ -71,6 +80,12 @@ const DayView = ({
     timeSlot: TimeSlot;
     court: any;
   } | null>(null);
+  
+  // Edit reservation state
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+
+  // Get booking operations from centralized hook
+  const { updateReservation, deleteReservation } = useBookings();
   
   // Time range to display (8am to 9pm)
   const startHour = 8;
@@ -93,6 +108,39 @@ const DayView = ({
     return () => document.removeEventListener('keydown', handleEscKey);
   }, [isTimeFocusMode]);
 
+  // Auto-advance to next day if all time slots have passed (only for inline view)
+  useEffect(() => {
+    if (!isModal && onDateChange && !isTimeFocusMode) {
+      const now = new Date();
+      const today = startOfDay(new Date());
+      
+      // Only check if the selected date is today or in the past
+      if (selectedDate <= today) {
+        // Calculate which courts to display
+        const displayCourts = selectedCourt ? courts.filter(court => court.id === selectedCourt) : courts;
+        
+        // Check if all time slots (8am-9pm) for all courts are in the past
+        const allSlotsPast = displayCourts.every(court => {
+          return hours.every(hour => {
+            const slotDateTime = new Date(selectedDate);
+            slotDateTime.setHours(hour, 0, 0, 0);
+            return slotDateTime < now;
+          });
+        });
+
+        if (allSlotsPast) {
+          // Advance to next day (but don't go beyond 30 days from today)
+          const maxDate = addDays(today, 30 - 1);
+          const nextDate = addDays(selectedDate, 1);
+          
+          if (nextDate <= maxDate) {
+            onDateChange(nextDate);
+          }
+        }
+      }
+    }
+  }, [selectedDate, timeSlots, courts, selectedCourt, isModal, onDateChange, isTimeFocusMode, hours]);
+
   // Function to enter time focus mode
   const enterTimeFocusMode = (hour: number) => {
     setFocusedTime(hour);
@@ -105,23 +153,57 @@ const DayView = ({
     setFocusedTime(null);
   };
 
-  // Use services-based single source for getting slot status
+  // Get slot status for a specific court, date, and hour
   const getSlotStatusForDate = (court: Court, date: Date, hour: number) => {
     const dateString = format(date, "yyyy-MM-dd");
-    return dataService.timeSlotService.getSlotStatus(court.id, dateString, hour);
+    const slot = timeSlots.find(
+      ts => ts.courtId === court.id &&
+            ts.date === dateString &&
+            parseInt(ts.startTime.split(":")[0]) === hour
+    );
+    
+    if (!slot) {
+      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null };
+    }
+    
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
+
+    // Check if this is a social
+    let isSocial = false;
+    let social = null;
+    if (slot.socialId) {
+      social = socials.find(s => s.id === slot.socialId);
+      isSocial = !!social;
+    }
+
+    return {
+      available: slot.available && !slot.blocked && !reservation && !clinic && !isSocial,
+      reserved: !!reservation,
+      blocked: slot.blocked || false,
+      isClinic: !!clinic,
+      isSocial,
+      slot,
+      clinic,
+      reservation,
+      social
+    };
   };
 
   // Get all time slots for the selected date
   const dateTimeSlots = timeSlots.filter(slot => slot.date === formattedDate);
   
-  // Get all reservations for the selected date using services
-  const dateReservations = dataService.reservationService.getReservationsForDate(formattedDate);
+  // Get all reservations for the selected date - filter from props
+  const dateReservations = reservations.filter(reservation => {
+    const slot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
+    return slot && slot.date === formattedDate;
+  });
   
-  // Get all clinics for the selected date using services
-  const dateClinics = dataService.clinicService.getClinicsForDate(formattedDate);
-  
-  // Get time slots with status for better reservation handling (services)
-  const timeSlotsWithStatus = dataService.timeSlotService.getTimeSlotsForDate(formattedDate);
+  // Get all clinics for the selected date - filter from props
+  const dateClinics = clinics.filter(clinic => {
+    const clinicSlots = timeSlots.filter(ts => ts.clinicId === clinic.id);
+    return clinicSlots.some(slot => slot.date === formattedDate);
+  });
 
   // Function to get clinic for a time slot
   const getClinicForSlot = (slot: TimeSlot) => {
@@ -136,9 +218,40 @@ const DayView = ({
     return reservations.find(reservation => reservation.timeSlotId === slot.id);
   };
 
-  // Function to get time slot status for a specific court and hour - services based
+  // Function to get time slot status for a specific court and hour
   const getSlotStatus = (court: Court, hour: number) => {
-    return dataService.timeSlotService.getSlotStatus(court.id, formattedDate, hour);
+    const slot = timeSlots.find(
+      ts => ts.courtId === court.id &&
+            ts.date === formattedDate &&
+            parseInt(ts.startTime.split(":")[0]) === hour
+    );
+
+    if (!slot) {
+      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null, social: null };
+    }
+
+    const reservation = reservations.find(res => res.timeSlotId === slot.id);
+    const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
+
+    // Check if this is a social
+    let isSocial = false;
+    let social = null;
+    if (slot.socialId) {
+      social = socials.find(s => s.id === slot.socialId);
+      isSocial = !!social;
+    }
+
+    return {
+      available: slot.available && !slot.blocked && !reservation && !clinic && !isSocial,
+      reserved: !!reservation,
+      blocked: slot.blocked || false,
+      isClinic: !!clinic,
+      isSocial,
+      slot,
+      clinic,
+      reservation,
+      social
+    };
   };
 
   // Check if a time slot is in the past
@@ -171,8 +284,8 @@ const DayView = ({
           timeSlot: slot,
           court
         });
-      } else if (slot.available && onSelectTimeSlot) {
-        // Handle available slot booking
+      } else if ((slot.available || isAdmin) && onSelectTimeSlot) {
+        // Handle available slot booking, or allow admins to book even unavailable/blocked slots
         onSelectTimeSlot(slot);
       }
     }
@@ -252,6 +365,9 @@ const DayView = ({
   // Unified grid view that works for both modes
   const renderUnifiedGridView = () => {
     const rowData = getRowData();
+    
+    // Filter courts based on selectedCourt
+    const displayCourts = selectedCourt ? courts.filter(court => court.id === selectedCourt) : courts;
     
     return (
       <div className={isModal ? "p-5 md:p-6 overflow-y-auto max-h-[calc(95vh-100px)]" : "p-3 md:p-4"}>
@@ -334,7 +450,7 @@ const DayView = ({
               </div>
               
               {/* Court headers */}
-              {courts.map((court, index) => (
+              {displayCourts.map((court, index) => (
                 <div
                   key={court.id}
                   className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-2 flex flex-col items-center justify-center rounded-lg"
@@ -421,7 +537,7 @@ const DayView = ({
                 </Button>
               </div>
             </div>
-            {courts.map((court) => (
+            {displayCourts.map((court) => (
               <div key={court.id} className="bg-gradient-to-br from-white/40 via-emerald-200/30 to-cyan-200/40 backdrop-blur-md border border-white/50 shadow-lg shadow-emerald-500/20 p-4 rounded-xl min-h-[120px] hover:shadow-xl hover:shadow-emerald-500/30 transition-all">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
@@ -493,7 +609,7 @@ const DayView = ({
                     </div>
                     
                     {/* Court Columns */}
-                    {courts.map((court, courtIndex) => {
+                    {displayCourts.map((court, courtIndex) => {
                       // Get slot status based on current mode
                       let slotData;
                       if (row.type === 'hour') {
@@ -504,12 +620,12 @@ const DayView = ({
                         slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
                       }
                       
-                      const { available, reserved, blocked, slot, reservation, clinic } = slotData;
-                      const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
-                      const isPast = row.type === 'hour' 
+                      const { available, reserved, blocked, slot, reservation, clinic, isSocial, social } = slotData;
+                      const isClickable = available && !reserved && !blocked && !clinic && !isSocial && onSelectTimeSlot;
+                      const isPast = row.type === 'hour'
                         ? isTimeSlotInPast(selectedDate, row.value as number)
                         : isTimeSlotInPast(row.value as Date, focusedTime!);
-                      
+
                       return (
                         <div
                           key={court.id}
@@ -522,7 +638,9 @@ const DayView = ({
                           <div
                             className={cn(
                               "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-1",
-                              clinic
+                              isSocial
+                                ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60"
+                                : clinic
                                 ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                                 : blocked
                                 ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
@@ -543,7 +661,9 @@ const DayView = ({
                               }
                             }}
                             title={
-                              clinic 
+                              isSocial && social
+                                ? `Social Game: ${social.title}`
+                                : clinic
                                 ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                                 : reservation
                                 ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
@@ -554,7 +674,12 @@ const DayView = ({
                                 : "Unavailable"
                             }
                           >
-                            {clinic ? (
+                            {isSocial ? (
+                              <div className="flex flex-col items-center">
+                                <Users className="h-3 w-3 mb-0.5" />
+                                <span className="font-bold text-xs leading-none">Social</span>
+                              </div>
+                            ) : clinic ? (
                               <div className="flex flex-col items-center">
                                 <GraduationCap className="h-3 w-3 mb-0.5" />
                                 <span className="font-bold text-xs leading-none">Clinic</span>
@@ -630,12 +755,12 @@ const DayView = ({
                       slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
                     }
                     
-                    const { available, reserved, blocked, slot, reservation, clinic } = slotData;
-                    const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
-                    const isPast = row.type === 'hour' 
+                    const { available, reserved, blocked, slot, reservation, clinic, isSocial, social } = slotData;
+                    const isClickable = available && !reserved && !blocked && !clinic && !isSocial && onSelectTimeSlot;
+                    const isPast = row.type === 'hour'
                       ? isTimeSlotInPast(selectedDate, row.value as number)
                       : isTimeSlotInPast(row.value as Date, focusedTime!);
-                    
+
                     return (
                       <div
                         key={court.id}
@@ -648,7 +773,9 @@ const DayView = ({
                         <div
                           className={cn(
                             "w-full h-full rounded text-sm md:text-base text-center flex items-center justify-center transition-all duration-200 p-2",
-                            clinic
+                            isSocial
+                              ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60"
+                              : clinic
                               ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                               : blocked
                               ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
@@ -669,7 +796,9 @@ const DayView = ({
                             }
                           }}
                           title={
-                            clinic 
+                            isSocial && social
+                              ? `Social Game: ${social.title}`
+                              : clinic
                               ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                               : reservation
                               ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
@@ -680,7 +809,12 @@ const DayView = ({
                               : "Unavailable"
                           }
                         >
-                          {clinic ? (
+                          {isSocial ? (
+                            <div className="flex flex-col items-center">
+                              <Users className="h-3 w-3 mb-1" />
+                              <span className="font-semibold text-sm">Social</span>
+                            </div>
+                          ) : clinic ? (
                             <div className="flex flex-col items-center">
                               <GraduationCap className="h-3 w-3 mb-1" />
                               <span className="font-semibold text-sm">{clinic.name}</span>
@@ -719,6 +853,10 @@ const DayView = ({
               <span>Available</span>
             </div>
             <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-orange-300/50 border-2 border-orange-500/60 shadow-sm"></div>
+              <span>Social</span>
+            </div>
+            <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-yellow-500/50 border-2 border-yellow-600/60 shadow-sm"></div>
               <span>Clinic</span>
             </div>
@@ -728,7 +866,7 @@ const DayView = ({
             </div>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-2">
-            {isTimeFocusMode 
+            {isTimeFocusMode
               ? "Click on any day (left column) to view that day's schedule, or press ESC / 'Back to Day View' to return"
               : "Click on any time (left column) to view that time across the next 13 days"
             }
@@ -881,11 +1019,49 @@ const DayView = ({
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Edit Button */}
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button
+                      onClick={() => {
+                        setEditingReservation(selectedReservation.reservation);
+                        setSelectedReservation(null);
+                      }}
+                      className="w-full sm:w-auto"
+                    >
+                      Edit Reservation
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
+        
+        {/* Edit Reservation Dialog */}
+        <EditReservationDialog
+          isOpen={editingReservation !== null}
+          onClose={() => setEditingReservation(null)}
+          onSave={async (reservationId: string, updates: Partial<Reservation>) => {
+            try {
+              // Use centralized hook - auto-refreshes state
+              await updateReservation(reservationId, updates);
+            } catch (error) {
+              console.error('Error updating reservation:', error);
+              throw error;
+            }
+          }}
+          onDelete={async (reservationId: string) => {
+            try {
+              // Use centralized hook - auto-refreshes state
+              await deleteReservation(reservationId);
+            } catch (error) {
+              console.error('Error deleting reservation:', error);
+              throw error;
+            }
+          }}
+          reservation={editingReservation}
+        />
       </DialogContent>
     </Dialog>
   );
