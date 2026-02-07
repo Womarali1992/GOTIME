@@ -28,7 +28,7 @@ export default function CoachLogin() {
     setIsLoading(true);
 
     try {
-      const result = login(email, password);
+      const result = await login(email, password);
 
       if (result.success) {
         navigate('/coach-dashboard');
@@ -89,7 +89,7 @@ export default function CoachLogin() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">
           <div className="text-sm text-gray-500 text-center">
-            Demo credentials: maria@example.com / password123
+            Demo credentials: john@picklepop.com / password123
           </div>
           <Button
             variant="ghost"

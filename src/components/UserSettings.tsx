@@ -20,7 +20,7 @@ interface UserSettingsProps {
 }
 
 const UserSettings = ({ currentUserEmail = "john@example.com", open: controlledOpen, onOpenChange: controlledOnOpenChange, trigger }: UserSettingsProps) => {
-  const { users, userService } = useDataService();
+  const { users, reservationSettings } = useDataService();
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setIsOpen = controlledOnOpenChange || setInternalOpen;
@@ -193,13 +193,8 @@ const UserSettings = ({ currentUserEmail = "john@example.com", open: controlledO
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <p><strong>Booking Window:</strong> You can view and book time slots up to {
-                    // userService doesn't expose dataService; use useDataService accessor instead
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                    (userService as any).dataService?.getTimeSlotVisibilityPeriod?.() ?? "2_weeks"
+                    (reservationSettings?.timeSlotVisibilityPeriod ?? "2_weeks")
                       .replace('_', ' ')
-                      .replace('weeks', 'weeks')
-                      .replace('week', 'week')
                   } in advance</p>
                   <p className="text-muted-foreground">
                     This setting is configured by the facility administrator and applies to all users.

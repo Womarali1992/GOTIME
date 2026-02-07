@@ -1,22 +1,29 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '@/lib/types';
-import { dataService } from '@/lib/services/data-service';
+import { apiDataService } from '@/lib/services/api-data-service';
+
+// Scope localStorage keys by subdomain so different tenants don't share sessions
+function getStorageKey(key: string): string {
+  const subdomain = window.location.hostname.split('.')[0];
+  return `${subdomain}:${key}`;
+}
 
 interface UserContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
-  login: (email: string) => void;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (data: { name: string; email: string; phone: string; password: string; duprRating?: number }) => Promise<void>;
   logout: () => void;
-  updateCurrentUser: (userData: Partial<User>) => void;
+  updateCurrentUser: (userData: Partial<User>) => Promise<void>;
 }
 
-// Create a default context value that matches our interface
 const defaultContextValue: UserContextType = {
   currentUser: null,
   isAuthenticated: false,
-  login: () => console.warn('login called outside of UserProvider'),
-  logout: () => console.warn('logout called outside of UserProvider'),
-  updateCurrentUser: () => console.warn('updateCurrentUser called outside of UserProvider'),
+  login: async () => {},
+  signup: async () => {},
+  logout: () => {},
+  updateCurrentUser: async () => {},
 };
 
 const UserContext = createContext<UserContextType>(defaultContextValue);
@@ -26,46 +33,57 @@ interface UserProviderProps {
 }
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
-  console.log('UserProvider rendering');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Initialize user from localStorage or default to John Doe for demo
+  // Initialize user from localStorage
   useEffect(() => {
-    const savedUserEmail = localStorage.getItem('currentUserEmail');
-    const userEmail = savedUserEmail || 'john@example.com'; // Default to John Doe for demo
-    
-    const users = dataService.userService.getAllUsers();
-    const user = users.find(u => u.email === userEmail);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      localStorage.setItem('currentUserEmail', user.email);
-    }
+    const initializeUser = async () => {
+      const savedUserEmail = localStorage.getItem(getStorageKey('currentUserEmail'));
+
+      if (savedUserEmail) {
+        try {
+          const users = await apiDataService.getAllUsers();
+          const user = users.find(u => u.email === savedUserEmail);
+          if (user) {
+            setCurrentUser(user);
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem(getStorageKey('currentUserEmail'));
+          }
+        } catch {
+          localStorage.removeItem(getStorageKey('currentUserEmail'));
+        }
+      }
+    };
+    initializeUser();
   }, []);
 
-  const login = (email: string) => {
-    const users = dataService.userService.getAllUsers();
-    const user = users.find(u => u.email === email);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      localStorage.setItem('currentUserEmail', user.email);
-    }
+  const login = async (email: string, password: string) => {
+    const user = await apiDataService.login(email, password);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    localStorage.setItem(getStorageKey('currentUserEmail'), user.email);
+  };
+
+  const signup = async (data: { name: string; email: string; phone: string; password: string; duprRating?: number }) => {
+    const user = await apiDataService.signup(data);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    localStorage.setItem(getStorageKey('currentUserEmail'), user.email);
   };
 
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('currentUserEmail');
+    localStorage.removeItem(getStorageKey('currentUserEmail'));
   };
 
-  const updateCurrentUser = (userData: Partial<User>) => {
+  const updateCurrentUser = async (userData: Partial<User>) => {
     if (currentUser) {
       const updatedUser = { ...currentUser, ...userData };
       setCurrentUser(updatedUser);
-      // In a real app, you'd also update the user in the backend/database
-      dataService.userService.updateUser(currentUser.id, userData);
+      await apiDataService.updateUser(currentUser.id, userData);
     }
   };
 
@@ -73,11 +91,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     currentUser,
     isAuthenticated,
     login,
+    signup,
     logout,
     updateCurrentUser,
   };
-
-  console.log('UserProvider providing value:', { currentUser: currentUser?.email || null, isAuthenticated });
 
   return (
     <UserContext.Provider value={value}>
@@ -87,13 +104,5 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 };
 
 export const useUser = (): UserContextType => {
-  const context = useContext(UserContext);
-  console.log('useUser called, context:', context);
-  
-  // Check if we're getting the default context (which means we're outside a provider)
-  if (context === defaultContextValue) {
-    console.warn('useUser: Using default context - component may be outside UserProvider');
-  }
-  
-  return context;
+  return useContext(UserContext);
 };

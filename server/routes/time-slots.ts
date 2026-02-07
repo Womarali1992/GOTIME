@@ -1,65 +1,89 @@
 import express from 'express';
-import { db } from '../db/database';
+import { query, safeParseJSON } from '../db/database.js';
 
 const router = express.Router();
 
-// Get all time slots
-router.get('/', (req, res) => {
-  const { date, courtId } = req.query;
-
-  let query = 'SELECT * FROM time_slots';
-  const params: any[] = [];
-
-  if (date || courtId) {
-    query += ' WHERE';
-    if (date) {
-      query += ' date = ?';
-      params.push(date);
-    }
-    if (courtId) {
-      query += date ? ' AND courtId = ?' : ' courtId = ?';
-      params.push(courtId);
-    }
-  }
-
-  const slots = db.prepare(query).all(...params);
-  res.json(slots.map(slot => ({
+function formatSlot(slot: any) {
+  return {
     ...slot,
     available: Boolean(slot.available),
     blocked: Boolean(slot.blocked),
-    comments: JSON.parse(slot.comments || '[]')
-  })));
-});
+    comments: safeParseJSON(slot.comments, [])
+  };
+}
 
-// Get time slots for date (with dynamic generation)
-router.get('/date/:date', async (req, res) => {
-  const { date } = req.params;
+// Get all time slots
+router.get('/', async (req, res) => {
+  const { date, courtId } = req.query;
 
-  // Get settings
-  const settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
-  if (!settings) {
-    return res.status(500).json({ error: 'Settings not found' });
+  let sql = 'SELECT * FROM time_slots WHERE tenant_id = $1';
+  const params: any[] = [req.tenantId];
+  let paramIndex = 2;
+
+  if (date) {
+    sql += ` AND date = $${paramIndex++}`;
+    params.push(date);
+  }
+  if (courtId) {
+    sql += ` AND "courtId" = $${paramIndex++}`;
+    params.push(courtId);
   }
 
-  const operatingHours = JSON.parse(settings.operatingHours || '[]');
+  const { rows } = await query(sql, params);
+  res.json(rows.map(formatSlot));
+});
+
+// Get time slots for date (with dynamic generation) - batch optimized
+router.get('/date/:date', async (req, res) => {
+  const { date } = req.params;
+  const tenantId = req.tenantId!;
+
+  // Get settings
+  const settingsResult = await query('SELECT * FROM settings WHERE tenant_id = $1', [tenantId]);
+  if (settingsResult.rows.length === 0) {
+    return res.status(500).json({ error: 'Settings not found' });
+  }
+  const settings = settingsResult.rows[0];
+  const operatingHours = safeParseJSON(settings.operatingHours, []);
 
   // Check if day is open
   const slotDate = new Date(date);
   const dayOfWeek = slotDate.getDay();
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayName = dayNames[dayOfWeek];
-  const daySettings = operatingHours.find(day => day.dayOfWeek === dayName);
+  const daySettings = operatingHours.find((day: any) => day.dayOfWeek === dayName);
 
   if (!daySettings || !daySettings.isOpen) {
     return res.json([]);
   }
 
-  // Get all courts
-  const courts = db.prepare('SELECT * FROM courts').all();
+  // Batch: get all courts, stored slots, reservations in parallel
+  const [courtsResult, storedSlotsResult, reservationsResult] = await Promise.all([
+    query('SELECT * FROM courts WHERE tenant_id = $1', [tenantId]),
+    query('SELECT * FROM time_slots WHERE date = $1 AND tenant_id = $2', [date, tenantId]),
+    query(`SELECT r.* FROM reservations r JOIN time_slots ts ON r."timeSlotId" = ts.id WHERE ts.date = $1 AND r.tenant_id = $2`, [date, tenantId]),
+  ]);
+
+  const courts = courtsResult.rows;
+  const storedSlotsMap = new Map(storedSlotsResult.rows.map(s => [s.id, s]));
+  const reservationsMap = new Map(reservationsResult.rows.map(r => [r.timeSlotId, r]));
+
+  // Batch fetch clinics
+  const clinicIds = storedSlotsResult.rows
+    .filter(s => s.clinicId)
+    .map(s => s.clinicId);
+
+  let clinicsMap = new Map<string, any>();
+  if (clinicIds.length > 0) {
+    const placeholders = clinicIds.map((_, i) => `$${i + 1}`).join(', ');
+    const clinicsResult = await query(`SELECT * FROM clinics WHERE id IN (${placeholders})`, clinicIds);
+    clinicsMap = new Map(clinicsResult.rows.map(c => [c.id, c]));
+  }
+
   const startHour = parseInt(daySettings.startTime.split(':')[0]);
   const endHour = parseInt(daySettings.endTime.split(':')[0]);
-
-  const generatedSlots = [];
+  const now = new Date();
+  const generatedSlots: any[] = [];
 
   for (const court of courts) {
     for (let hour = startHour; hour < endHour; hour++) {
@@ -67,26 +91,23 @@ router.get('/date/:date', async (req, res) => {
       const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
       const slotId = `${court.id}-${date}-${hour}`;
 
-      // Check if slot exists in database
-      let storedSlot = db.prepare('SELECT * FROM time_slots WHERE id = ?').get(slotId);
-      const reservation = db.prepare('SELECT * FROM reservations WHERE timeSlotId = ?').get(slotId);
+      const storedSlot = storedSlotsMap.get(slotId);
+      const reservation = reservationsMap.get(slotId);
+
+      const slotDateTime = new Date(slotDate);
+      slotDateTime.setHours(hour, 0, 0, 0);
+      const isPast = slotDateTime < now;
 
       let slot: any;
 
       if (storedSlot) {
         slot = {
           ...storedSlot,
-          available: Boolean(storedSlot.available),
+          available: isPast ? false : Boolean(storedSlot.available),
           blocked: Boolean(storedSlot.blocked),
-          comments: JSON.parse(storedSlot.comments || '[]')
+          comments: safeParseJSON(storedSlot.comments, [])
         };
       } else {
-        // Create virtual slot
-        const now = new Date();
-        const slotDateTime = new Date(slotDate);
-        slotDateTime.setHours(hour, 0, 0, 0);
-        const isPast = slotDateTime < now;
-
         slot = {
           id: slotId,
           courtId: court.id,
@@ -99,46 +120,37 @@ router.get('/date/:date', async (req, res) => {
         };
       }
 
-      // Enrich with status
-      const clinic = slot.type === 'clinic' && slot.clinicId
-        ? db.prepare('SELECT * FROM clinics WHERE id = ?').get(slot.clinicId)
-        : null;
-      const social = slot.type === 'social' && slot.socialId
-        ? db.prepare('SELECT * FROM socials WHERE id = ?').get(slot.socialId)
-        : null;
-
-      const isReserved = !!reservation && slot.type !== 'clinic' && slot.type !== 'social';
+      const clinic = slot.clinicId ? clinicsMap.get(slot.clinicId) || null : null;
+      const isClinic = !!clinic || slot.type === 'clinic';
+      const isReserved = !!reservation && !isClinic;
       const isBlocked = slot.blocked || false;
-      const isClinic = slot.type === 'clinic';
-      const isSocial = slot.type === 'social';
-      const isAvailable = !isReserved && !isBlocked && !isClinic && !isSocial;
+      const isAvailable = !isPast && !isReserved && !isBlocked && !isClinic;
 
       let status = 'available';
-      if (isBlocked) status = 'blocked';
+      if (isPast && !isReserved && !isClinic) status = 'unavailable';
+      else if (isBlocked) status = 'blocked';
       else if (isClinic) status = 'clinic';
-      else if (isSocial) status = 'social';
       else if (isReserved) status = 'reserved';
 
       generatedSlots.push({
         ...slot,
         reservation: reservation ? {
           ...reservation,
-          participants: JSON.parse(reservation.participants || '[]'),
-          comments: JSON.parse(reservation.comments || '[]')
+          participants: safeParseJSON(reservation.participants, []),
+          comments: safeParseJSON(reservation.comments, []),
+          isOpenPlay: Boolean(reservation.isOpenPlay),
+          openPlaySlots: reservation.openPlaySlots ?? undefined,
+          maxOpenPlayers: reservation.maxOpenPlayers ?? undefined,
+          openPlayGroupId: reservation.openPlayGroupId ?? undefined,
         } : null,
         clinic: clinic ? {
           ...clinic,
-          participants: JSON.parse(clinic.participants || '[]')
-        } : null,
-        social: social ? {
-          ...social,
-          votes: JSON.parse(social.votes || '[]')
+          participants: safeParseJSON(clinic.participants, [])
         } : null,
         isAvailable,
         isReserved,
         isBlocked,
         isClinic,
-        isSocial,
         status
       });
     }
@@ -148,81 +160,69 @@ router.get('/date/:date', async (req, res) => {
 });
 
 // Create or update time slot
-router.post('/', (req, res) => {
-  const { id, courtId, date, startTime, endTime, available, blocked, type, clinicId, socialId, comments } = req.body;
+router.post('/', async (req, res) => {
+  const { id, courtId, date, startTime, endTime, available, blocked, type, clinicId, comments } = req.body;
   const slotId = id || `${courtId}-${date}-${parseInt(startTime.split(':')[0])}`;
   const createdAt = new Date().toISOString();
 
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO time_slots (id, courtId, date, startTime, endTime, available, blocked, type, clinicId, socialId, comments, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  insert.run(
-    slotId,
-    courtId,
-    date,
-    startTime,
-    endTime,
-    available ? 1 : 0,
-    blocked ? 1 : 0,
-    type,
-    clinicId,
-    socialId,
-    JSON.stringify(comments || []),
-    createdAt,
-    createdAt
+  await query(
+    `INSERT INTO time_slots (id, tenant_id, "courtId", date, "startTime", "endTime", available, blocked, type, "clinicId", comments, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+     ON CONFLICT (id) DO UPDATE SET
+       "courtId" = EXCLUDED."courtId",
+       date = EXCLUDED.date,
+       "startTime" = EXCLUDED."startTime",
+       "endTime" = EXCLUDED."endTime",
+       available = EXCLUDED.available,
+       blocked = EXCLUDED.blocked,
+       type = EXCLUDED.type,
+       "clinicId" = EXCLUDED."clinicId",
+       comments = EXCLUDED.comments,
+       "updatedAt" = EXCLUDED."updatedAt"`,
+    [slotId, req.tenantId, courtId, date, startTime, endTime, available, blocked, type, clinicId, JSON.stringify(comments || []), createdAt]
   );
 
-  const slot = db.prepare('SELECT * FROM time_slots WHERE id = ?').get(slotId);
-  res.status(201).json({
-    ...slot,
-    available: Boolean(slot.available),
-    blocked: Boolean(slot.blocked),
-    comments: JSON.parse(slot.comments || '[]')
-  });
+  const { rows } = await query('SELECT * FROM time_slots WHERE id = $1 AND tenant_id = $2', [slotId, req.tenantId]);
+  res.status(201).json(formatSlot(rows[0]));
 });
 
 // Update time slot
-router.put('/:id', (req, res) => {
-  const { available, blocked, type, clinicId, socialId, comments } = req.body;
+router.put('/:id', async (req, res) => {
+  const { available, blocked, type, clinicId, comments } = req.body;
   const updatedAt = new Date().toISOString();
 
-  const update = db.prepare(`
-    UPDATE time_slots
-    SET available = ?, blocked = ?, type = ?, clinicId = ?, socialId = ?, comments = ?, updatedAt = ?
-    WHERE id = ?
-  `);
+  const fields: string[] = [];
+  const values: any[] = [];
+  let paramIndex = 1;
 
-  const result = update.run(
-    available !== undefined ? (available ? 1 : 0) : undefined,
-    blocked !== undefined ? (blocked ? 1 : 0) : undefined,
-    type,
-    clinicId,
-    socialId,
-    comments ? JSON.stringify(comments) : undefined,
-    updatedAt,
-    req.params.id
+  if (available !== undefined) { fields.push(`available = $${paramIndex++}`); values.push(available); }
+  if (blocked !== undefined) { fields.push(`blocked = $${paramIndex++}`); values.push(blocked); }
+  if (type !== undefined) { fields.push(`type = $${paramIndex++}`); values.push(type); }
+  if (clinicId !== undefined) { fields.push(`"clinicId" = $${paramIndex++}`); values.push(clinicId); }
+  if (comments !== undefined) { fields.push(`comments = $${paramIndex++}`); values.push(JSON.stringify(comments)); }
+  fields.push(`"updatedAt" = $${paramIndex++}`);
+  values.push(updatedAt);
+  values.push(req.params.id);
+  values.push(req.tenantId);
+
+  const result = await query(
+    `UPDATE time_slots SET ${fields.join(', ')} WHERE id = $${paramIndex} AND tenant_id = $${paramIndex + 1}`,
+    values
   );
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Time slot not found' });
   }
 
-  const slot = db.prepare('SELECT * FROM time_slots WHERE id = ?').get(req.params.id);
-  res.json({
-    ...slot,
-    available: Boolean(slot.available),
-    blocked: Boolean(slot.blocked),
-    comments: JSON.parse(slot.comments || '[]')
-  });
+  const { rows } = await query('SELECT * FROM time_slots WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+  res.json(formatSlot(rows[0]));
 });
 
 // Delete time slot
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM time_slots WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  const result = await query('DELETE FROM time_slots WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Time slot not found' });
   }
 

@@ -4,7 +4,7 @@ import Footer from '@/components/Footer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { dataService } from '@/lib/services/data-service';
+import { useDataService } from '@/hooks/use-data-service';
 import { GraduationCap } from 'lucide-react';
 import { TimeSlot } from '@/lib/types';
 import CoachSchedulerView from '@/components/CoachSchedulerView';
@@ -13,10 +13,11 @@ import BookPrivateSessionDialog from '@/components/BookPrivateSessionDialog';
 export default function CoachBooking() {
   const [selectedCoachId, setSelectedCoachId] = useState<string>('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const { coaches: allCoaches } = useDataService();
 
   // Get all active coaches
-  const coaches = dataService.coachService.getAllCoaches().filter(c => c.isActive);
-  const selectedCoach = selectedCoachId ? dataService.coachService.getCoachById(selectedCoachId) : null;
+  const coaches = allCoaches.filter(c => c.isActive);
+  const selectedCoach = selectedCoachId ? allCoaches.find(c => c.id === selectedCoachId) : null;
 
   // Handle time slot selection - directly open private session dialog
   const handleSelectTimeSlot = (timeSlot: TimeSlot) => {

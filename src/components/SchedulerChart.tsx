@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
 import { format, addDays, subDays, startOfDay } from "date-fns";
 import { TimeSlot, Court } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,8 @@ import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import DayView from "./DayView";
 import { apiDataService } from "@/lib/services/api-data-service";
-// Use API backend data service
+import { useDataService } from "@/hooks/use-data-service";
+import { useUser } from "@/contexts/UserContext";
 
 interface SchedulerChartProps {
   courts: Court[];
@@ -25,31 +26,22 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
   const [viewDays, setViewDays] = useState<number>(3);
   const [selectedDateForDayView, setSelectedDateForDayView] = useState<Date | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const [reservations, setReservations] = useState<any[]>([]);
-  const [clinics, setClinics] = useState<any[]>([]);
-  const [coaches, setCoaches] = useState<any[]>([]);
   const [operatingHours, setOperatingHours] = useState<any[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [daysToShow, setDaysToShow] = useState<Date[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load data from backend
+  // Get data from context (single source of truth)
+  const { reservations, clinics, coaches, reservationSettings } = useDataService();
+  const { currentUser } = useUser();
+
+  // Initialize operating hours from context
   useEffect(() => {
-    const loadData = async () => {
-      const [loadedReservations, loadedClinics, loadedCoaches, settings] = await Promise.all([
-        apiDataService.getAllReservations(),
-        apiDataService.getAllClinics(),
-        apiDataService.getAllCoaches(),
-        apiDataService.getReservationSettings()
-      ]);
-      setReservations(loadedReservations);
-      setClinics(loadedClinics);
-      setCoaches(loadedCoaches);
-      setOperatingHours(settings?.operatingHours || []);
+    if (reservationSettings?.operatingHours) {
+      setOperatingHours(reservationSettings.operatingHours);
       setIsInitialized(true);
-    };
-    loadData();
-  }, []);
+    }
+  }, [reservationSettings]);
 
   // Calculate days to show and load slots when current date changes
   useEffect(() => {
@@ -76,17 +68,9 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
     // Load time slots for these days
     const loadSlots = async () => {
       if (days.length === 0) {
-        console.log('[SchedulerChart] No days to show yet');
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:78',message:'no days to show',data:{daysLength:days.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
         return;
       }
 
-      console.log('[SchedulerChart] Loading slots for days:', days.map(d => format(d, 'yyyy-MM-dd')));
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:83',message:'loading slots start',data:{days:days.map(d=>format(d,'yyyy-MM-dd')),daysCount:days.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       const allSlots = await Promise.all(
         days.map(day => {
           const formattedDate = format(day, "yyyy-MM-dd");
@@ -94,10 +78,6 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
         })
       );
       const flatSlots = allSlots.flat();
-      console.log('[SchedulerChart] Loaded slots:', flatSlots.length);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:91',message:'slots loaded',data:{slotsCount:flatSlots.length,firstSlot:flatSlots[0],blockedCount:flatSlots.filter(s=>(s as any).blocked).length,blockedSlots:flatSlots.filter(s=>(s as any).blocked).slice(0,3).map(s=>({id:s.id,blocked:(s as any).blocked,available:s.available}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       setTimeSlots(flatSlots);
     };
 
@@ -134,42 +114,54 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
     slotDateTime.setHours(hour, 0, 0, 0);
     const isPast = slotDateTime < now;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:119',message:'getSlotStatus entry',data:{courtId:court.id,dateString,timeString,timeSlotsCount:timeSlots.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     // Find the time slot
     const slot = timeSlots.find(
       ts => ts.courtId === court.id && ts.date === dateString && ts.startTime === timeString
     );
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:126',message:'slot lookup result',data:{slotFound:!!slot,slotId:slot?.id,slotBlocked:(slot as any)?.blocked,slotAvailable:slot?.available},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     if (!slot) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:129',message:'slot not found - returning available fallback',data:{courtId:court.id,dateString,timeString,isPast},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      return { available: !isPast, reserved: false, isClinic: false, blocked: false };
+      return { available: !isPast, reserved: false, isClinic: false, blocked: false, isMyReservation: false, isMyClinicReservation: false, coachName: undefined };
     }
 
-    // Check if reserved
-    const reservation = reservations.find(r => r.timeSlotId === slot.id);
-    const clinic = clinics.find(c => c.id === (slot as any).clinicId);
-    const blockedFlag = (slot as any).isBlocked ?? (slot as any).blocked ?? false;
-    const slotAvailableFlag = (slot as any).isAvailable ?? (slot as any).available ?? true;
+    // Use enriched data from the API endpoint which already includes status flags
+    const enrichedSlot = slot as any;
+
+    // Check if this is the current user's reservation
+    const reservation = enrichedSlot.reservation;
+    const isMyReservation = reservation ? (
+      reservation.playerEmail === currentUser?.email ||
+      (currentUser?.id && reservation.createdById === currentUser.id)
+    ) : false;
+
+    const isClinic = enrichedSlot.isClinic ?? false;
+
+    // Get coach name if this is a clinic
+    let coachName: string | undefined;
+    let isMyClinicReservation = false;
+    if (isClinic) {
+      // Use enriched clinic data from slot (includes participants) or fall back to lookup
+      const clinic = enrichedSlot.clinic || clinics.find(c => c.id === enrichedSlot.clinicId);
+      if (clinic?.coachId) {
+        const coach = coaches.find(c => c.id === clinic.coachId);
+        coachName = coach?.name;
+      }
+      // Check if user is in clinic participants
+      const clinicParticipants = clinic?.participants || [];
+      const isInClinicParticipants = currentUser?.email && clinicParticipants.some(
+        (p: any) => p.email === currentUser.email || p.userId === currentUser.id
+      );
+      isMyClinicReservation = isMyReservation || isInClinicParticipants;
+    }
 
     const result = {
-      available: slotAvailableFlag && !reservation && !clinic && !blockedFlag,
-      reserved: !!reservation,
-      isClinic: !!clinic,
-      blocked: blockedFlag
+      available: enrichedSlot.isAvailable ?? enrichedSlot.available ?? false,
+      reserved: enrichedSlot.isReserved ?? false,
+      isClinic,
+      blocked: enrichedSlot.isBlocked ?? enrichedSlot.blocked ?? false,
+      isMyReservation,
+      isMyClinicReservation,
+      coachName
     };
-
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/5e3968d2-4334-450b-99ea-38fdb8e4ab73',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SchedulerChart.tsx:140',message:'slot status result',data:{result,slotBlocked:(slot as any).blocked,slotAvailable:slot.available,hasReservation:!!reservation,hasClinic:!!clinic},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
 
     return result;
   };
@@ -252,7 +244,7 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
                     {/* Time slots */}
                     <div className="space-y-1">
                       {hours.map((hour) => {
-                        const { available, reserved, isClinic, blocked } = getSlotStatus(court, day, hour);
+                        const { available, reserved, isClinic, blocked, isMyReservation, isMyClinicReservation, coachName } = getSlotStatus(court, day, hour);
                         const dateString = format(day, "yyyy-MM-dd");
                         const timeSlot = timeSlots.find(
                           slot => slot.courtId === court.id &&
@@ -265,7 +257,9 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
                             key={`${court.id}-${day.toString()}-${hour}`}
                             className={cn(
                               "h-6 rounded-sm flex items-center px-1 text-sm sm:text-xs court-slot transition-all",
+                              isMyClinicReservation ? "bg-purple-500/30 text-purple-800 border-2 border-yellow-500/80" :
                               isClinic ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50" :
+                              isMyReservation ? "bg-purple-500/30 text-purple-800 border border-purple-500/50" :
                               available ? "bg-primary/20 text-primary" :
                               reserved ? "bg-secondary/20 text-secondary" :
                               "bg-gray-100/20 text-gray-500",
@@ -276,9 +270,14 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
                                 onAddUserToReservation(timeSlot.id);
                               }
                             }}
-                            title={!blocked && timeSlot ? "Click to add user to this time slot" : undefined}
+                            title={
+                              isMyClinicReservation ? `My Reservation, Coaching session with ${coachName || 'Coach'}` :
+                              isMyReservation ? "My Reservation" :
+                              isClinic ? "Clinic" :
+                              !blocked && timeSlot ? "Click to add user to this time slot" : undefined
+                            }
                           >
-                            <Clock className="h-3 w-3 mr-1" />
+                            {isMyReservation || isMyClinicReservation ? <User className="h-3 w-3 mr-1" /> : <Clock className="h-3 w-3 mr-1" />}
                             {`${hour}:00`}
                           </div>
                         );
@@ -309,6 +308,14 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-secondary/20 rounded-sm border border-secondary/30"></div>
                 <span>Reserved</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-purple-500/30 rounded-sm border border-purple-500/50"></div>
+                <span>My Reservation</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-purple-500/30 rounded-sm border-2 border-yellow-500/80"></div>
+                <span>My Coaching Session</span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-yellow-500/30 rounded-sm border border-yellow-500/50"></div>

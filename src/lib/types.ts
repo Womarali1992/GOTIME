@@ -13,8 +13,6 @@ export type {
   PrivateSession,
   DaySettings,
   ReservationSettings,
-  Social,
-  TimeSlotVote,
   CreateCourt,
   CreateTimeSlot,
   CreateReservation,
@@ -23,13 +21,10 @@ export type {
   CreateClinic,
   CreatePrivateSession,
   CreateComment,
-  CreateSocial,
   UpdateReservation,
   UpdateUser,
   UpdateCoach,
   UpdateClinic,
   UpdatePrivateSession,
   UpdateTimeSlot,
-  UpdateSocial,
-
 } from './validation/schemas';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,500 +7,398 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Calendar, Users, CreditCard, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { Clock, Settings2, Save, Loader2 } from 'lucide-react';
 import { ReservationSettings, DaySettings } from '@/lib/types';
-import { apiDataService } from '@/lib/services/api-data-service';
-import { validateReservationSettings, validateDaySettings } from '@/lib/utils';
+import { useDataService } from '@/hooks/use-data-service';
+import { toast } from 'sonner';
 
-interface AdminSettingsProps {
-  onSettingsUpdate?: (settings: ReservationSettings) => void;
+const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
+  const hour = i.toString().padStart(2, '0');
+  return `${hour}:00`;
+});
+
+const DURATION_OPTIONS = [
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '1 hour' },
+  { value: 90, label: '1.5 hrs' },
+  { value: 120, label: '2 hrs' },
+];
+
+const BREAK_OPTIONS = [
+  { value: 0, label: 'None' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: '1_week', label: '1 Week' },
+  { value: '2_weeks', label: '2 Weeks' },
+  { value: '4_weeks', label: '4 Weeks' },
+  { value: '6_weeks', label: '6 Weeks' },
+  { value: '8_weeks', label: '8 Weeks' },
+];
+
+function formatTime12h(time24: string): string {
+  const hour = parseInt(time24.split(':')[0]);
+  if (hour === 0) return '12 AM';
+  if (hour < 12) return `${hour} AM`;
+  if (hour === 12) return '12 PM';
+  return `${hour - 12} PM`;
 }
 
-const AdminSettings: React.FC<AdminSettingsProps> = ({ onSettingsUpdate }) => {
+const AdminSettings: React.FC = () => {
+  const { reservationSettings, updateSettings } = useDataService();
   const [settings, setSettings] = useState<ReservationSettings | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [loading, setLoading] = useState(true);
 
+  // Sync from context on mount and when context updates
   useEffect(() => {
-    loadSettings();
+    if (reservationSettings) {
+      setSettings(reservationSettings);
+      setHasChanges(false);
+    }
+  }, [reservationSettings]);
+
+  const handleChange = useCallback((key: keyof ReservationSettings, value: any) => {
+    setSettings(prev => prev ? { ...prev, [key]: value } : prev);
+    setHasChanges(true);
   }, []);
 
-  const loadSettings = async () => {
-    setLoading(true);
-    const loadedSettings = await apiDataService.getReservationSettings();
-    if (loadedSettings) {
-      setSettings(loadedSettings);
-    }
-    setLoading(false);
-  };
-
-  const handleSettingChange = (key: keyof ReservationSettings, value: any) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      [key]: value,
+  const handleDayChange = useCallback((dayIndex: number, key: keyof DaySettings, value: any) => {
+    setSettings(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        operatingHours: prev.operatingHours.map((day, i) =>
+          i === dayIndex ? { ...day, [key]: value } : day
+        ),
+      };
     });
     setHasChanges(true);
-  };
-
-  const handleDaySettingChange = (dayIndex: number, key: keyof DaySettings, value: any) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      operatingHours: settings.operatingHours.map((day, index) =>
-        index === dayIndex ? { ...day, [key]: value } : day
-      ),
-    });
-    setHasChanges(true);
-  };
+  }, []);
 
   const handleSave = async () => {
-    if (!settings) return;
+    if (!settings || saving) return;
 
-    try {
-      // Validate settings before saving
-      const generalErrors = validateReservationSettings(settings);
-      const dayErrors = validateDaySettings(settings.operatingHours);
-      const allErrors = [...generalErrors, ...dayErrors];
-
-      if (allErrors.length > 0) {
-        // Show validation errors
-        console.error('Validation errors:', allErrors);
-        alert(`Please fix the following errors:\n\n${allErrors.join('\n')}`);
+    // Basic validation
+    for (const day of settings.operatingHours) {
+      if (day.isOpen && day.startTime >= day.endTime) {
+        toast.error(`${day.dayOfWeek}: start time must be before end time`);
         return;
       }
+    }
+    if (settings.minPlayersPerSlot > settings.maxPlayersPerSlot) {
+      toast.error('Minimum players cannot exceed maximum players');
+      return;
+    }
 
-      console.log('Saving settings to database:', settings);
-      const updatedSettings = await apiDataService.updateReservationSettings(settings);
-      console.log('Settings updated in database:', updatedSettings);
-
-      // Also save to localStorage so local DataService picks it up
-      localStorage.setItem('picklepop_reservation_settings', JSON.stringify(updatedSettings));
-
-      setSettings(updatedSettings);
-      setIsEditing(false);
+    setSaving(true);
+    try {
+      await updateSettings(settings);
       setHasChanges(false);
-
-      if (onSettingsUpdate) {
-        onSettingsUpdate(updatedSettings);
-      }
-
-      console.log('Settings saved successfully');
-      alert('Settings saved successfully! The page will reload to apply changes.');
-
-      // Reload the page to ensure all time slots are regenerated
-      window.location.reload();
+      toast.success('Settings saved');
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Error saving settings. Please try again.');
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleReset = async () => {
-    await loadSettings();
-    setHasChanges(false);
-    setIsEditing(false);
-  };
+  const handleDiscard = useCallback(() => {
+    if (reservationSettings) {
+      setSettings(reservationSettings);
+      setHasChanges(false);
+    }
+  }, [reservationSettings]);
 
-  const handleCancel = async () => {
-    await loadSettings();
-    setHasChanges(false);
-    setIsEditing(false);
-  };
-
-  const timeOptions = Array.from({ length: 24 }, (_, i) => {
-    const hour = i.toString().padStart(2, '0');
-    return `${hour}:00`;
-  });
-
-  const durationOptions = [
-    { value: 30, label: '30 minutes' },
-    { value: 45, label: '45 minutes' },
-    { value: 60, label: '1 hour' },
-    { value: 90, label: '1.5 hours' },
-    { value: 120, label: '2 hours' },
-  ];
-
-  const breakTimeOptions = [
-    { value: 0, label: 'No break' },
-    { value: 15, label: '15 minutes' },
-    { value: 30, label: '30 minutes' },
-    { value: 45, label: '45 minutes' },
-  ];
-
-  if (loading || !settings) {
-    return <div className="flex items-center justify-center p-12">Loading settings...</div>;
+  if (!settings) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+        Loading settings...
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      {/* Header with save bar */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Reservation Settings
+            Court Settings
           </h2>
-          <p className="text-muted-foreground">
-            Configure how the reservation system operates
+          <p className="text-sm text-muted-foreground">
+            Operating hours, booking rules, and court configuration
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} className="bg-primary hover:bg-primary/90 text-sm sm:text-base">
-              Edit Settings
+        {hasChanges && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleDiscard}>
+              Discard
             </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleCancel} className="text-sm sm:text-base">
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={!hasChanges}
-                className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
-            </>
-          )}
-        </div>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+              Save Changes
+            </Button>
+          </div>
+        )}
       </div>
-
-      {/* General Settings */}
-      <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            General Settings
-          </CardTitle>
-          <CardDescription>
-            Configure basic reservation rules and limits
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="courtName">Court Name</Label>
-              <Input
-                id="courtName"
-                type="text"
-                value={settings.courtName || 'Pickleball Court'}
-                onChange={(e) => handleSettingChange('courtName', e.target.value)}
-                disabled={!isEditing}
-                placeholder="Enter your court name"
-                className="max-w-md"
-              />
-              <p className="text-xs text-muted-foreground">
-                This name will appear in the header and throughout the system
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="advanceBookingLimit">Advance Booking Limit</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="advanceBookingLimit"
-                  type="number"
-                  min="1"
-                  max="168"
-                  value={settings.advanceBookingLimit || 24}
-                  onChange={(e) => handleSettingChange('advanceBookingLimit', parseInt(e.target.value))}
-                  disabled={!isEditing}
-                  className="flex-1"
-                />
-                <span className="text-sm text-muted-foreground">hours</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                How many hours in advance users can book
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cancellationDeadline">Cancellation Deadline</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="cancellationDeadline"
-                  type="number"
-                  min="0"
-                  max="24"
-                  value={settings.cancellationDeadline || 2}
-                  onChange={(e) => handleSettingChange('cancellationDeadline', parseInt(e.target.value))}
-                  disabled={!isEditing}
-                  className="flex-1"
-                />
-                <span className="text-sm text-muted-foreground">hours</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                How many hours before the slot users can cancel
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="maxPlayersPerSlot">Maximum Players per Slot</Label>
-              <Input
-                id="maxPlayersPerSlot"
-                type="number"
-                min="1"
-                max="8"
-                value={settings.maxPlayersPerSlot || 4}
-                onChange={(e) => handleSettingChange('maxPlayersPerSlot', parseInt(e.target.value))}
-                disabled={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="minPlayersPerSlot">Minimum Players per Slot</Label>
-              <Input
-                id="minPlayersPerSlot"
-                type="number"
-                min="1"
-                max={settings.maxPlayersPerSlot || 4}
-                value={settings.minPlayersPerSlot || 1}
-                onChange={(e) => handleSettingChange('minPlayersPerSlot', parseInt(e.target.value))}
-                disabled={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="timeSlotVisibilityPeriod">Time Slot Visibility Period</Label>
-              <Select
-                value={settings.timeSlotVisibilityPeriod}
-                onValueChange={(value) => handleSettingChange('timeSlotVisibilityPeriod', value)}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1_week">1 Week</SelectItem>
-                  <SelectItem value="2_weeks">2 Weeks</SelectItem>
-                  <SelectItem value="4_weeks">4 Weeks</SelectItem>
-                  <SelectItem value="6_weeks">6 Weeks</SelectItem>
-                  <SelectItem value="8_weeks">8 Weeks</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                How far in advance users can view and book time slots
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="grid grid-cols-1 gap-6">
-            <div className="flex items-center justify-between p-4 border border-border/30 rounded-lg">
-              <div className="space-y-0.5">
-                <Label htmlFor="allowWalkIns">Allow Walk-ins</Label>
-                <p className="text-sm text-muted-foreground">
-                  Allow users to book same-day slots
-                </p>
-              </div>
-              <Switch
-                id="allowWalkIns"
-                checked={settings.allowWalkIns}
-                onCheckedChange={(checked) => handleSettingChange('allowWalkIns', checked)}
-                disabled={!isEditing}
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-4 border border-border/30 rounded-lg">
-              <div className="space-y-0.5">
-                <Label htmlFor="requirePayment">Require Payment</Label>
-                <p className="text-sm text-muted-foreground">
-                  Require payment confirmation for bookings
-                </p>
-              </div>
-              <Switch
-                id="requirePayment"
-                checked={settings.requirePayment}
-                onCheckedChange={(checked) => handleSettingChange('requirePayment', checked)}
-                disabled={!isEditing}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Operating Hours */}
       <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" />
             Operating Hours
           </CardTitle>
-          <CardDescription>
-            Set operating hours and time slot configurations for each day
+          <CardDescription className="text-xs">
+            Set when courts are open for each day of the week
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {settings.operatingHours.map((day, index) => (
-            <div key={day.dayOfWeek} className="border border-border/30 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant={day.isOpen ? "default" : "secondary"}>
-                    {day.dayOfWeek.charAt(0).toUpperCase() + day.dayOfWeek.slice(1)}
-                  </Badge>
+            <div
+              key={day.dayOfWeek}
+              className={`rounded-lg border p-3 transition-colors ${
+                day.isOpen ? 'border-border/50 bg-background' : 'border-border/20 bg-muted/30'
+              }`}
+            >
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Day name + toggle */}
+                <div className="flex items-center gap-2 min-w-[140px]">
                   <Switch
                     checked={day.isOpen}
-                    onCheckedChange={(checked) => handleDaySettingChange(index, 'isOpen', checked)}
-                    disabled={!isEditing}
+                    onCheckedChange={(checked) => handleDayChange(index, 'isOpen', checked)}
                   />
-                  <span className="text-sm text-muted-foreground">
-                    {day.isOpen ? 'Open' : 'Closed'}
-                  </span>
+                  <Badge variant={day.isOpen ? "default" : "secondary"} className="text-xs">
+                    {day.dayOfWeek.charAt(0).toUpperCase() + day.dayOfWeek.slice(1)}
+                  </Badge>
                 </div>
-              </div>
 
-              {day.isOpen && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Time</Label>
+                {day.isOpen ? (
+                  <div className="flex items-center gap-2 flex-wrap flex-1">
+                    {/* Start time */}
                     <Select
                       value={day.startTime}
-                      onValueChange={(value) => handleDaySettingChange(index, 'startTime', value)}
-                      disabled={!isEditing}
+                      onValueChange={(v) => handleDayChange(index, 'startTime', v)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-[90px] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeOptions.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time}
-                          </SelectItem>
+                        {TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t} value={t} className="text-xs">{formatTime12h(t)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label>End Time</Label>
+                    <span className="text-xs text-muted-foreground">to</span>
+
+                    {/* End time */}
                     <Select
                       value={day.endTime}
-                      onValueChange={(value) => handleDaySettingChange(index, 'endTime', value)}
-                      disabled={!isEditing}
+                      onValueChange={(v) => handleDayChange(index, 'endTime', v)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-[90px] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeOptions.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time}
-                          </SelectItem>
+                        {TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t} value={t} className="text-xs">{formatTime12h(t)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label>Slot Duration</Label>
+                    <span className="text-muted-foreground/40">|</span>
+
+                    {/* Slot duration */}
                     <Select
                       value={day.timeSlotDuration?.toString() || '60'}
-                      onValueChange={(value) => handleDaySettingChange(index, 'timeSlotDuration', parseInt(value))}
-                      disabled={!isEditing}
+                      onValueChange={(v) => handleDayChange(index, 'timeSlotDuration', parseInt(v))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-[85px] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {durationOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value.toString()}>
-                            {option.label}
-                          </SelectItem>
+                        {DURATION_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value.toString()} className="text-xs">{o.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label>Break Time</Label>
+                    {/* Break time */}
                     <Select
                       value={day.breakTime?.toString() || '0'}
-                      onValueChange={(value) => handleDaySettingChange(index, 'breakTime', parseInt(value))}
-                      disabled={!isEditing}
+                      onValueChange={(v) => handleDayChange(index, 'breakTime', parseInt(v))}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
+                      <SelectTrigger className="w-[80px] h-8 text-xs">
+                        <SelectValue placeholder="Break" />
                       </SelectTrigger>
                       <SelectContent>
-                        {breakTimeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value.toString()}>
-                            {option.label}
+                        {BREAK_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value.toString()} className="text-xs">
+                            {o.value === 0 ? 'No break' : `${o.label} break`}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Closed</span>
+                )}
+              </div>
             </div>
           ))}
         </CardContent>
       </Card>
 
-      {/* Summary Card */}
+      {/* Booking Rules */}
       <Card className="border border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Settings Summary
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Settings2 className="h-4 w-4" />
+            Booking Rules
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.operatingHours.filter(day => day.isOpen).length}
+        <CardContent className="space-y-5">
+          {/* Court name */}
+          <div className="space-y-1">
+            <Label htmlFor="courtName" className="text-xs">Court Name</Label>
+            <Input
+              id="courtName"
+              value={settings.courtName || ''}
+              onChange={(e) => handleChange('courtName', e.target.value)}
+              placeholder="Pickleball Court"
+              className="max-w-sm h-9 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Advance booking limit */}
+            <div className="space-y-1">
+              <Label htmlFor="advanceBooking" className="text-xs">Advance Booking Limit</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="advanceBooking"
+                  type="number"
+                  min="1"
+                  max="168"
+                  value={settings.advanceBookingLimit || 24}
+                  onChange={(e) => handleChange('advanceBookingLimit', parseInt(e.target.value) || 1)}
+                  className="h-9 text-sm"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">hours</span>
               </div>
-              <div className="text-sm text-muted-foreground">Days Open</div>
             </div>
-            <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.advanceBookingLimit || 24}h
+
+            {/* Cancellation deadline */}
+            <div className="space-y-1">
+              <Label htmlFor="cancellation" className="text-xs">Cancellation Deadline</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="cancellation"
+                  type="number"
+                  min="0"
+                  max="24"
+                  value={settings.cancellationDeadline || 0}
+                  onChange={(e) => handleChange('cancellationDeadline', parseInt(e.target.value) || 0)}
+                  className="h-9 text-sm"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">hours before</span>
               </div>
-              <div className="text-sm text-muted-foreground">Advance Booking</div>
             </div>
-            <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.maxPlayersPerSlot || 4}
-              </div>
-              <div className="text-sm text-muted-foreground">Max Players</div>
+
+            {/* Visibility period */}
+            <div className="space-y-1">
+              <Label className="text-xs">Slot Visibility</Label>
+              <Select
+                value={settings.timeSlotVisibilityPeriod}
+                onValueChange={(v) => handleChange('timeSlotVisibilityPeriod', v)}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISIBILITY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-primary">
-                {settings.timeSlotVisibilityPeriod?.replace('_', ' ').replace('weeks', 'wks').replace('week', 'wk') || '4 weeks'}
-              </div>
-              <div className="text-sm text-muted-foreground">Visibility Period</div>
+
+            {/* Max players */}
+            <div className="space-y-1">
+              <Label htmlFor="maxPlayers" className="text-xs">Max Players / Slot</Label>
+              <Input
+                id="maxPlayers"
+                type="number"
+                min="1"
+                max="8"
+                value={settings.maxPlayersPerSlot || 4}
+                onChange={(e) => handleChange('maxPlayersPerSlot', parseInt(e.target.value) || 1)}
+                className="h-9 text-sm"
+              />
+            </div>
+
+            {/* Min players */}
+            <div className="space-y-1">
+              <Label htmlFor="minPlayers" className="text-xs">Min Players / Slot</Label>
+              <Input
+                id="minPlayers"
+                type="number"
+                min="1"
+                max={settings.maxPlayersPerSlot || 4}
+                value={settings.minPlayersPerSlot || 1}
+                onChange={(e) => handleChange('minPlayersPerSlot', parseInt(e.target.value) || 1)}
+                className="h-9 text-sm"
+              />
             </div>
           </div>
-          
-          <div className="mt-4 p-3 bg-muted/20 rounded-lg">
-            <div className="text-sm text-muted-foreground">
-              <strong>Last Updated:</strong> {new Date(settings.updatedAt).toLocaleString()}
+
+          <Separator />
+
+          {/* Toggles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border/30">
+              <div>
+                <Label htmlFor="walkIns" className="text-sm">Allow Walk-ins</Label>
+                <p className="text-xs text-muted-foreground">Same-day booking</p>
+              </div>
+              <Switch
+                id="walkIns"
+                checked={settings.allowWalkIns}
+                onCheckedChange={(checked) => handleChange('allowWalkIns', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border/30">
+              <div>
+                <Label htmlFor="payment" className="text-sm">Require Payment</Label>
+                <p className="text-xs text-muted-foreground">Payment for bookings</p>
+              </div>
+              <Switch
+                id="payment"
+                checked={settings.requirePayment}
+                onCheckedChange={(checked) => handleChange('requirePayment', checked)}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      {isEditing && (
-        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={handleReset} className="text-sm sm:text-base">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Reset to Defaults
+      {/* Sticky save bar at bottom when changes exist */}
+      {hasChanges && (
+        <div className="sticky bottom-4 flex justify-end gap-2 p-3 rounded-lg bg-background/95 border border-border/50 shadow-lg backdrop-blur">
+          <Button variant="outline" size="sm" onClick={handleDiscard}>
+            Discard
           </Button>
-          <Button variant="outline" onClick={handleCancel} className="text-sm sm:text-base">
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            disabled={!hasChanges}
-            className="bg-primary hover:bg-primary/90 text-sm sm:text-base"
-          >
-            <Save className="h-4 w-4 mr-2" />
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
             Save Changes
           </Button>
         </div>

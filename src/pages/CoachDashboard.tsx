@@ -1,18 +1,19 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCoach } from '@/contexts/CoachContext';
+import { useDataService } from '@/hooks/use-data-service';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { dataService } from '@/lib/services/data-service';
 import { format } from 'date-fns';
 import { Calendar, Users, DollarSign, Clock } from 'lucide-react';
 
 export default function CoachDashboard() {
   const navigate = useNavigate();
   const { currentCoach, isAuthenticated, logout } = useCoach();
+  const { clinics } = useDataService();
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -25,16 +26,8 @@ export default function CoachDashboard() {
     return null;
   }
 
-  // Get coach's bookings
-  const bookings = dataService.privateSessionService.getCoachBookings(currentCoach.id);
-  const clinics = dataService.clinicService.getClinicsByCoach(currentCoach.id);
-  const allUpcoming = [...bookings.upcoming].sort((a, b) =>
-    `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)
-  );
-
-  // Calculate stats
-  const totalEarnings = dataService.privateSessionService.getCoachEarnings(currentCoach.id);
-  const totalSessions = dataService.privateSessionService.getCoachSessionCount(currentCoach.id);
+  // Get coach's clinics from context
+  const coachClinics = clinics.filter(c => c.coachId === currentCoach.id);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -46,136 +39,41 @@ export default function CoachDashboard() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalSessions}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{allUpcoming.length}</div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 md:grid-cols-3 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Clinics</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{clinics.length}</div>
+              <div className="text-2xl font-bold">{coachClinics.length}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+              <CardTitle className="text-sm font-medium">Hourly Rate</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalEarnings.toFixed(2)}</div>
+              <div className="text-2xl font-bold">${currentCoach.hourlyRate}/hr</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{currentCoach.isActive ? 'Active' : 'Inactive'}</div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="schedule" className="space-y-4">
+        <Tabs defaultValue="clinics" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="schedule">Schedule</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings</TabsTrigger>
             <TabsTrigger value="clinics">Clinics</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="schedule" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Schedule</CardTitle>
-                <CardDescription>
-                  Your upcoming private sessions and clinics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {allUpcoming.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No upcoming sessions scheduled
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {allUpcoming.map((session) => (
-                      <div
-                        key={session.id}
-                        className="flex items-center justify-between p-4 border rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            {format(new Date(session.date), 'EEEE, MMMM d, yyyy')}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {session.startTime} - {session.endTime}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            Court: {session.court?.name}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">${session.price}</p>
-                          <p className="text-sm text-gray-600">
-                            {session.client?.name || 'Client'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="bookings" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Private Coaching Sessions</CardTitle>
-                <CardDescription>Manage your one-on-one sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {bookings.upcoming.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No upcoming private sessions
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {bookings.upcoming.map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="flex items-center justify-between p-3 border rounded-md"
-                      >
-                        <div>
-                          <p className="font-medium">{booking.client?.name}</p>
-                          <p className="text-sm text-gray-600">
-                            {format(new Date(booking.date), 'MMM d, yyyy')} at{' '}
-                            {booking.startTime}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">${booking.price}</p>
-                          <p className="text-xs text-gray-500 capitalize">
-                            {booking.status}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="clinics" className="space-y-4">
             <Card>
@@ -184,11 +82,11 @@ export default function CoachDashboard() {
                 <CardDescription>Group training sessions you're coaching</CardDescription>
               </CardHeader>
               <CardContent>
-                {clinics.length === 0 ? (
+                {coachClinics.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No clinics scheduled</p>
                 ) : (
                   <div className="space-y-2">
-                    {clinics.map((clinic) => (
+                    {coachClinics.map((clinic) => (
                       <div
                         key={clinic.id}
                         className="flex items-center justify-between p-3 border rounded-md"

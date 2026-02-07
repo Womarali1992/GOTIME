@@ -6,6 +6,7 @@ import { Menu, User, GraduationCap, Settings } from "lucide-react";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import UserSettings from "@/components/UserSettings";
+import SignInDialog from "@/components/SignInDialog";
 import { useUser } from "@/contexts/UserContext";
 import { useCoach } from "@/contexts/CoachContext";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import { useDataService } from "@/hooks/use-data-service";
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSignInOpen, setIsSignInOpen] = useState(false);
   const isMobile = useIsMobile();
   const location = useLocation();
   const { currentUser, isAuthenticated, logout } = useUser();
@@ -35,7 +37,6 @@ const Header = () => {
 
   const navigation = [
     { name: "Book a Court", href: "/", current: true },
-    { name: "Find Players", href: "/socials", current: false },
     { name: "Book a Coach", href: "/book-coach", current: false },
     { name: "Admin Dashboard", href: "/admin", current: false },
     { name: "Coach Portal", href: "/coach-login", current: false },
@@ -128,9 +129,23 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button className="paper-button text-sm px-3 py-2 sm:px-4 sm:py-2">
-              Sign In
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="text-sm px-3 py-2 sm:px-4 sm:py-2"
+                title="Sign in (optional - you can book as a guest)"
+                onClick={() => setIsSignInOpen(true)}
+              >
+                Sign In
+              </Button>
+              <Button
+                variant="default"
+                className="text-sm px-3 py-2 sm:px-4 sm:py-2"
+                asChild
+              >
+                <Link to="/signup">Sign Up</Link>
+              </Button>
+            </div>
           )}
 
           {/* Mobile menu button */}
@@ -179,12 +194,15 @@ const Header = () => {
       
       {/* User Settings Dialog (controlled from dropdown) */}
       {!isCoachPortal && (
-        <UserSettings 
-          currentUserEmail={currentUser?.email} 
-          open={isSettingsOpen} 
+        <UserSettings
+          currentUserEmail={currentUser?.email}
+          open={isSettingsOpen}
           onOpenChange={setIsSettingsOpen}
         />
       )}
+
+      {/* Sign In Dialog */}
+      <SignInDialog open={isSignInOpen} onOpenChange={setIsSignInOpen} />
     </header>
   );
 };

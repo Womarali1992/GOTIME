@@ -1,22 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Coach } from '@/lib/types';
-import { dataService } from '@/lib/services/data-service';
+import { apiDataService } from '@/lib/services/api-data-service';
+
+// Scope localStorage keys by subdomain so different tenants don't share sessions
+function getStorageKey(key: string): string {
+  const subdomain = window.location.hostname.split('.')[0];
+  return `${subdomain}:${key}`;
+}
 
 interface CoachContextType {
   currentCoach: Coach | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateCurrentCoach: (coachData: Partial<Coach>) => void;
+  updateCurrentCoach: (coachData: Partial<Coach>) => Promise<void>;
 }
 
-// Create a default context value that matches our interface
 const defaultContextValue: CoachContextType = {
   currentCoach: null,
   isAuthenticated: false,
-  login: () => ({ success: false, error: 'login called outside of CoachProvider' }),
-  logout: () => console.warn('logout called outside of CoachProvider'),
-  updateCurrentCoach: () => console.warn('updateCurrentCoach called outside of CoachProvider'),
+  login: async () => ({ success: false, error: 'login called outside of CoachProvider' }),
+  logout: () => {},
+  updateCurrentCoach: async () => {},
 };
 
 const CoachContext = createContext<CoachContextType>(defaultContextValue);
@@ -26,52 +31,57 @@ interface CoachProviderProps {
 }
 
 export const CoachProvider: React.FC<CoachProviderProps> = ({ children }) => {
-  console.log('CoachProvider rendering');
   const [currentCoach, setCurrentCoach] = useState<Coach | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Initialize coach from localStorage
   useEffect(() => {
-    const savedCoachEmail = localStorage.getItem('currentCoachEmail');
+    const initializeCoach = async () => {
+      const savedCoachEmail = localStorage.getItem(getStorageKey('currentCoachEmail'));
 
-    if (savedCoachEmail) {
-      const coaches = dataService.coachService.getAllCoaches();
-      const coach = coaches.find(c => c.email === savedCoachEmail);
-      if (coach && coach.isActive) {
-        setCurrentCoach(coach);
-        setIsAuthenticated(true);
-      } else {
-        // Clear invalid session
-        localStorage.removeItem('currentCoachEmail');
+      if (savedCoachEmail) {
+        try {
+          const coaches = await apiDataService.getAllCoaches();
+          const coach = coaches.find(c => c.email === savedCoachEmail);
+          if (coach && coach.isActive) {
+            setCurrentCoach(coach);
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem(getStorageKey('currentCoachEmail'));
+          }
+        } catch {
+          localStorage.removeItem(getStorageKey('currentCoachEmail'));
+        }
       }
-    }
+    };
+    initializeCoach();
   }, []);
 
-  const login = (email: string, password: string): { success: boolean; error?: string } => {
-    const result = dataService.coachService.authenticateCoach(email, password);
-
-    if (result.success && result.coach) {
-      setCurrentCoach(result.coach);
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const coach = await apiDataService.loginCoach(email, password);
+      setCurrentCoach(coach);
       setIsAuthenticated(true);
-      localStorage.setItem('currentCoachEmail', result.coach.email);
+      localStorage.setItem(getStorageKey('currentCoachEmail'), coach.email);
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Authentication failed' };
     }
-
-    return { success: false, error: result.error || 'Authentication failed' };
   };
 
   const logout = () => {
     setCurrentCoach(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('currentCoachEmail');
+    localStorage.removeItem(getStorageKey('currentCoachEmail'));
   };
 
-  const updateCurrentCoach = (coachData: Partial<Coach>) => {
+  const updateCurrentCoach = async (coachData: Partial<Coach>) => {
     if (currentCoach) {
-      const result = dataService.coachService.updateCoach(currentCoach.id, coachData);
-
-      if (result.success && result.coach) {
-        setCurrentCoach(result.coach);
+      try {
+        const updatedCoach = await apiDataService.updateCoach(currentCoach.id, coachData);
+        setCurrentCoach(updatedCoach);
+      } catch (error) {
+        console.error('Failed to update coach:', error);
       }
     }
   };
@@ -84,8 +94,6 @@ export const CoachProvider: React.FC<CoachProviderProps> = ({ children }) => {
     updateCurrentCoach,
   };
 
-  console.log('CoachProvider providing value:', { currentCoach: currentCoach?.email || null, isAuthenticated });
-
   return (
     <CoachContext.Provider value={value}>
       {children}
@@ -94,13 +102,5 @@ export const CoachProvider: React.FC<CoachProviderProps> = ({ children }) => {
 };
 
 export const useCoach = (): CoachContextType => {
-  const context = useContext(CoachContext);
-  console.log('useCoach called, context:', context);
-
-  // Check if we're getting the default context (which means we're outside a provider)
-  if (context === defaultContextValue) {
-    console.warn('useCoach: Using default context - component may be outside CoachProvider');
-  }
-
-  return context;
+  return useContext(CoachContext);
 };

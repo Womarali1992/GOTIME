@@ -1,61 +1,46 @@
 import express from 'express';
-import { db } from '../db/database';
+import { query, safeParseJSON } from '../db/database.js';
 
 const router = express.Router();
 
 // Get all clinics
-router.get('/', (req, res) => {
-  const clinics = db.prepare('SELECT * FROM clinics').all();
-  res.json(clinics.map(clinic => ({
+router.get('/', async (req, res) => {
+  const { rows } = await query('SELECT * FROM clinics WHERE tenant_id = $1', [req.tenantId]);
+  res.json(rows.map(clinic => ({
     ...clinic,
-    participants: JSON.parse(clinic.participants || '[]')
+    participants: safeParseJSON(clinic.participants, [])
   })));
 });
 
 // Get clinic by ID
-router.get('/:id', (req, res) => {
-  const clinic = db.prepare('SELECT * FROM clinics WHERE id = ?').get(req.params.id);
-  if (!clinic) {
+router.get('/:id', async (req, res) => {
+  const { rows } = await query('SELECT * FROM clinics WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+  if (rows.length === 0) {
     return res.status(404).json({ error: 'Clinic not found' });
   }
   res.json({
-    ...clinic,
-    participants: JSON.parse(clinic.participants || '[]')
+    ...rows[0],
+    participants: safeParseJSON(rows[0].participants, [])
   });
 });
 
 // Create clinic
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { coachId, title, description, date, startTime, endTime, timeSlotId, maxParticipants, participants, price, level } = req.body;
   const id = `clinic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const createdAt = new Date().toISOString();
 
-  const insert = db.prepare(`
-    INSERT INTO clinics (id, coachId, title, description, date, startTime, endTime, timeSlotId, maxParticipants, participants, price, level, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   try {
-    insert.run(
-      id,
-      coachId,
-      title,
-      description,
-      date,
-      startTime,
-      endTime,
-      timeSlotId,
-      maxParticipants || 8,
-      JSON.stringify(participants || []),
-      price || 0,
-      level,
-      createdAt
+    await query(
+      `INSERT INTO clinics (id, tenant_id, "coachId", title, description, date, "startTime", "endTime", "timeSlotId", "maxParticipants", participants, price, level, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [id, req.tenantId, coachId, title, description, date, startTime, endTime, timeSlotId, maxParticipants || 8, JSON.stringify(participants || []), price || 0, level, createdAt]
     );
 
-    const clinic = db.prepare('SELECT * FROM clinics WHERE id = ?').get(id);
+    const { rows } = await query('SELECT * FROM clinics WHERE id = $1 AND tenant_id = $2', [id, req.tenantId]);
     res.status(201).json({
-      ...clinic,
-      participants: JSON.parse(clinic.participants || '[]')
+      ...rows[0],
+      participants: safeParseJSON(rows[0].participants, [])
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to create clinic' });
@@ -63,43 +48,31 @@ router.post('/', (req, res) => {
 });
 
 // Update clinic
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { title, description, maxParticipants, participants, price, level } = req.body;
   const updatedAt = new Date().toISOString();
 
-  const update = db.prepare(`
-    UPDATE clinics
-    SET title = ?, description = ?, maxParticipants = ?, participants = ?, price = ?, level = ?, updatedAt = ?
-    WHERE id = ?
-  `);
-
-  const result = update.run(
-    title,
-    description,
-    maxParticipants,
-    JSON.stringify(participants || []),
-    price,
-    level,
-    updatedAt,
-    req.params.id
+  const result = await query(
+    `UPDATE clinics SET title = $1, description = $2, "maxParticipants" = $3, participants = $4, price = $5, level = $6, "updatedAt" = $7 WHERE id = $8 AND tenant_id = $9`,
+    [title, description, maxParticipants, JSON.stringify(participants || []), price, level, updatedAt, req.params.id, req.tenantId]
   );
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Clinic not found' });
   }
 
-  const clinic = db.prepare('SELECT * FROM clinics WHERE id = ?').get(req.params.id);
+  const { rows } = await query('SELECT * FROM clinics WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
   res.json({
-    ...clinic,
-    participants: JSON.parse(clinic.participants || '[]')
+    ...rows[0],
+    participants: safeParseJSON(rows[0].participants, [])
   });
 });
 
 // Delete clinic
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM clinics WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  const result = await query('DELETE FROM clinics WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Clinic not found' });
   }
 

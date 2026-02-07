@@ -1,7 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { ReservationSettings, DaySettings, TimeSlot } from "./types"
-import { dataService } from "./services/data-service"
+import { ReservationSettings, DaySettings, TimeSlot, Reservation, Clinic } from "./types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -86,10 +85,10 @@ export function validateDaySettings(daySettings: DaySettings[]): string[] {
 }
 
 // Standardized timeslot status determination
-export function getTimeSlotStatus(slot: TimeSlot) {
-  const reservation = dataService.reservationService.getAllReservations().find(res => res.timeSlotId === slot.id);
-  const clinic = slot.type === 'clinic' && slot.clinicId 
-    ? dataService.clinicService.getClinicById(slot.clinicId) 
+export function getTimeSlotStatus(slot: TimeSlot, reservations: Reservation[] = [], clinics: Clinic[] = []) {
+  const reservation = reservations.find(res => res.timeSlotId === slot.id);
+  const clinic = slot.type === 'clinic' && slot.clinicId
+    ? clinics.find(c => c.id === slot.clinicId) ?? null
     : null;
   
   const isBlocked = slot.blocked;
@@ -108,8 +107,8 @@ export function getTimeSlotStatus(slot: TimeSlot) {
 }
 
 // Get status text for display - now uses centralized function
-export function getTimeSlotStatusText(slot: TimeSlot): string {
-  const status = getTimeSlotStatus(slot);
+export function getTimeSlotStatusText(slot: TimeSlot, reservations: Reservation[] = [], clinics: Clinic[] = []): string {
+  const status = getTimeSlotStatus(slot, reservations, clinics);
   
   if (status.blocked) return "Blocked";
   if (status.isClinic) return "Clinic";

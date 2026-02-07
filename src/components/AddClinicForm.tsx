@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { dataService } from "@/lib/services/data-service";
+import { useDataService } from "@/hooks/use-data-service";
 import { Clinic } from "@/lib/types";
 
 interface AddClinicFormProps {
@@ -15,6 +15,7 @@ interface AddClinicFormProps {
 }
 
 export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicFormProps) {
+  const { coaches, courts } = useDataService();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -125,7 +126,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
                 <SelectValue placeholder="Select a coach" />
               </SelectTrigger>
               <SelectContent>
-                {dataService.coachService.getAllCoaches().map((coach) => (
+                {coaches.map((coach) => (
                   <SelectItem key={coach.id} value={coach.id}>
                     {coach.name}
                   </SelectItem>
@@ -140,7 +141,7 @@ export default function AddClinicForm({ isOpen, onClose, onSave }: AddClinicForm
                 <SelectValue placeholder="Select a court" />
               </SelectTrigger>
               <SelectContent>
-                {dataService.getAllCourts().map((court) => (
+                {courts.map((court) => (
                   <SelectItem key={court.id} value={court.id}>
                     {court.name} - {court.location}
                   </SelectItem>

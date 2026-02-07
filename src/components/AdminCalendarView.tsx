@@ -9,10 +9,12 @@ import { apiDataService } from "@/lib/services/api-data-service";
 
 interface AdminCalendarViewProps {
   onAddUserToReservation?: (timeSlotId: string) => void;
+  onEditReservation?: (reservation: any) => void;
+  onCancelReservation?: (reservationId: string) => Promise<void>;
   refreshKey?: number;
 }
 
-const AdminCalendarView = ({ onAddUserToReservation, refreshKey = 0 }: AdminCalendarViewProps) => {
+const AdminCalendarView = ({ onAddUserToReservation, onEditReservation, onCancelReservation, refreshKey = 0 }: AdminCalendarViewProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentDateSlots, setCurrentDateSlots] = useState<any[]>([]);
   const [courts, setCourts] = useState<any[]>([]);
@@ -319,6 +321,14 @@ const AdminCalendarView = ({ onAddUserToReservation, refreshKey = 0 }: AdminCale
                                 );
                               }
 
+                              const handleSlotClick = () => {
+                                if (slot.isReserved && slot.reservation && onEditReservation) {
+                                  onEditReservation(slot.reservation);
+                                } else if (onAddUserToReservation) {
+                                  onAddUserToReservation(slot.id);
+                                }
+                              };
+
                               return (
                                 <Button
                                   key={slot.id}
@@ -326,11 +336,22 @@ const AdminCalendarView = ({ onAddUserToReservation, refreshKey = 0 }: AdminCale
                                   className={`h-20 sm:h-24 flex flex-col items-center justify-center gap-2 ${getSlotColor(
                                     slot.id
                                   )} border-2 rounded-lg font-semibold transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-95`}
-                                  onClick={() => {
-                                    if (onAddUserToReservation) {
-                                      onAddUserToReservation(slot.id);
+                                  onClick={handleSlotClick}
+                                  onContextMenu={(e) => {
+                                    if (slot.isReserved && slot.reservation && onCancelReservation) {
+                                      e.preventDefault();
+                                      if (window.confirm(`Are you sure you want to cancel the reservation for ${slot.reservation.playerName}? This action cannot be undone.`)) {
+                                        onCancelReservation(slot.reservation.id).catch(error => {
+                                          console.error("Error canceling reservation:", error);
+                                        });
+                                      }
                                     }
                                   }}
+                                  title={slot.isReserved && slot.reservation
+                                    ? `Reserved by ${slot.reservation.playerName}. Click to edit, right-click to cancel.`
+                                    : slot.status === 'available'
+                                    ? 'Click to book this time slot'
+                                    : getSlotStatus(slot.id)}
                                 >
                                   <div className="flex items-center justify-center">
                                     {getSlotIconComponent(slot.id)}
@@ -338,6 +359,11 @@ const AdminCalendarView = ({ onAddUserToReservation, refreshKey = 0 }: AdminCale
                                   <span className={`text-xs sm:text-sm font-bold ${getSlotTextColor(slot.id)}`}>
                                     {getSlotStatus(slot.id)}
                                   </span>
+                                  {slot.isReserved && slot.reservation && (
+                                    <span className="text-[10px] text-muted-foreground truncate max-w-full px-1">
+                                      {slot.reservation.playerName}
+                                    </span>
+                                  )}
                                 </Button>
                               );
                             })}

@@ -26,7 +26,14 @@
       "Bash(node:*)",
       "Bash(curl -X POST http://localhost:3001/api/socials -H \"Content-Type: application/json\" -d \"{\"\"title\"\":\"\"Test\"\",\"\"description\"\":\"\"Test\"\",\"\"date\"\":\"\"2025-12-14\"\",\"\"startTime\"\":\"\"10:00\"\",\"\"endTime\"\":\"\"11:00\"\",\"\"timeSlotId\"\":\"\"test-slot\"\",\"\"status\"\":\"\"active\"\",\"\"votes\"\":[],\"\"createdById\"\":\"\"user-1\"\"}\")",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nMigrate to SQLite backend and clean up dead code\n\nPhase 5 completion: Removed ~3,000 lines of dead code and consolidated to single data layer.\n\nChanges:\n- Added SQLite database with Express REST API server\n- Implemented API data service for all client-server communication\n- Deleted all repository classes (9 files) and unused service files (6 files)\n- Removed legacy data layer (data.ts) and backup files\n- Removed dexie (IndexedDB) dependency\n- Updated all components to use unified useDataService hook\n- Added database migration scripts and setup utilities\n\nArchitecture improvements:\n- Single source of truth: SQLite backend\n- Unified data access: Components → useDataService → API Service → SQLite\n- No more local storage or IndexedDB complexity\n- Simplified component data access patterns\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(npm run dev:server:*)",
+      "Bash(python:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,221 +1,30 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronLeft, ChevronRight, Clock, MapPin, User, Users, GraduationCap } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addDays, subDays, startOfDay, startOfWeek } from "date-fns";
-import { TimeSlot, Court, Clinic, Reservation, Comment } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
+import { TimeSlot, Court, Clinic, Reservation } from "@/lib/types";
 import { useMediaQuery } from "@/hooks/use-mobile";
-import { cn, getTimeSlotStatus, getTimeSlotStatusClasses } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useUser } from "@/contexts/UserContext";
 import { useDataService } from "@/hooks/use-data-service";
 import { useBookings } from "@/hooks/use-bookings";
-import type { Social } from "@/lib/validation/schemas";
-
+import { apiDataService } from "@/lib/services/api-data-service";
 import DayView from "./DayView";
 import CourtCalendar from "./CourtCalendar";
 import CourtHeader from "./CourtHeader";
 import EditReservationDialog from "./EditReservationDialog";
-
-// Type definitions for time slot blocks
-interface TimeSlotBlockData {
-  startHour: number;
-  endHour: number;
-  isClinic: boolean;
-  isSocial: boolean;
-  clinic: Clinic | null;
-  slot: TimeSlot | null;
-  available: boolean;
-  reserved: boolean;
-  blocked: boolean;
-  isMyReservation: boolean;
-  coachUnavailable?: boolean;
-  social?: Social | null;
-}
-
-interface ReservationWithDetails {
-  reservation: Reservation;
-  timeSlot: TimeSlot;
-  court: Court;
-}
+import TimeSlotBlock from "./TimeSlotBlock";
+import type { TimeSlotBlockData } from "./TimeSlotBlock";
+import ReservationDetailsPopup from "./ReservationDetailsPopup";
+import type { ReservationWithDetails } from "./ReservationDetailsPopup";
+import MyReservationsModal from "./MyReservationsModal";
+import JoinOpenPlayDialog from "./JoinOpenPlayDialog";
 
 interface HomeSchedulerViewProps {
   onSelectTimeSlot: (timeSlot: TimeSlot) => void;
   selectedCoachId?: string;
 }
-
-// Memoized component for time slot blocks to prevent unnecessary re-renders
-const TimeSlotBlock = React.memo(({
-  court,
-  day,
-  block,
-  isTimeSlotInPast,
-  handleTimeSlotClick,
-  getFirstAvailableSlotForBlock,
-  legendFilters,
-  currentUserEmail,
-  isMobile
-}: {
-  court: Court;
-  day: Date;
-  block: TimeSlotBlockData;
-  isTimeSlotInPast: (day: Date, hour: number) => boolean;
-  handleTimeSlotClick: (court: Court, day: Date, hour: number) => void;
-  getFirstAvailableSlotForBlock: (court: Court, day: Date, startHour: number, endHour: number) => TimeSlot | null;
-  legendFilters: {
-    available: boolean;
-    clinic: boolean;
-    social: boolean;
-    myReservations: boolean;
-  };
-  currentUserEmail: string;
-  isMobile: boolean;
-}) => {
-  const isPast = isTimeSlotInPast(day, block.startHour);
-  const duration = block.endHour - block.startHour;
-  const isMultiHour = duration > 1;
-
-  return (
-    <div
-      key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
-      className={cn(
-        "text-sm sm:text-base text-center rounded transition-all duration-200 relative",
-        isMobile ? "p-1" : "p-2",
-        // Past slots should always be grey (check first, before other conditions)
-        isPast
-          ? "bg-gray-400/50 text-gray-600 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
-          // Coach unavailable styling - show but disable
-          : block.coachUnavailable
-          ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed opacity-60"
-          : block.isSocial
-          ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60 cursor-pointer hover:scale-105"
-          : block.isMyReservation
-          ? "bg-purple-500/50 text-purple-900 border-2 border-purple-600/60 shadow-sm hover:bg-purple-500/60 cursor-pointer hover:scale-105"
-          : block.isClinic
-          ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60 cursor-pointer hover:scale-105"
-          : block.available && !block.blocked && !block.reserved
-          ? "bg-green-500/50 text-green-900 border-2 border-green-600/60 shadow-sm hover:bg-green-500/60 cursor-pointer hover:scale-105"
-          : block.reserved
-          ? "bg-blue-500/50 text-blue-900 border-2 border-blue-600/60 shadow-sm hover:bg-blue-500/60 cursor-pointer hover:scale-105"
-          : block.blocked
-          ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm cursor-not-allowed"
-          : "bg-gray-200 text-gray-500 border-2 border-gray-300/60 cursor-not-allowed",
-        isMultiHour && "flex items-center justify-center",
-        isMultiHour && !isPast && !block.coachUnavailable && block.isSocial && "border-orange-500/60 bg-gradient-to-br from-orange-300/50 to-orange-300/60 hover:from-orange-300/60 hover:to-orange-300/70",
-        isMultiHour && !isPast && !block.coachUnavailable && block.isClinic && "border-yellow-600/60 bg-gradient-to-br from-yellow-500/50 to-yellow-500/60 hover:from-yellow-500/60 hover:to-yellow-500/70",
-        isMultiHour && !isPast && !block.coachUnavailable && block.isMyReservation && "border-purple-600/60 bg-gradient-to-br from-purple-500/50 to-purple-500/60 hover:from-purple-500/60 hover:to-purple-500/70",
-        isMultiHour && !isPast && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && !block.isSocial && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
-      )}
-      style={{
-        height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
-        minHeight: isMultiHour ? undefined : isMobile ? "4rem" : "3.5rem",
-        marginBottom: isMultiHour ? "0.5rem" : undefined
-      }}
-      onClick={() => {
-        // Don't allow clicking past slots or coach-unavailable slots
-        if (isPast || block.coachUnavailable) return;
-
-        if (block.isClinic && isMultiHour) {
-          const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
-          if (slot) {
-            handleTimeSlotClick(court, day, block.startHour);
-          }
-        } else {
-          handleTimeSlotClick(court, day, block.startHour);
-        }
-      }}
-      title={
-        isPast
-          ? `Past: ${block.startHour}:00 - ${block.endHour}:00`
-          : block.coachUnavailable
-          ? `Coach unavailable: ${block.startHour}:00 - ${block.endHour}:00`
-          : block.isSocial
-          ? `Social Game: ${block.startHour}:00 - ${block.endHour}:00`
-          : block.isMyReservation
-          ? `My Reservation: ${block.startHour}:00 - ${block.endHour}:00`
-          : block.clinic
-          ? `${block.clinic.name}: ${block.clinic.description} ($${block.clinic.price})`
-          : `${block.startHour}:00 - ${block.endHour}:00`
-      }
-    >
-      {isMultiHour ? (
-        <div className="flex flex-col items-center justify-center h-full w-full overflow-hidden">
-          <span className="font-bold text-xl sm:text-lg">{block.startHour}:00</span>
-          <span className="text-sm sm:text-xs opacity-75 font-medium">to</span>
-          <span className="font-bold text-xl sm:text-lg">{block.endHour}:00</span>
-          {block.isSocial && block.social && (
-            <div className="text-center mt-2">
-              <span className="text-xs px-2 py-1 bg-orange-600/30 rounded-full border border-orange-600/40 font-semibold flex items-center gap-1 justify-center">
-                <Users className="h-3 w-3" />
-                Social Game
-              </span>
-              <div className="text-xs mt-1 text-orange-800 font-semibold">
-                {block.social.title}
-              </div>
-            </div>
-          )}
-          {block.isClinic && block.clinic && (
-            <span
-              className="text-[10px] mt-2 px-2 py-1 bg-yellow-600/30 rounded border border-yellow-600/40 font-semibold text-center break-words leading-tight max-w-full overflow-visible cursor-help"
-              title={block.clinic.name}
-            >
-              {block.clinic.name}
-            </span>
-          )}
-          {block.isMyReservation && (
-            <span className="text-sm mt-2 px-3 py-1 bg-purple-600/30 rounded-full border border-purple-600/40 font-semibold">
-              My Reservation
-            </span>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center w-full h-full overflow-hidden">
-          {block.isSocial ? (
-            <>
-              <Users className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-              <span className="text-[10px] font-semibold">Social</span>
-            </>
-          ) : block.isClinic ? (
-            <>
-              <GraduationCap className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-            </>
-          ) : block.isMyReservation ? (
-            <>
-              <User className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-            </>
-          ) : block.reserved ? (
-            <>
-              <User className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-            </>
-          ) : block.blocked ? (
-            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-          ) : block.available ? (
-            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
-          ) : (
-            <span className="font-bold text-lg sm:text-xl text-gray-400">{block.startHour}:00</span>
-          )}
-        </div>
-      )}
-
-      {block.isClinic && block.clinic && (
-        <div className="absolute -top-1 -right-1">
-          <div className="w-2 h-2 bg-yellow-500 border border-white"></div>
-        </div>
-      )}
-      {block.isMyReservation && (
-        <div className="absolute -top-1 -left-1">
-          <div className="w-2 h-2 bg-purple-500 border border-white"></div>
-        </div>
-      )}
-    </div>
-  );
-});
 
 const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerViewProps) => {
   const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
@@ -225,18 +34,19 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   const [showMyReservations, setShowMyReservations] = useState<boolean>(false);
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithDetails | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+  const [joinOpenPlayData, setJoinOpenPlayData] = useState<ReservationWithDetails | null>(null);
   
   // Legend filter states
   const [legendFilters, setLegendFilters] = useState<{
     available: boolean;
     clinic: boolean;
-    social: boolean;
     myReservations: boolean;
+    openPlay: boolean;
   }>({
     available: true,
     clinic: true,
-    social: true,
     myReservations: true,
+    openPlay: true,
   });
 
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -255,7 +65,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   const currentUserEmail = currentUser?.email || "";
 
   // Get data service
-  const { courts, reservations, clinics, coaches, socials, refreshKey } = useDataService();
+  const { courts, reservations, clinics, coaches, refreshKey } = useDataService();
 
   // Get booking operations from centralized hook
   const { updateReservation, deleteReservation } = useBookings();
@@ -264,16 +74,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const activeFilterLabel = useMemo(() => {
-    if (legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations) return "All";
+    if (legendFilters.available && legendFilters.clinic && legendFilters.myReservations && legendFilters.openPlay) return "All";
     if (legendFilters.available) return "Available";
     if (legendFilters.clinic) return "Clinic";
-    if (legendFilters.social) return "Social";
     if (legendFilters.myReservations) return "My Reservations";
+    if (legendFilters.openPlay) return "Open Play";
     return "All";
   }, [legendFilters]);
 
   const isAllOn = useMemo(() => (
-    legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations
+    legendFilters.available && legendFilters.clinic && legendFilters.myReservations && legendFilters.openPlay
   ), [legendFilters]);
 
   // Toggle legend filter
@@ -283,22 +93,22 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   // - Click on a different filter while in exclusive mode -> switch exclusive filter
   const toggleLegendFilter = useCallback((filterType: keyof typeof legendFilters) => {
     setLegendFilters((prev) => {
-      const allOn = prev.available && prev.clinic && prev.social && prev.myReservations;
+      const allOn = prev.available && prev.clinic && prev.myReservations;
       const entries = Object.entries(prev) as Array<[keyof typeof prev, boolean]>;
       const numOn = entries.reduce((count, [, value]) => count + (value ? 1 : 0), 0);
       const isExclusive = numOn === 1 && prev[filterType];
 
       if (isExclusive) {
         // Turning off the active exclusive filter -> show all
-        return { available: true, clinic: true, social: true, myReservations: true };
+        return { available: true, clinic: true, myReservations: true, openPlay: true };
       }
 
       // Otherwise switch to exclusive mode for the selected filter
       return {
         available: filterType === 'available',
         clinic: filterType === 'clinic',
-        social: filterType === 'social',
         myReservations: filterType === 'myReservations',
+        openPlay: filterType === 'openPlay',
       };
     });
   }, []);
@@ -530,7 +340,8 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
 
   // Handle date header click to open DayView
   const handleDateHeaderClick = useCallback((date: Date) => {
-    setSelectedDateForDayView(date);
+    setCurrentDate(date);
+    setViewDays(1);
   }, []);
 
   // Check if a time slot is in the past
@@ -553,12 +364,13 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     );
 
     if (relevantSlots.length === 0) {
-      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null };
+      return { available: false, reserved: false, blocked: false, isClinic: false, slot: null, clinic: null, reservation: null };
     }
 
     const slot = relevantSlots[0];
-    const reservation = reservations.find(res => res.timeSlotId === slot.id);
-    const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
+    const reservation = (slot as any).reservation || reservations.find(res => res.timeSlotId === slot.id);
+    // Use enriched clinic data from slot (includes participants) or fall back to lookup
+    const clinic = (slot as any).clinic || (slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null);
     
     // Check if this time slot is in the past
     const slotDateTime = new Date(day);
@@ -566,30 +378,20 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     slotDateTime.setHours(slotHours, slotMinutes || 0, 0, 0);
     const isSlotInPast = slotDateTime < currentTime;
     
-    // Check if this is a social and if it hasn't passed yet
-    let isSocial = false;
-    if (slot.socialId) {
-      const social = socials.find(s => s.id === slot.socialId);
-      if (social) {
-        // Check if the social's end time has passed
-        const now = currentTime;
-        const socialDate = new Date(social.date);
-        const [hours, minutes] = social.endTime.split(':').map(Number);
-        socialDate.setHours(hours, minutes || 0, 0, 0);
-        isSocial = socialDate >= now; // Only show if end time hasn't passed
-      }
-    }
-
     const status = {
       available: slot.available && !isSlotInPast, // Mark as unavailable if in the past
       reserved: !!reservation,
       blocked: slot.blocked || false,
       isClinic: !!clinic,
-      isSocial,
       slot,
       clinic,
       reservation,
-      coachUnavailable: false
+      coachUnavailable: false,
+      isOpenPlay: reservation?.isOpenPlay || false,
+      openPlaySlots: reservation?.openPlaySlots,
+      currentPlayers: reservation?.players || 0,
+      maxOpenPlayers: reservation?.maxOpenPlayers,
+      openPlayGroupId: reservation?.openPlayGroupId,
     };
 
     // If coach is selected, filter based on coach availability
@@ -617,7 +419,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     }
 
     return status;
-  }, [selectedCoachId, timeSlots, reservations, clinics, coaches, socials, currentTime]);
+  }, [selectedCoachId, timeSlots, reservations, clinics, coaches, currentTime]);
 
   const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
     const formattedDate = format(day, "yyyy-MM-dd");
@@ -635,12 +437,28 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
       const reservation = reservations.find(res => res.timeSlotId === slot.id);
 
       if (reservation) {
-        // Show reservation popup
-        setSelectedReservation({
-          reservation,
-          timeSlot: slot,
-          court
-        });
+        // Check if this is an open play reservation the user can join
+        const isOwner = reservation.playerEmail === currentUserEmail ||
+          (currentUser?.id && (reservation as any).createdById === currentUser.id);
+        const alreadyJoined = reservation.participants?.some(p => p.email === currentUserEmail);
+        const maxPlayers = (reservation as any).maxOpenPlayers || 8;
+        const gid = (reservation as any).openPlayGroupId;
+        const groupTotal = gid
+          ? reservations.filter(r => (r as any).openPlayGroupId === gid).reduce((s, r) => s + (r.players || 1), 0)
+          : reservation.players || 1;
+        const hasRoom = groupTotal < maxPlayers;
+
+        if (reservation.isOpenPlay && !isOwner && !alreadyJoined && hasRoom) {
+          // Open join dialog
+          setJoinOpenPlayData({ reservation, timeSlot: slot, court });
+        } else {
+          // Show reservation popup
+          setSelectedReservation({
+            reservation,
+            timeSlot: slot,
+            court
+          });
+        }
       } else if (slot.available || currentUser?.membershipType === 'admin') {
         // Handle available slot booking, or allow admins to book even unavailable/blocked slots
         onSelectTimeSlot(slot);
@@ -786,7 +604,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
               reservations={reservations}
               clinics={clinics}
               coaches={coaches}
-              socials={socials}
               isOpen={true}
               isModal={false}
               onSelectTimeSlot={onSelectTimeSlot}
@@ -916,47 +733,65 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                 startHour: number;
                                 endHour: number;
                                 isClinic: boolean;
-                                isSocial: boolean;
                                 clinic: Clinic | null;
                                 slot: TimeSlot | null;
                                 available: boolean;
                                 reserved: boolean;
                                 blocked: boolean;
                                 isMyReservation: boolean;
+                                isMyClinicReservation: boolean;
+                                coachName?: string;
                                 coachUnavailable?: boolean;
-                                social?: Social | null;
                               }> = [];
 
                               let currentBlock: {
                                 startHour: number;
                                 endHour: number;
                                 isClinic: boolean;
-                                isSocial: boolean;
                                 clinic: Clinic | null;
                                 slot: TimeSlot | null;
                                 available: boolean;
                                 reserved: boolean;
                                 blocked: boolean;
                                 isMyReservation: boolean;
+                                isMyClinicReservation: boolean;
+                                coachName?: string;
                                 coachUnavailable?: boolean;
-                                social?: Social | null;
                               } | null = null;
 
                               // Group consecutive time slots into blocks
                               for (let i = 0; i < hours.length; i++) {
                                 const hour = hours[i];
-                                const { available, reserved, blocked, isClinic, isSocial, slot, clinic, reservation, coachUnavailable } = getSlotStatus(court, day, hour);
+                                const { available, reserved, blocked, isClinic, slot, clinic, reservation, coachUnavailable, isOpenPlay, openPlaySlots, currentPlayers, maxOpenPlayers, openPlayGroupId } = getSlotStatus(court, day, hour);
+
+                                // Compute group-wide total for open play
+                                let groupTotalPlayers = currentPlayers;
+                                if (isOpenPlay && openPlayGroupId) {
+                                  groupTotalPlayers = reservations
+                                    .filter(r => (r as any).openPlayGroupId === openPlayGroupId)
+                                    .reduce((sum, r) => sum + (r.players || 1), 0);
+                                }
 
                                 // Check if this is the current user's reservation
-                                const isMyReservation = reservation ? reservation.playerEmail === currentUserEmail : false;
+                                // Match by email OR by createdById (if user is logged in)
+                                const isMyReservation = reservation ? (
+                                  reservation.playerEmail === currentUserEmail ||
+                                  (currentUser?.id && (reservation as any).createdById === currentUser.id)
+                                ) : false;
 
-                                // Get social information if this is a social slot
-                                let social: Social | null = null;
-                                if (isSocial && slot?.socialId) {
-                                  social = socials.find(s => s.id === slot.socialId) || null;
-                                }
-                                
                                 if (isClinic && clinic) {
+                                  // Check if this is the user's clinic reservation
+                                  // Check both: reservation ownership AND clinic participants
+                                  const clinicParticipants = (clinic as any).participants || [];
+                                  const isInClinicParticipants = currentUserEmail && clinicParticipants.some(
+                                    (p: any) => p.email === currentUserEmail || p.userId === currentUser?.id
+                                  );
+                                  const isMyClinicReservation = isMyReservation || isInClinicParticipants;
+
+                                  // Get the coach name for the clinic
+                                  const coach = clinic.coachId ? coaches.find(c => c.id === clinic.coachId) : null;
+                                  const coachName = coach?.name || 'Coach';
+
                                   // If this is a clinic and it's the same clinic as the previous hour
                                   if (currentBlock &&
                                       currentBlock.isClinic &&
@@ -973,13 +808,14 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                       startHour: hour,
                                       endHour: hour + 1,
                                       isClinic: true,
-                                      isSocial: false,
                                       clinic,
                                       slot,
                                       available,
                                       reserved,
                                       blocked: !!blocked,
                                       isMyReservation,
+                                      isMyClinicReservation,
+                                      coachName,
                                       coachUnavailable
                                     };
                                   }
@@ -994,15 +830,19 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                     startHour: hour,
                                     endHour: hour + 1,
                                     isClinic: false,
-                                    isSocial: !!isSocial,
                                     clinic: null,
                                     slot,
                                     available,
                                     reserved,
                                     blocked: !!blocked,
                                     isMyReservation,
+                                    isMyClinicReservation: false,
                                     coachUnavailable,
-                                    social: isSocial ? social : null
+                                    isOpenPlay,
+                                    openPlaySlots,
+                                    currentPlayers,
+                                    maxOpenPlayers,
+                                    groupTotalPlayers,
                                   });
                                 }
                               }
@@ -1020,19 +860,18 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                   }
 
                                   // Apply legend filters
-                                  // Social blocks should only be filtered by social filter
-                                  if (block.isSocial) {
-                                    return legendFilters.social;
-                                  }
-
                                   // Clinic blocks should only be filtered by clinic filter
                                   if (block.isClinic) {
                                     return legendFilters.clinic;
                                   }
 
+                                  // Open play filter
+                                  if (block.isOpenPlay && !block.isMyReservation) {
+                                    return legendFilters.openPlay;
+                                  }
+
                                   // Non-clinic blocks use other filters
                                   if (block.available && !block.reserved && !block.blocked && !legendFilters.available) return false;
-                                  // Removed reserved legend filter; reserved blocks are shown unless filtered by My Reservations
                                   if (block.isMyReservation && !legendFilters.myReservations) return false;
                                   return true;
                                 })
@@ -1073,7 +912,6 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
           reservations={reservations}
           clinics={clinics}
           coaches={coaches}
-          socials={socials}
           isOpen={selectedDateForDayView !== null}
         />
       )}
@@ -1082,177 +920,27 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
 
        {/* My Reservations Modal */}
        {showMyReservations && (
-         <div 
-           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-4"
-           onClick={() => handleBackgroundClick('myReservations')}
-         >
-           <div 
-             ref={myReservationsModalRef} 
-             className="bg-white rounded-lg w-full max-w-[90vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto"
-             onClick={(e) => e.stopPropagation()}
-           >
-             <div className="p-3 sm:p-6">
-               <div className="flex items-start justify-between mb-4">
-                 <h2 className="text-base sm:text-xl font-semibold text-foreground pr-2 flex-1">My Reservations</h2>
-                 <button
-                   onClick={() => setShowMyReservations(false)}
-                   className="text-gray-500 hover:text-gray-700 text-xl sm:text-2xl flex-shrink-0 p-1"
-                 >
-                   ×
-                 </button>
-               </div>
-               
-               <div className="space-y-4">
-                 {reservations
-                   .filter(res => res.playerEmail === currentUserEmail)
-                   .map(reservation => {
-                     const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
-                     const court = courts.find(c => c.id === reservation.courtId);
-                     const date = timeSlot ? new Date(timeSlot.date) : new Date();
-                     
-                     return (
-                       <div key={reservation.id} className="border border-purple-200 rounded-lg p-3 sm:p-4 bg-purple-50">
-                         <div className="flex items-center justify-between">
-                           <div className="min-w-0 flex-1">
-                             <h3 className="font-semibold text-purple-800 text-sm sm:text-base">
-                               {court?.name} - {format(date, "MMM d")}
-                             </h3>
-                             <p className="text-purple-600 text-sm">
-                               {timeSlot?.startTime} - {timeSlot?.endTime}
-                             </p>
-                             <p className="text-xs sm:text-sm text-purple-500">
-                              {reservation.players} player{reservation.players !== 1 ? 's' : ''}
-                              {reservation.participants && reservation.participants.length > 1 && (
-                                <span className="ml-2 text-xs">
-                                  (You + {reservation.participants.length - 1} friend{reservation.participants.length - 1 !== 1 ? 's' : ''})
-                                </span>
-                              )}
-                            </p>
-                           </div>
-                           <div className="w-4 h-4 bg-purple-500/20 border border-purple-500/30 rounded"></div>
-                         </div>
-                       </div>
-                     );
-                   })}
-                 
-                 {reservations.filter(res => res.playerEmail === currentUserEmail).length === 0 && (
-                   <div className="text-center py-8 text-gray-500">
-                     <p>You don't have any reservations yet.</p>
-                   </div>
-                   )}
-               </div>
-             </div>
-           </div>
-         </div>
+         <MyReservationsModal
+           reservations={reservations}
+           timeSlots={timeSlots}
+           courts={courts}
+           currentUserEmail={currentUserEmail}
+           currentUser={currentUser}
+           myReservationsModalRef={myReservationsModalRef as React.RefObject<HTMLDivElement>}
+           onClose={() => setShowMyReservations(false)}
+           onBackgroundClick={() => handleBackgroundClick('myReservations')}
+         />
        )}
 
        {/* Reservation Details Popup */}
        {selectedReservation && (
-         <div 
-           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-4"
-           onClick={() => handleBackgroundClick('reservationPopup')}
-         >
-           <div 
-             ref={reservationPopupRef} 
-             className="bg-white rounded-lg w-full max-w-[90vw] sm:max-w-md max-h-[85vh] sm:max-h-[80vh] overflow-y-auto shadow-2xl"
-             onClick={(e) => e.stopPropagation()}
-           >
-             <div className="p-3 sm:p-6">
-               <div className="flex items-start justify-between mb-4">
-                 <h2 className="text-base sm:text-xl font-semibold text-foreground pr-2 flex-1">Reservation Details</h2>
-                 <button
-                   onClick={() => setSelectedReservation(null)}
-                   className="text-gray-500 hover:text-gray-700 text-xl sm:text-2xl flex-shrink-0 p-1"
-                 >
-                   ×
-                 </button>
-               </div>
-               
-               <div className="space-y-4">
-                 <div className="border border-blue-200 rounded-lg p-3 sm:p-4 bg-blue-50">
-                   <div className="space-y-3">
-                     <div>
-                       <h3 className="font-semibold text-blue-800 text-base sm:text-lg">
-                         {selectedReservation.court?.name}
-                       </h3>
-                       <p className="text-blue-600 text-sm sm:text-base">
-                         {format(new Date(selectedReservation.timeSlot.date), "MMM d")}
-                       </p>
-                     </div>
-                     
-                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                       <div className="flex items-center gap-2">
-                         <Clock className="h-4 w-4 text-blue-600" />
-                         <span className="text-blue-700 font-medium text-sm sm:text-base">
-                           {selectedReservation.timeSlot.startTime} - {selectedReservation.timeSlot.endTime}
-                         </span>
-                       </div>
-                       <div className="flex items-center gap-2">
-                         <MapPin className="h-4 w-4 text-blue-600" />
-                         <span className="text-blue-700 text-sm sm:text-base">
-                           {selectedReservation.court?.location}
-                         </span>
-                       </div>
-                     </div>
-                     
-                     <div className="border-t border-blue-200 pt-3">
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
-                         <div>
-                           <span className="text-blue-600 font-medium">Player:</span>
-                           <p className="text-blue-800">{selectedReservation.reservation.playerName}</p>
-                         </div>
-                         <div>
-                           <span className="text-blue-600 font-medium">Players:</span>
-                           <p className="text-blue-800">{selectedReservation.reservation.players}</p>
-                         </div>
-                         <div>
-                           <span className="text-blue-600 font-medium">Email:</span>
-                           <p className="text-blue-800 text-xs">{selectedReservation.reservation.playerEmail}</p>
-                         </div>
-                         <div>
-                           <span className="text-blue-600 font-medium">Phone:</span>
-                           <p className="text-blue-800">{selectedReservation.reservation.playerPhone}</p>
-                         </div>
-                       </div>
-                     </div>
-                     
-                     {selectedReservation.reservation.comments && selectedReservation.reservation.comments.length > 0 && (
-                       <div className="border-t border-blue-200 pt-3">
-                         <span className="text-blue-600 font-medium">Comments:</span>
-                         <div className="mt-2 space-y-2">
-                           {selectedReservation.reservation.comments.map((comment: Comment, index: number) => (
-                             <div key={comment.id || index} className="bg-blue-100 rounded p-2">
-                               <p className="text-blue-800 text-sm">{comment.text}</p>
-                               <p className="text-blue-600 text-xs mt-1">
-                                 - {comment.authorName} ({format(new Date(comment.createdAt), "MMM d, yyyy")})
-                               </p>
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-                     )}
-                     
-                     <div className="border-t border-blue-200 pt-3">
-                       <p className="text-blue-600 text-xs">
-                         Reserved on {format(new Date(selectedReservation.reservation.createdAt), "MMMM d, yyyy 'at' h:mm a")}
-                       </p>
-                     </div>
-                   </div>
-                 </div>
-                 
-                 {/* Edit Button */}
-                 <div className="flex justify-end pt-4 border-t">
-                   <Button
-                     onClick={handleEditReservation}
-                     className="w-full sm:w-auto"
-                   >
-                     Edit Reservation
-                   </Button>
-                 </div>
-               </div>
-             </div>
-           </div>
-         </div>
+         <ReservationDetailsPopup
+           selectedReservation={selectedReservation}
+           reservationPopupRef={reservationPopupRef as React.RefObject<HTMLDivElement>}
+           onClose={() => setSelectedReservation(null)}
+           onBackgroundClick={() => handleBackgroundClick('reservationPopup')}
+           onEdit={handleEditReservation}
+         />
        )}
 
        {/* Edit Reservation Dialog */}
@@ -1263,6 +951,17 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
          onDelete={handleDeleteReservation}
          reservation={editingReservation}
        />
+
+       {/* Join Open Play Dialog */}
+       {joinOpenPlayData && (
+         <JoinOpenPlayDialog
+           isOpen={true}
+           onClose={() => setJoinOpenPlayData(null)}
+           reservation={joinOpenPlayData.reservation}
+           timeSlot={joinOpenPlayData.timeSlot}
+           court={joinOpenPlayData.court}
+         />
+       )}
     </>
   );
 };
