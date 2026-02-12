@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 // Type definitions for time slot blocks
 export interface TimeSlotBlockData {
-  startHour: number;
-  endHour: number;
+  startTime: string;  // "HH:MM" format
+  endTime: string;    // "HH:MM" format
   isClinic: boolean;
   clinic: Clinic | null;
   slot: TimeSlot | null;
@@ -28,9 +28,9 @@ export interface TimeSlotBlockProps {
   court: Court;
   day: Date;
   block: TimeSlotBlockData;
-  isTimeSlotInPast: (day: Date, hour: number) => boolean;
-  handleTimeSlotClick: (court: Court, day: Date, hour: number) => void;
-  getFirstAvailableSlotForBlock: (court: Court, day: Date, startHour: number, endHour: number) => TimeSlot | null;
+  isTimeSlotInPast: (day: Date, timeOrHour: string | number) => boolean;
+  handleTimeSlotClick: (court: Court, day: Date, startTime: string) => void;
+  getFirstAvailableSlotForBlock: (court: Court, day: Date, startTime: string, endTime: string) => TimeSlot | null;
   legendFilters: {
     available: boolean;
     clinic: boolean;
@@ -52,9 +52,18 @@ const TimeSlotBlock = React.memo(({
   currentUserEmail,
   isMobile
 }: TimeSlotBlockProps) => {
-  const isPast = isTimeSlotInPast(day, block.startHour);
-  const duration = block.endHour - block.startHour;
-  const isMultiHour = duration > 1;
+  const isPast = isTimeSlotInPast(day, block.startTime);
+
+  // Compute duration in minutes for height calculation
+  const [sh, sm] = block.startTime.split(':').map(Number);
+  const [eh, em] = block.endTime.split(':').map(Number);
+  const durationMins = (eh * 60 + em) - (sh * 60 + sm);
+  const durationHours = durationMins / 60;
+  const isMultiHour = durationMins > 60;
+
+  // Format display label (strip trailing :00 for whole hours)
+  const displayStart = sm === 0 ? `${sh}:00` : block.startTime;
+  const displayEnd = em === 0 ? `${eh}:00` : block.endTime;
   const isOpenPlay = block.isOpenPlay && !block.isMyReservation;
   const maxPlayers = block.maxOpenPlayers || 8;
   const groupTotal = block.groupTotalPlayers ?? block.currentPlayers ?? 1;
@@ -62,7 +71,7 @@ const TimeSlotBlock = React.memo(({
 
   return (
     <div
-      key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
+      key={`${court.id}-${day.toString()}-${block.startTime}-${block.endTime}`}
       className={cn(
         "text-sm sm:text-base text-center rounded transition-all duration-200 relative",
         isMobile ? "p-1" : "p-2",
@@ -95,7 +104,7 @@ const TimeSlotBlock = React.memo(({
         isMultiHour && !isPast && !block.coachUnavailable && block.available && !block.isClinic && !block.isMyReservation && "border-green-600/60 bg-gradient-to-br from-green-500/50 to-green-500/60 hover:from-green-500/60 hover:to-green-500/70"
       )}
       style={{
-        height: isMultiHour ? `${duration * (isMobile ? 4 : 3.5)}rem` : undefined,
+        height: isMultiHour ? `${durationHours * (isMobile ? 4 : 3.5)}rem` : undefined,
         minHeight: isMultiHour ? undefined : isMobile ? "4rem" : "3.5rem",
         marginBottom: isMultiHour ? "0.5rem" : undefined
       }}
@@ -104,33 +113,33 @@ const TimeSlotBlock = React.memo(({
         if (isPast || block.coachUnavailable) return;
 
         if (block.isClinic && isMultiHour) {
-          const slot = getFirstAvailableSlotForBlock(court, day, block.startHour, block.endHour);
+          const slot = getFirstAvailableSlotForBlock(court, day, block.startTime, block.endTime);
           if (slot) {
-            handleTimeSlotClick(court, day, block.startHour);
+            handleTimeSlotClick(court, day, block.startTime);
           }
         } else {
-          handleTimeSlotClick(court, day, block.startHour);
+          handleTimeSlotClick(court, day, block.startTime);
         }
       }}
       title={
         isPast
-          ? `Past: ${block.startHour}:00 - ${block.endHour}:00`
+          ? `Past: ${displayStart} - ${displayEnd}`
           : block.coachUnavailable
-          ? `Coach unavailable: ${block.startHour}:00 - ${block.endHour}:00`
+          ? `Coach unavailable: ${displayStart} - ${displayEnd}`
           : block.isMyClinicReservation
-          ? `My Reservation, Coaching session with ${block.coachName || 'Coach'}: ${block.startHour}:00 - ${block.endHour}:00`
+          ? `My Reservation, Coaching session with ${block.coachName || 'Coach'}: ${displayStart} - ${displayEnd}`
           : block.isMyReservation
-          ? `My Reservation: ${block.startHour}:00 - ${block.endHour}:00`
+          ? `My Reservation: ${displayStart} - ${displayEnd}`
           : block.clinic
           ? `${block.clinic.name}: ${block.clinic.description} ($${block.clinic.price})`
-          : `${block.startHour}:00 - ${block.endHour}:00`
+          : `${displayStart} - ${displayEnd}`
       }
     >
       {isMultiHour ? (
         <div className="flex flex-col items-center justify-center h-full w-full overflow-hidden">
-          <span className="font-bold text-xl sm:text-lg">{block.startHour}:00</span>
+          <span className="font-bold text-xl sm:text-lg">{displayStart}</span>
           <span className="text-sm sm:text-xs opacity-75 font-medium">to</span>
-          <span className="font-bold text-xl sm:text-lg">{block.endHour}:00</span>
+          <span className="font-bold text-xl sm:text-lg">{displayEnd}</span>
           {block.isMyClinicReservation && block.clinic && (
             <div className="text-center mt-2">
               <span className="text-xs px-2 py-1 bg-purple-600/30 rounded-full border border-yellow-500/60 font-semibold flex items-center gap-1 justify-center">
@@ -161,23 +170,23 @@ const TimeSlotBlock = React.memo(({
           {block.isMyClinicReservation ? (
             <>
               <GraduationCap className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
               <span className="text-[10px] font-semibold">My Session</span>
             </>
           ) : block.isClinic ? (
             <>
               <GraduationCap className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
             </>
           ) : block.isMyReservation ? (
             <>
               <User className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
             </>
           ) : isOpenPlay ? (
             <>
               <Users className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
               <span className="text-[9px] font-semibold">
                 {slotsOpen > 0 ? `${slotsOpen} open` : "Full"}
               </span>
@@ -185,14 +194,14 @@ const TimeSlotBlock = React.memo(({
           ) : block.reserved ? (
             <>
               <User className="h-3 w-3 mb-0.5" />
-              <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+              <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
             </>
           ) : block.blocked ? (
-            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+            <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
           ) : block.available ? (
-            <span className="font-bold text-lg sm:text-xl">{block.startHour}:00</span>
+            <span className="font-bold text-lg sm:text-xl">{displayStart}</span>
           ) : (
-            <span className="font-bold text-lg sm:text-xl text-gray-400">{block.startHour}:00</span>
+            <span className="font-bold text-lg sm:text-xl text-gray-400">{displayStart}</span>
           )}
         </div>
       )}

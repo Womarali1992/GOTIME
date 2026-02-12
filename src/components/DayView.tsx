@@ -85,10 +85,21 @@ const DayView = ({
   // Get booking operations from centralized hook
   const { updateReservation, deleteReservation } = useBookings();
   
-  // Time range to display (8am to 9pm)
-  const startHour = 8;
-  const endHour = 21;
-  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+  // Derive unique sorted start times from API-returned time slots
+  // Falls back to 8am-9pm hourly if no slots loaded yet
+  const slotStartTimes = React.useMemo(() => {
+    if (timeSlots.length === 0) {
+      return Array.from({ length: 13 }, (_, i) => `${(8 + i).toString().padStart(2, '0')}:00`);
+    }
+    const timesSet = new Set<string>();
+    timeSlots.forEach(slot => timesSet.add(slot.startTime));
+    return Array.from(timesSet).sort();
+  }, [timeSlots]);
+
+  // Convert start time strings to hour numbers for backward-compat with hour-based rendering
+  const hours = React.useMemo(() => {
+    return slotStartTimes.map(st => parseInt(st.split(':')[0]));
+  }, [slotStartTimes]);
 
   // Generate next 13 days for time focus mode
   const next13Days = Array.from({ length: 13 }, (_, i) => addDays(new Date(), i));

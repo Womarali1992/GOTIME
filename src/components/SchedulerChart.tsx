@@ -84,10 +84,16 @@ const SchedulerChart = ({ courts, timeSlots: _timeSlots, onScheduleCourt, onDate
     loadSlots();
   }, [currentDate, viewDays, isInitialized, operatingHours]);
 
-  // Time range to display (8am to 10pm)
-  const startHour = 8;
-  const endHour = 22;
-  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+  // Derive unique sorted start times from API-returned time slots
+  // Falls back to 8am-10pm hourly if no slots loaded yet
+  const hours = React.useMemo(() => {
+    if (timeSlots.length === 0) {
+      return Array.from({ length: 14 }, (_, i) => 8 + i);
+    }
+    const hoursSet = new Set<number>();
+    timeSlots.forEach(slot => hoursSet.add(parseInt(slot.startTime.split(':')[0])));
+    return Array.from(hoursSet).sort((a, b) => a - b);
+  }, [timeSlots]);
 
   // Navigate through dates - prevent going to past dates
   const previousDay = () => {

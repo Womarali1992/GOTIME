@@ -1,5 +1,6 @@
 import express from 'express';
 import { query, safeParseJSON } from '../db/database.js';
+import { DEFAULT_OPERATING_HOURS } from '../utils/defaults.js';
 
 const router = express.Router();
 
@@ -38,10 +39,17 @@ router.get('/date/:date', async (req, res) => {
   const { date } = req.params;
   const tenantId = req.tenantId!;
 
-  // Get settings
-  const settingsResult = await query('SELECT * FROM settings WHERE tenant_id = $1', [tenantId]);
+  // Get settings (auto-create if missing)
+  let settingsResult = await query('SELECT * FROM settings WHERE tenant_id = $1', [tenantId]);
   if (settingsResult.rows.length === 0) {
-    return res.status(500).json({ error: 'Settings not found' });
+    const createdAt = new Date().toISOString();
+    const id = `settings-${tenantId}`;
+    await query(
+      `INSERT INTO settings (id, tenant_id, "courtName", "advanceBookingLimit", "cancellationDeadline", "maxPlayersPerSlot", "minPlayersPerSlot", "allowWalkIns", "requirePayment", "timeSlotVisibilityPeriod", "operatingHours", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [id, tenantId, 'Pickleball Court', 24, 2, 4, 1, true, false, '4_weeks', JSON.stringify(DEFAULT_OPERATING_HOURS), createdAt]
+    );
+    settingsResult = await query('SELECT * FROM settings WHERE tenant_id = $1', [tenantId]);
   }
   const settings = settingsResult.rows[0];
   const operatingHours = safeParseJSON(settings.operatingHours, []);
@@ -80,22 +88,38 @@ router.get('/date/:date', async (req, res) => {
     clinicsMap = new Map(clinicsResult.rows.map(c => [c.id, c]));
   }
 
-  const startHour = parseInt(daySettings.startTime.split(':')[0]);
-  const endHour = parseInt(daySettings.endTime.split(':')[0]);
+  // Use timeSlotDuration and breakTime from settings (fallback to 60/0)
+  const duration = daySettings.timeSlotDuration || 60;
+  const breakMins = daySettings.breakTime || 0;
+  const step = duration + breakMins;
+
+  // Parse start/end as total minutes from midnight
+  const [startH, startM] = daySettings.startTime.split(':').map(Number);
+  const [endH, endM] = daySettings.endTime.split(':').map(Number);
+  const dayStartMinutes = startH * 60 + (startM || 0);
+  const dayEndMinutes = endH * 60 + (endM || 0);
+
   const now = new Date();
   const generatedSlots: any[] = [];
 
   for (const court of courts) {
-    for (let hour = startHour; hour < endHour; hour++) {
-      const startTime = `${hour.toString().padStart(2, '0')}:00`;
-      const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
-      const slotId = `${court.id}-${date}-${hour}`;
+    for (let mins = dayStartMinutes; mins + duration <= dayEndMinutes; mins += step) {
+      const slotStartH = Math.floor(mins / 60);
+      const slotStartM = mins % 60;
+      const slotEndMins = mins + duration;
+      const slotEndH = Math.floor(slotEndMins / 60);
+      const slotEndM = slotEndMins % 60;
 
-      const storedSlot = storedSlotsMap.get(slotId);
-      const reservation = reservationsMap.get(slotId);
+      const startTime = `${slotStartH.toString().padStart(2, '0')}:${slotStartM.toString().padStart(2, '0')}`;
+      const endTime = `${slotEndH.toString().padStart(2, '0')}:${slotEndM.toString().padStart(2, '0')}`;
+      const slotId = `${court.id}-${date}-${startTime}`;
+
+      // Look up stored slot with new ID format, falling back to legacy hour-only format
+      const storedSlot = storedSlotsMap.get(slotId) || storedSlotsMap.get(`${court.id}-${date}-${slotStartH}`);
+      const reservation = reservationsMap.get(slotId) || reservationsMap.get(`${court.id}-${date}-${slotStartH}`);
 
       const slotDateTime = new Date(slotDate);
-      slotDateTime.setHours(hour, 0, 0, 0);
+      slotDateTime.setHours(slotStartH, slotStartM, 0, 0);
       const isPast = slotDateTime < now;
 
       let slot: any;
@@ -162,7 +186,7 @@ router.get('/date/:date', async (req, res) => {
 // Create or update time slot
 router.post('/', async (req, res) => {
   const { id, courtId, date, startTime, endTime, available, blocked, type, clinicId, comments } = req.body;
-  const slotId = id || `${courtId}-${date}-${parseInt(startTime.split(':')[0])}`;
+  const slotId = id || `${courtId}-${date}-${startTime}`;
   const createdAt = new Date().toISOString();
 
   await query(

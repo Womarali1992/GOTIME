@@ -129,10 +129,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     // This effect is kept for future dynamic loading if needed
   }, [currentDate, viewDays]);
 
-  // Time range to display (8am to 9pm)
-  const startHour = 8;
-  const endHour = 21;
-  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+  // Derive unique sorted start times from API-returned time slots
+  // Falls back to 8am-9pm hourly if no slots loaded yet
+  const slotStartTimes = useMemo(() => {
+    if (timeSlots.length === 0) {
+      return Array.from({ length: 13 }, (_, i) => `${(8 + i).toString().padStart(2, '0')}:00`);
+    }
+    const timesSet = new Set<string>();
+    timeSlots.forEach(slot => timesSet.add(slot.startTime));
+    return Array.from(timesSet).sort();
+  }, [timeSlots]);
 
   // Calculate days to display based on current date
   const daysToShow = useMemo(() => {
@@ -239,11 +245,12 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
       
       if (displayCourts.length === 0) return;
       
-      // Check if all time slots (8am-9pm) for all courts on the first day are in the past
+      // Check if all time slots for all courts on the first day are in the past
       const firstDayAllPast = displayCourts.every(court => {
-        return hours.every(hour => {
+        return slotStartTimes.every(st => {
+          const [h, m] = st.split(':').map(Number);
           const slotDateTime = new Date(firstDay);
-          slotDateTime.setHours(hour, 0, 0, 0);
+          slotDateTime.setHours(h, m || 0, 0, 0);
           return slotDateTime < now;
         });
       });
@@ -252,13 +259,14 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
         // Find the first day with at least one future slot
         const maxDate = addDays(today, 30 - 1);
         let targetDate = addDays(firstDay, 1);
-        
+
         // Search for the first day with at least one future slot
         while (targetDate <= maxDate) {
           const dayHasFutureSlot = displayCourts.some(court => {
-            return hours.some(hour => {
+            return slotStartTimes.some(st => {
+              const [h, m] = st.split(':').map(Number);
               const slotDateTime = new Date(targetDate);
-              slotDateTime.setHours(hour, 0, 0, 0);
+              slotDateTime.setHours(h, m || 0, 0, 0);
               return slotDateTime >= now;
             });
           });
@@ -281,7 +289,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
         }
       }
     }
-  }, [currentDate, viewDays, daysToShow, currentTime, courts, selectedCourt, hours, weekOffset]);
+  }, [currentDate, viewDays, daysToShow, currentTime, courts, selectedCourt, slotStartTimes, weekOffset]);
 
   // Navigate through dates - prevent going to past dates and sync week offset
   const previousDay = useCallback(() => {
@@ -344,23 +352,28 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     setViewDays(1);
   }, []);
 
-  // Check if a time slot is in the past
-  const isTimeSlotInPast = useCallback((day: Date, hour: number) => {
+  // Check if a time slot is in the past (accepts HH:MM string or hour number for compat)
+  const isTimeSlotInPast = useCallback((day: Date, timeOrHour: string | number) => {
     const now = currentTime;
     const slotDate = new Date(day);
-    slotDate.setHours(hour, 0, 0, 0);
+    if (typeof timeOrHour === 'string') {
+      const [h, m] = timeOrHour.split(':').map(Number);
+      slotDate.setHours(h, m || 0, 0, 0);
+    } else {
+      slotDate.setHours(timeOrHour, 0, 0, 0);
+    }
     return slotDate < now;
   }, [currentTime]);
 
-  // Get availability for a specific court, day and hour
-  const getSlotStatus = useCallback((court: Court, day: Date, hour: number) => {
+  // Get availability for a specific court, day and start time string
+  const getSlotStatus = useCallback((court: Court, day: Date, startTimeStr: string) => {
     const formattedDate = format(day, "yyyy-MM-dd");
 
-    // Find time slots for this court, date, and hour
+    // Find time slots for this court, date, and start time
     const relevantSlots = timeSlots.filter(
       slot => slot.courtId === court.id &&
               slot.date === formattedDate &&
-              parseInt(slot.startTime.split(":")[0]) === hour
+              slot.startTime === startTimeStr
     );
 
     if (relevantSlots.length === 0) {
@@ -371,13 +384,13 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     const reservation = (slot as any).reservation || reservations.find(res => res.timeSlotId === slot.id);
     // Use enriched clinic data from slot (includes participants) or fall back to lookup
     const clinic = (slot as any).clinic || (slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null);
-    
+
     // Check if this time slot is in the past
     const slotDateTime = new Date(day);
     const [slotHours, slotMinutes] = slot.startTime.split(':').map(Number);
     slotDateTime.setHours(slotHours, slotMinutes || 0, 0, 0);
     const isSlotInPast = slotDateTime < currentTime;
-    
+
     const status = {
       available: slot.available && !isSlotInPast, // Mark as unavailable if in the past
       reserved: !!reservation,
@@ -421,14 +434,10 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
     return status;
   }, [selectedCoachId, timeSlots, reservations, clinics, coaches, currentTime]);
 
-  const handleTimeSlotClick = useCallback((court: Court, day: Date, hour: number) => {
+  const handleTimeSlotClick = useCallback((court: Court, day: Date, startTimeStr: string) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const courtTimeSlots = timeSlots.filter(
-      slot => slot.courtId === court.id && slot.date === formattedDate
-    );
-
-    const relevantSlots = courtTimeSlots.filter(
-      slot => parseInt(slot.startTime.split(":")[0]) === hour
+    const relevantSlots = timeSlots.filter(
+      slot => slot.courtId === court.id && slot.date === formattedDate && slot.startTime === startTimeStr
     );
 
     if (relevantSlots.length > 0) {
@@ -467,22 +476,16 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
   }, [onSelectTimeSlot, timeSlots, reservations, currentUser]);
 
   // Helper function to get the first available time slot for a clinic block
-  const getFirstAvailableSlotForBlock = useCallback((court: Court, day: Date, startHour: number, endHour: number) => {
+  const getFirstAvailableSlotForBlock = useCallback((court: Court, day: Date, blockStartTime: string, blockEndTime: string) => {
     const formattedDate = format(day, "yyyy-MM-dd");
     const courtTimeSlots = timeSlots.filter(
-      slot => slot.courtId === court.id && slot.date === formattedDate
+      slot => slot.courtId === court.id && slot.date === formattedDate &&
+              slot.startTime >= blockStartTime && slot.startTime < blockEndTime
     );
 
-    for (let hour = startHour; hour < endHour; hour++) {
-      const relevantSlots = courtTimeSlots.filter(
-        slot => parseInt(slot.startTime.split(":")[0]) === hour
-      );
-
-      if (relevantSlots.length > 0 && relevantSlots[0].available) {
-        return relevantSlots[0];
-      }
+    for (const slot of courtTimeSlots) {
+      if (slot.available) return slot;
     }
-
     return null;
   }, [timeSlots]);
 
@@ -729,40 +732,13 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                           {/* Time slots */}
                           <div className={cn("space-y-1", isMobile ? "p-1" : "p-2")}>
                             {(() => {
-                              const timeSlotBlocks: Array<{
-                                startHour: number;
-                                endHour: number;
-                                isClinic: boolean;
-                                clinic: Clinic | null;
-                                slot: TimeSlot | null;
-                                available: boolean;
-                                reserved: boolean;
-                                blocked: boolean;
-                                isMyReservation: boolean;
-                                isMyClinicReservation: boolean;
-                                coachName?: string;
-                                coachUnavailable?: boolean;
-                              }> = [];
-
-                              let currentBlock: {
-                                startHour: number;
-                                endHour: number;
-                                isClinic: boolean;
-                                clinic: Clinic | null;
-                                slot: TimeSlot | null;
-                                available: boolean;
-                                reserved: boolean;
-                                blocked: boolean;
-                                isMyReservation: boolean;
-                                isMyClinicReservation: boolean;
-                                coachName?: string;
-                                coachUnavailable?: boolean;
-                              } | null = null;
+                              const timeSlotBlocks: Array<TimeSlotBlockData> = [];
+                              let currentBlock: TimeSlotBlockData | null = null;
 
                               // Group consecutive time slots into blocks
-                              for (let i = 0; i < hours.length; i++) {
-                                const hour = hours[i];
-                                const { available, reserved, blocked, isClinic, slot, clinic, reservation, coachUnavailable, isOpenPlay, openPlaySlots, currentPlayers, maxOpenPlayers, openPlayGroupId } = getSlotStatus(court, day, hour);
+                              for (let i = 0; i < slotStartTimes.length; i++) {
+                                const startTimeStr = slotStartTimes[i];
+                                const { available, reserved, blocked, isClinic, slot, clinic, reservation, coachUnavailable, isOpenPlay, openPlaySlots, currentPlayers, maxOpenPlayers, openPlayGroupId } = getSlotStatus(court, day, startTimeStr);
 
                                 // Compute group-wide total for open play
                                 let groupTotalPlayers = currentPlayers;
@@ -779,9 +755,15 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                   (currentUser?.id && (reservation as any).createdById === currentUser.id)
                                 ) : false;
 
+                                // Get endTime from the slot or compute from startTime
+                                const slotEndTime = slot?.endTime || (() => {
+                                  const [h, m] = startTimeStr.split(':').map(Number);
+                                  const endMins = h * 60 + m + 60;
+                                  return `${Math.floor(endMins / 60).toString().padStart(2, '0')}:${(endMins % 60).toString().padStart(2, '0')}`;
+                                })();
+
                                 if (isClinic && clinic) {
                                   // Check if this is the user's clinic reservation
-                                  // Check both: reservation ownership AND clinic participants
                                   const clinicParticipants = (clinic as any).participants || [];
                                   const isInClinicParticipants = currentUserEmail && clinicParticipants.some(
                                     (p: any) => p.email === currentUserEmail || p.userId === currentUser?.id
@@ -792,21 +774,21 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                   const coach = clinic.coachId ? coaches.find(c => c.id === clinic.coachId) : null;
                                   const coachName = coach?.name || 'Coach';
 
-                                  // If this is a clinic and it's the same clinic as the previous hour
+                                  // If this is a clinic and it's the same clinic as the previous slot
                                   if (currentBlock &&
                                       currentBlock.isClinic &&
                                       currentBlock.clinic?.id === clinic.id &&
-                                      currentBlock.endHour === hour) {
+                                      currentBlock.endTime === startTimeStr) {
                                     // Extend the current block
-                                    currentBlock.endHour = hour + 1;
+                                    currentBlock.endTime = slotEndTime;
                                   } else {
                                     // Start a new clinic block
                                     if (currentBlock) {
                                       timeSlotBlocks.push(currentBlock);
                                     }
                                     currentBlock = {
-                                      startHour: hour,
-                                      endHour: hour + 1,
+                                      startTime: startTimeStr,
+                                      endTime: slotEndTime,
                                       isClinic: true,
                                       clinic,
                                       slot,
@@ -820,15 +802,15 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                     };
                                   }
                                 } else {
-                                  // If this is not a clinic, add the previous block and create a new single-hour block
+                                  // If this is not a clinic, add the previous block and create a new single-slot block
                                   if (currentBlock) {
                                     timeSlotBlocks.push(currentBlock);
                                     currentBlock = null;
                                   }
 
                                   timeSlotBlocks.push({
-                                    startHour: hour,
-                                    endHour: hour + 1,
+                                    startTime: startTimeStr,
+                                    endTime: slotEndTime,
                                     isClinic: false,
                                     clinic: null,
                                     slot,
@@ -877,7 +859,7 @@ const HomeSchedulerView = ({ onSelectTimeSlot, selectedCoachId }: HomeSchedulerV
                                 })
                                 .map((block, blockIndex) => (
                                   <TimeSlotBlock
-                                    key={`${court.id}-${day.toString()}-${block.startHour}-${block.endHour}`}
+                                    key={`${court.id}-${day.toString()}-${block.startTime}-${block.endTime}`}
                                     court={court}
                                     day={day}
                                     block={block}
