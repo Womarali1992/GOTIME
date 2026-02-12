@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pickleball": {
+      "command": "npx",
+      "args": ["tsx", "server/mcp/index.ts"],
+      "env": {
+        "API_BASE_URL": "http://localhost:3001/api",
+        "TENANT_ID": "default"
+      }
+    }
+  }
+}
