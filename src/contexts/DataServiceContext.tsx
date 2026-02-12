@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { apiDataService } from '@/lib/services/api-data-service';
 import type {
   Court,
@@ -7,7 +7,6 @@ import type {
   User,
   Coach,
   Clinic,
-  Social,
   CreateUser,
   CreateCoach,
   CreateClinic,
@@ -17,8 +16,14 @@ import type { EnrichedTimeSlot, ItemsWithComments } from '@/types/enriched-data'
 // Types for booking operations
 type CreateReservationData = Omit<Reservation, 'id' | 'createdAt'>;
 type UpdateReservationData = Partial<Reservation>;
-type CreateSocialData = Omit<Social, 'id' | 'createdAt'>;
-type UpdateSocialData = Partial<Social>;
+
+interface TimeSlotServiceType {
+  getTimeSlotsForDate: (date: string, courtId?: string) => TimeSlot[];
+}
+
+interface PrivateSessionServiceType {
+  isCoachAvailable: (coachId: string, date: string, startTime: string, endTime: string) => boolean;
+}
 
 interface DataServiceContextType {
   // Data
@@ -28,7 +33,6 @@ interface DataServiceContextType {
   users: User[];
   coaches: Coach[];
   clinics: Clinic[];
-  socials: Social[];
   reservationSettings: any;
   isLoading: boolean;
 
@@ -36,12 +40,7 @@ interface DataServiceContextType {
   createReservation: (data: CreateReservationData) => Promise<Reservation>;
   updateReservation: (id: string, data: UpdateReservationData) => Promise<Reservation | undefined>;
   deleteReservation: (id: string) => Promise<boolean>;
-
-  // Social Actions (Single Source of Truth)
-  createSocial: (data: CreateSocialData) => Promise<Social>;
-  updateSocial: (id: string, data: UpdateSocialData) => Promise<Social | undefined>;
-  deleteSocial: (id: string) => Promise<boolean>;
-  addVoteToSocial: (socialId: string, userId: string, vote: 'yes' | 'no') => Promise<Social | undefined>;
+  joinOpenPlay: (reservationId: string, participant: { name: string; email: string; phone: string }) => Promise<Reservation>;
 
   // Time Slot Actions
   createTimeSlot: (data: Omit<TimeSlot, 'id' | 'createdAt'>) => Promise<TimeSlot>;
@@ -50,14 +49,23 @@ interface DataServiceContextType {
 
   // User/Coach/Clinic Actions
   addUser: (userData: CreateUser) => Promise<User>;
+  updateUser: (id: string, data: Partial<User>) => Promise<User | undefined>;
+  deleteUser: (id: string) => Promise<boolean>;
   addCoach: (coachData: CreateCoach) => Promise<Coach>;
+  updateCoach: (id: string, data: Partial<Coach>) => Promise<Coach>;
+  deleteCoach: (id: string) => Promise<boolean>;
   addClinic: (clinicData: CreateClinic) => Promise<Clinic>;
+
+  // Settings Actions
+  updateSettings: (settings: any) => Promise<any>;
 
   // Utility
   refresh: () => void;
   refreshKey: number;
 
-  // Legacy compatibility
+  // Legacy compatibility services
+  timeSlotService: TimeSlotServiceType;
+  privateSessionService: PrivateSessionServiceType;
   getAllItemsWithComments: () => ItemsWithComments;
   getTimeSlotsWithNotes: () => EnrichedTimeSlot[];
 }
@@ -76,26 +84,60 @@ export function DataServiceProvider({ children }: DataServiceProviderProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [socials, setSocials] = useState<Social[]>([]);
   const [reservationSettings, setReservationSettings] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
 
+  // Full refresh - reloads all data (use sparingly)
   const refresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
+  }, []);
+
+  // Selective refresh functions for better performance
+  const refreshReservationsAndSlots = useCallback(async () => {
+    const [reservationsData, timeSlotsData] = await Promise.all([
+      apiDataService.getAllReservations(),
+      apiDataService.getAllTimeSlots(),
+    ]);
+    setReservations(reservationsData);
+    setTimeSlots(timeSlotsData);
+  }, []);
+
+  const refreshTimeSlots = useCallback(async () => {
+    const timeSlotsData = await apiDataService.getAllTimeSlots();
+    setTimeSlots(timeSlotsData);
+  }, []);
+
+  const refreshUsers = useCallback(async () => {
+    const usersData = await apiDataService.getAllUsers();
+    setUsers(usersData);
+  }, []);
+
+  const refreshCoaches = useCallback(async () => {
+    const coachesData = await apiDataService.getAllCoaches();
+    setCoaches(coachesData);
+  }, []);
+
+  const refreshClinics = useCallback(async () => {
+    const clinicsData = await apiDataService.getAllClinics();
+    setClinics(clinicsData);
   }, []);
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [courtsData, timeSlotsData, reservationsData, usersData, coachesData, clinicsData, socialsData, settingsData] = await Promise.all([
+        // Health check (replaces DataProvider)
+        await apiDataService.initialize();
+        setIsConnected(true);
+
+        const [courtsData, timeSlotsData, reservationsData, usersData, coachesData, clinicsData, settingsData] = await Promise.all([
           apiDataService.getAllCourts(),
           apiDataService.getAllTimeSlots(),
           apiDataService.getAllReservations(),
           apiDataService.getAllUsers(),
           apiDataService.getAllCoaches(),
           apiDataService.getAllClinics(),
-          apiDataService.getAllSocials(),
           apiDataService.getReservationSettings(),
         ]);
         setCourts(courtsData);
@@ -104,23 +146,10 @@ export function DataServiceProvider({ children }: DataServiceProviderProps) {
         setUsers(usersData);
         setCoaches(coachesData);
         setClinics(clinicsData);
-        // Filter out past socials (check both date and time)
-        const now = new Date();
-        const filteredSocials = socialsData.filter((s: Social) => {
-          const socialDate = new Date(s.date);
-          const [hours, minutes] = s.endTime.split(':').map(Number);
-          socialDate.setHours(hours, minutes || 0, 0, 0);
-          return socialDate >= now;
-        }).sort((a: Social, b: Social) => {
-          // Sort by date first, then by start time
-          const dateCompare = a.date.localeCompare(b.date);
-          if (dateCompare !== 0) return dateCompare;
-          return a.startTime.localeCompare(b.startTime);
-        });
-        setSocials(filteredSocials);
         setReservationSettings(settingsData);
       } catch (error) {
         console.error('Failed to load data:', error);
+        setIsConnected(true); // Show app even if data load fails
       } finally {
         setIsLoading(false);
       }
@@ -130,87 +159,97 @@ export function DataServiceProvider({ children }: DataServiceProviderProps) {
 
   const addUser = useCallback(async (userData: CreateUser) => {
     const user = await apiDataService.createUser(userData);
-    refresh();
+    await refreshUsers();
     return user;
-  }, [refresh]);
+  }, [refreshUsers]);
+
+  const updateUser = useCallback(async (id: string, data: Partial<User>) => {
+    const result = await apiDataService.updateUser(id, data);
+    await refreshUsers();
+    return result;
+  }, [refreshUsers]);
+
+  const deleteUser = useCallback(async (id: string) => {
+    const result = await apiDataService.deleteUser(id);
+    await refreshUsers();
+    return result;
+  }, [refreshUsers]);
 
   const addCoach = useCallback(async (coachData: CreateCoach) => {
     const coach = await apiDataService.createCoach(coachData);
-    refresh();
+    await refreshCoaches();
     return coach;
-  }, [refresh]);
+  }, [refreshCoaches]);
+
+  const updateCoach = useCallback(async (id: string, data: Partial<Coach>) => {
+    const result = await apiDataService.updateCoach(id, data);
+    await refreshCoaches();
+    return result;
+  }, [refreshCoaches]);
+
+  const deleteCoach = useCallback(async (id: string) => {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/coaches/${id}`, { method: 'DELETE' });
+    await refreshCoaches();
+    return response.ok;
+  }, [refreshCoaches]);
 
   const addClinic = useCallback(async (clinicData: CreateClinic) => {
     const clinic = await apiDataService.createClinic(clinicData);
-    refresh();
+    await refreshClinics();
     return clinic;
-  }, [refresh]);
+  }, [refreshClinics]);
+
+  const updateSettings = useCallback(async (newSettings: any) => {
+    const result = await apiDataService.updateReservationSettings(newSettings);
+    setReservationSettings(result);
+    // Settings changes (e.g. operating hours) affect time slot generation,
+    // so bump refreshKey so consumers like HomeSchedulerView reload slots.
+    setRefreshKey(prev => prev + 1);
+    return result;
+  }, []);
 
   const deleteTimeSlot = useCallback(async (id: string) => {
     const result = await apiDataService.deleteTimeSlot(id);
-    refresh();
+    await refreshTimeSlots();
     return result;
-  }, [refresh]);
+  }, [refreshTimeSlots]);
 
   const createTimeSlot = useCallback(async (data: Omit<TimeSlot, 'id' | 'createdAt'>) => {
     const result = await apiDataService.createTimeSlot(data);
-    refresh();
+    await refreshTimeSlots();
     return result;
-  }, [refresh]);
+  }, [refreshTimeSlots]);
 
   const updateTimeSlot = useCallback(async (id: string, data: Partial<TimeSlot>) => {
     const result = await apiDataService.updateTimeSlot(id, data);
-    refresh();
+    await refreshTimeSlots();
     return result;
-  }, [refresh]);
+  }, [refreshTimeSlots]);
 
-  // ============================================
-  // RESERVATION ACTIONS - Single Source of Truth
-  // ============================================
+  // Reservation Actions - Single Source of Truth
   const createReservation = useCallback(async (data: CreateReservationData) => {
     const result = await apiDataService.createReservation(data);
-    refresh();
+    await refreshReservationsAndSlots();
     return result;
-  }, [refresh]);
+  }, [refreshReservationsAndSlots]);
 
   const updateReservation = useCallback(async (id: string, data: UpdateReservationData) => {
     const result = await apiDataService.updateReservation(id, data);
-    refresh();
+    await refreshReservationsAndSlots();
     return result;
-  }, [refresh]);
+  }, [refreshReservationsAndSlots]);
 
   const deleteReservation = useCallback(async (id: string) => {
     const result = await apiDataService.deleteReservation(id);
-    refresh();
+    await refreshReservationsAndSlots();
     return result;
-  }, [refresh]);
+  }, [refreshReservationsAndSlots]);
 
-  // ============================================
-  // SOCIAL ACTIONS - Single Source of Truth
-  // ============================================
-  const createSocial = useCallback(async (data: CreateSocialData) => {
-    const result = await apiDataService.createSocial(data);
-    refresh();
+  const joinOpenPlay = useCallback(async (reservationId: string, participant: { name: string; email: string; phone: string }) => {
+    const result = await apiDataService.joinOpenPlay(reservationId, participant);
+    await refreshReservationsAndSlots();
     return result;
-  }, [refresh]);
-
-  const updateSocial = useCallback(async (id: string, data: UpdateSocialData) => {
-    const result = await apiDataService.updateSocial(id, data);
-    refresh();
-    return result;
-  }, [refresh]);
-
-  const deleteSocial = useCallback(async (id: string) => {
-    const result = await apiDataService.deleteSocial(id);
-    refresh();
-    return result;
-  }, [refresh]);
-
-  const addVoteToSocial = useCallback(async (socialId: string, userId: string, vote: 'yes' | 'no') => {
-    const result = await apiDataService.addVoteToSocial(socialId, userId, vote);
-    refresh();
-    return result;
-  }, [refresh]);
+  }, [refreshReservationsAndSlots]);
 
   const getAllItemsWithComments = useCallback((): ItemsWithComments => ({
     reservations: [],
@@ -237,45 +276,70 @@ export function DataServiceProvider({ children }: DataServiceProviderProps) {
       });
   }, [timeSlots, courts, reservations, clinics]);
 
+  // Legacy compatibility service objects
+  const timeSlotService: TimeSlotServiceType = useMemo(() => ({
+    getTimeSlotsForDate: (date: string, courtId?: string) => {
+      return timeSlots.filter(ts => {
+        if (ts.date !== date) return false;
+        if (courtId && ts.courtId !== courtId) return false;
+        return true;
+      });
+    },
+  }), [timeSlots]);
+
+  const privateSessionService: PrivateSessionServiceType = useMemo(() => ({
+    isCoachAvailable: (_coachId: string, _date: string, _startTime: string, _endTime: string) => {
+      return true;
+    },
+  }), []);
+
   const value: DataServiceContextType = {
-    // Data
     courts,
     timeSlots,
     reservations,
     users,
     coaches,
     clinics,
-    socials,
     reservationSettings,
     isLoading,
 
-    // Reservation Actions (Single Source of Truth)
     createReservation,
     updateReservation,
     deleteReservation,
+    joinOpenPlay,
 
-    // Social Actions (Single Source of Truth)
-    createSocial,
-    updateSocial,
-    deleteSocial,
-    addVoteToSocial,
-
-    // Time Slot Actions
     createTimeSlot,
     updateTimeSlot,
     deleteTimeSlot,
 
-    // User/Coach/Clinic Actions
     addUser,
+    updateUser,
+    deleteUser,
     addCoach,
+    updateCoach,
+    deleteCoach,
     addClinic,
+    updateSettings,
 
-    // Utility
     refresh,
     refreshKey,
+
+    timeSlotService,
+    privateSessionService,
     getAllItemsWithComments,
     getTimeSlotsWithNotes,
   };
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Connecting to server...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DataServiceContext.Provider value={value}>
@@ -291,7 +355,3 @@ export function useDataServiceContext() {
   }
   return context;
 }
-
-
-
-

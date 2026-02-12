@@ -6,28 +6,36 @@ import { TimeSlot } from "@/lib/types";
 import HomeSchedulerView from "@/components/HomeSchedulerView";
 import ReservationForm from "@/components/ReservationForm";
 import BookPrivateSessionDialog from "@/components/BookPrivateSessionDialog";
-import FindPlayers from "@/components/FindPlayers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Users, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useDataService } from "@/hooks/use-data-service";
+import { useUser } from "@/contexts/UserContext";
 
 const Index = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [confirmedReservationId, setConfirmedReservationId] = useState<string | null>(null);
   const [bookingType, setBookingType] = useState<'regular' | 'private' | null>(null);
   const dataService = useDataService();
+  const { currentUser } = useUser();
+  const isAdmin = currentUser?.membershipType === 'admin';
 
   const handleSelectTimeSlot = (timeSlot: TimeSlot) => {
+    // Check isAvailable (calculated) or available (raw) - API returns both
+    const slotIsAvailable = (timeSlot as any).isAvailable !== undefined
+      ? (timeSlot as any).isAvailable
+      : timeSlot.available;
+
     // Don't show booking options for clinic or blocked slots
     if (timeSlot.type === 'clinic') {
       setSelectedTimeSlot(timeSlot);
       setBookingType('regular');
-    } else if (timeSlot.blocked || !timeSlot.available) {
+    } else if ((timeSlot.blocked || !slotIsAvailable) && !isAdmin) {
+      // Only block non-admins from booking unavailable/blocked slots
       return;
     } else {
-      // Show booking type selection for available slots
+      // Show booking type selection for available slots (or for admins even if blocked/unavailable)
       setSelectedTimeSlot(timeSlot);
       setBookingType(null);
     }
@@ -45,6 +53,9 @@ const Index = () => {
     }
     setSelectedTimeSlot(null);
     setBookingType(null);
+    // Refresh data to show the new reservation in the UI
+    // Using shared context ensures all components see the update
+    dataService.refresh();
   };
 
   const handleCloseConfirmation = () => {
@@ -60,12 +71,6 @@ const Index = () => {
       <Header />
 
       <main className="flex-1 container py-4 sm:py-8 px-4 sm:px-6">
-        <FindPlayers
-          onSelectReservation={(reservation, timeSlot) => {
-            // Navigate to the reservation's time slot
-            handleSelectTimeSlot(timeSlot);
-          }}
-        />
         <HomeSchedulerView onSelectTimeSlot={handleSelectTimeSlot} />
       </main>
 

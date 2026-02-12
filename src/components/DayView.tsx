@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, User, GraduationCap, X, MapPin, Calendar, Users } from "lucide-react";
+import { Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, User, GraduationCap, X, MapPin, Calendar } from "lucide-react";
 import { format, addDays, subDays, startOfDay } from "date-fns";
-import { TimeSlot, Court, Reservation, Clinic, Coach, Social } from "@/lib/types";
+import { TimeSlot, Court, Reservation, Clinic, Coach } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
@@ -20,7 +20,6 @@ interface DayViewProps {
   reservations: Reservation[];
   clinics: Clinic[];
   coaches: Coach[];
-  socials?: Social[];
   isOpen: boolean;
   isModal?: boolean; // New prop to control modal vs inline display
   onSelectTimeSlot?: (timeSlot: TimeSlot) => void; // Add slot selection callback
@@ -33,10 +32,10 @@ interface DayViewProps {
   legendFilters?: {
     available: boolean;
     clinic: boolean;
-    social: boolean;
     myReservations: boolean;
+    openPlay: boolean;
   };
-  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; social: boolean; myReservations: boolean; }) => void;
+  onLegendFiltersChange?: (filters: { available: boolean; clinic: boolean; myReservations: boolean; openPlay: boolean; }) => void;
   selectedCourt?: string | undefined;
   onCourtChange?: (courtId: string | undefined) => void;
 }
@@ -49,7 +48,6 @@ const DayView = ({
   reservations,
   clinics,
   coaches,
-  socials = [],
   isOpen,
   isModal = true,
   onSelectTimeSlot,
@@ -58,7 +56,7 @@ const DayView = ({
   onWeekChange,
   viewDays = 1,
   onViewDaysChange,
-  legendFilters = { available: true, clinic: true, social: true, myReservations: true },
+  legendFilters = { available: true, clinic: true, myReservations: true, openPlay: true },
   onLegendFiltersChange,
   selectedCourt,
   onCourtChange
@@ -87,10 +85,21 @@ const DayView = ({
   // Get booking operations from centralized hook
   const { updateReservation, deleteReservation } = useBookings();
   
-  // Time range to display (8am to 9pm)
-  const startHour = 8;
-  const endHour = 21;
-  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+  // Derive unique sorted start times from API-returned time slots
+  // Falls back to 8am-9pm hourly if no slots loaded yet
+  const slotStartTimes = React.useMemo(() => {
+    if (timeSlots.length === 0) {
+      return Array.from({ length: 13 }, (_, i) => `${(8 + i).toString().padStart(2, '0')}:00`);
+    }
+    const timesSet = new Set<string>();
+    timeSlots.forEach(slot => timesSet.add(slot.startTime));
+    return Array.from(timesSet).sort();
+  }, [timeSlots]);
+
+  // Convert start time strings to hour numbers for backward-compat with hour-based rendering
+  const hours = React.useMemo(() => {
+    return slotStartTimes.map(st => parseInt(st.split(':')[0]));
+  }, [slotStartTimes]);
 
   // Generate next 13 days for time focus mode
   const next13Days = Array.from({ length: 13 }, (_, i) => addDays(new Date(), i));
@@ -163,42 +172,32 @@ const DayView = ({
     );
     
     if (!slot) {
-      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null };
+      return { available: false, reserved: false, blocked: false, isClinic: false, slot: null, clinic: null, reservation: null };
     }
-    
+
     const reservation = reservations.find(res => res.timeSlotId === slot.id);
     const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
 
-    // Check if this is a social
-    let isSocial = false;
-    let social = null;
-    if (slot.socialId) {
-      social = socials.find(s => s.id === slot.socialId);
-      isSocial = !!social;
-    }
-
     return {
-      available: slot.available && !slot.blocked && !reservation && !clinic && !isSocial,
+      available: slot.available && !slot.blocked && !reservation && !clinic,
       reserved: !!reservation,
       blocked: slot.blocked || false,
       isClinic: !!clinic,
-      isSocial,
       slot,
       clinic,
       reservation,
-      social
     };
   };
 
   // Get all time slots for the selected date
   const dateTimeSlots = timeSlots.filter(slot => slot.date === formattedDate);
-  
+
   // Get all reservations for the selected date - filter from props
   const dateReservations = reservations.filter(reservation => {
     const slot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
     return slot && slot.date === formattedDate;
   });
-  
+
   // Get all clinics for the selected date - filter from props
   const dateClinics = clinics.filter(clinic => {
     const clinicSlots = timeSlots.filter(ts => ts.clinicId === clinic.id);
@@ -227,30 +226,20 @@ const DayView = ({
     );
 
     if (!slot) {
-      return { available: false, reserved: false, blocked: false, isClinic: false, isSocial: false, slot: null, clinic: null, reservation: null, social: null };
+      return { available: false, reserved: false, blocked: false, isClinic: false, slot: null, clinic: null, reservation: null };
     }
 
     const reservation = reservations.find(res => res.timeSlotId === slot.id);
     const clinic = slot.clinicId ? clinics.find(c => c.id === slot.clinicId) : null;
 
-    // Check if this is a social
-    let isSocial = false;
-    let social = null;
-    if (slot.socialId) {
-      social = socials.find(s => s.id === slot.socialId);
-      isSocial = !!social;
-    }
-
     return {
-      available: slot.available && !slot.blocked && !reservation && !clinic && !isSocial,
+      available: slot.available && !slot.blocked && !reservation && !clinic,
       reserved: !!reservation,
       blocked: slot.blocked || false,
       isClinic: !!clinic,
-      isSocial,
       slot,
       clinic,
       reservation,
-      social
     };
   };
 
@@ -620,8 +609,8 @@ const DayView = ({
                         slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
                       }
                       
-                      const { available, reserved, blocked, slot, reservation, clinic, isSocial, social } = slotData;
-                      const isClickable = available && !reserved && !blocked && !clinic && !isSocial && onSelectTimeSlot;
+                      const { available, reserved, blocked, slot, reservation, clinic } = slotData;
+                      const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
                       const isPast = row.type === 'hour'
                         ? isTimeSlotInPast(selectedDate, row.value as number)
                         : isTimeSlotInPast(row.value as Date, focusedTime!);
@@ -638,9 +627,7 @@ const DayView = ({
                           <div
                             className={cn(
                               "w-full h-full rounded text-xs text-center flex items-center justify-center transition-all duration-200 p-1",
-                              isSocial
-                                ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60"
-                                : clinic
+                              clinic
                                 ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                                 : blocked
                                 ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
@@ -661,9 +648,7 @@ const DayView = ({
                               }
                             }}
                             title={
-                              isSocial && social
-                                ? `Social Game: ${social.title}`
-                                : clinic
+                              clinic
                                 ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                                 : reservation
                                 ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
@@ -674,12 +659,7 @@ const DayView = ({
                                 : "Unavailable"
                             }
                           >
-                            {isSocial ? (
-                              <div className="flex flex-col items-center">
-                                <Users className="h-3 w-3 mb-0.5" />
-                                <span className="font-bold text-xs leading-none">Social</span>
-                              </div>
-                            ) : clinic ? (
+                            {clinic ? (
                               <div className="flex flex-col items-center">
                                 <GraduationCap className="h-3 w-3 mb-0.5" />
                                 <span className="font-bold text-xs leading-none">Clinic</span>
@@ -755,8 +735,8 @@ const DayView = ({
                       slotData = getSlotStatusForDate(court, row.value as Date, focusedTime!);
                     }
                     
-                    const { available, reserved, blocked, slot, reservation, clinic, isSocial, social } = slotData;
-                    const isClickable = available && !reserved && !blocked && !clinic && !isSocial && onSelectTimeSlot;
+                    const { available, reserved, blocked, slot, reservation, clinic } = slotData;
+                    const isClickable = available && !reserved && !blocked && !clinic && onSelectTimeSlot;
                     const isPast = row.type === 'hour'
                       ? isTimeSlotInPast(selectedDate, row.value as number)
                       : isTimeSlotInPast(row.value as Date, focusedTime!);
@@ -773,9 +753,7 @@ const DayView = ({
                         <div
                           className={cn(
                             "w-full h-full rounded text-sm md:text-base text-center flex items-center justify-center transition-all duration-200 p-2",
-                            isSocial
-                              ? "bg-orange-300/50 text-orange-900 border-2 border-orange-500/60 shadow-sm hover:bg-orange-300/60"
-                              : clinic
+                            clinic
                               ? "bg-yellow-500/50 text-yellow-900 border-2 border-yellow-600/60 shadow-sm hover:bg-yellow-500/60"
                               : blocked
                               ? "bg-gray-400/50 text-gray-900 border-2 border-gray-500/60 shadow-sm"
@@ -796,9 +774,7 @@ const DayView = ({
                             }
                           }}
                           title={
-                            isSocial && social
-                              ? `Social Game: ${social.title}`
-                              : clinic
+                            clinic
                               ? `${clinic.name}: ${clinic.description} ($${clinic.price})`
                               : reservation
                               ? `Reserved by ${reservation.playerName} (${reservation.players} player${reservation.players !== 1 ? 's' : ''})${reservation.participants && reservation.participants.length > 1 ? ` - Playing with ${reservation.participants.filter(p => !p.isOrganizer).map(p => p.name).join(', ')}` : ''}`
@@ -809,12 +785,7 @@ const DayView = ({
                               : "Unavailable"
                           }
                         >
-                          {isSocial ? (
-                            <div className="flex flex-col items-center">
-                              <Users className="h-3 w-3 mb-1" />
-                              <span className="font-semibold text-sm">Social</span>
-                            </div>
-                          ) : clinic ? (
+                          {clinic ? (
                             <div className="flex flex-col items-center">
                               <GraduationCap className="h-3 w-3 mb-1" />
                               <span className="font-semibold text-sm">{clinic.name}</span>
@@ -851,10 +822,6 @@ const DayView = ({
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-green-500/50 border-2 border-green-600/60 shadow-sm"></div>
               <span>Available</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-orange-300/50 border-2 border-orange-500/60 shadow-sm"></div>
-              <span>Social</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-yellow-500/50 border-2 border-yellow-600/60 shadow-sm"></div>

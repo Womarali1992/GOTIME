@@ -231,23 +231,29 @@ const CoachSchedulerView = ({ onSelectTimeSlot, selectedCoach }: CoachSchedulerV
   // Get time slot blocks for a court and day
   const getTimeSlotBlocks = useCallback((court: Court, day: Date) => {
     const formattedDate = format(day, "yyyy-MM-dd");
-    const timeSlots = timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
+    const slots = timeSlotService.getTimeSlotsForDate(formattedDate, court.id);
 
+    // If we have API-returned slots, use their actual times
+    if (slots.length > 0) {
+      const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+      return sorted.map(slot => ({
+        startHour: parseInt(slot.startTime.split(':')[0]),
+        endHour: parseInt(slot.endTime.split(':')[0]) || parseInt(slot.startTime.split(':')[0]) + 1,
+        slot,
+        available: isSlotAvailableForCoach(slot, day)
+      }));
+    }
+
+    // Fallback: generate 8am-9pm hourly blocks with no slot data
     const blocks: any[] = [];
-    const startHour = 8;
-    const endHour = 21;
-
-    for (let hour = startHour; hour < endHour; hour++) {
-      const slot = timeSlots.find(s => parseInt(s.startTime.split(":")[0]) === hour);
-
+    for (let hour = 8; hour < 21; hour++) {
       blocks.push({
         startHour: hour,
         endHour: hour + 1,
-        slot: slot || null,
-        available: slot ? isSlotAvailableForCoach(slot, day) : false
+        slot: null,
+        available: false
       });
     }
-
     return blocks;
   }, [timeSlotService, isSlotAvailableForCoach]);
 

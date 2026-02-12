@@ -11,7 +11,6 @@ import AdminSettings from "@/components/AdminSettings";
 import UserSearchForm from "@/components/UserSearchForm";
 // import EditNotesForm from "@/components/EditNotesForm"; // Deprecated - using CommentForm instead
 import { Clock, User, GraduationCap, StickyNote } from "lucide-react";
-import { ReservationSettings } from "@/lib/types";
 import type { Comment as AppComment } from "@/lib/types";
 import CourtTimeSlots from "@/components/CourtTimeSlots";
 import CourtsSection from "@/components/CourtsSection";
@@ -29,8 +28,6 @@ const Admin = () => {
     createReservation,
     updateReservation,
     deleteReservation,
-    updateSocial,
-    deleteSocial,
   } = useBookings();
 
   const [editingCourt, setEditingCourt] = useState<any>(null);
@@ -40,8 +37,6 @@ const Admin = () => {
   const [showAddClinic, setShowAddClinic] = useState(false);
   const [showAddUserToReservation, setShowAddUserToReservation] = useState(false);
   const [editingReservation, setEditingReservation] = useState<any>(null);
-  const [editingSocial, setEditingSocial] = useState<any>(null);
-  const [viewingSocial, setViewingSocial] = useState<{social: any, reservation: any} | null>(null);
   const [selectedTimeSlotForForm, setSelectedTimeSlotForForm] = useState<string>("");
 
   // Comments editing state
@@ -213,29 +208,6 @@ const Admin = () => {
     }
   };
 
-  const handleConvertToSocial = async (reservationId: string) => {
-    try {
-      const reservation = reservations.find(r => r.id === reservationId);
-      if (!reservation) {
-        console.error("Reservation not found");
-        return;
-      }
-
-      const timeSlot = timeSlots.find(ts => ts.id === reservation.timeSlotId);
-      if (!timeSlot) {
-        console.error("Time slot not found");
-        return;
-      }
-
-      const court = courts.find(c => c.id === reservation.courtId);
-
-      // This feature is deprecated - socials should be created from scratch
-      console.log("Convert to social feature temporarily disabled during migration");
-    } catch (error) {
-      console.error("Error converting reservation to social:", error);
-    }
-  };
-
   const handleEditReservation = async (reservationId: string, updates: any) => {
     console.log("Updating reservation:", reservationId, updates);
     try {
@@ -262,122 +234,6 @@ const Admin = () => {
       console.error("Error deleting reservation:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       toast.error("Failed to Cancel Reservation", {
-        description: errorMessage
-      });
-      throw error;
-    }
-  };
-
-  const handleAddUserToSocial = async (socialId: string, userId: string) => {
-    console.log("Adding user to social:", socialId, userId);
-    try {
-      const user = users.find(u => u.id === userId);
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      const socialReservation = reservations.find(r => r.socialId === socialId);
-      if (!socialReservation) {
-        throw new Error("Reservation not found for this social game");
-      }
-
-      const updatedParticipants = [
-        ...(socialReservation.participants || []),
-        {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          isOrganizer: false
-        }
-      ];
-
-      // Use centralized hook - auto-refreshes state across all views
-      await updateReservation(socialReservation.id, {
-        participants: updatedParticipants
-      });
-
-      // Update local viewing state to reflect changes immediately
-      if (viewingSocial?.social.id === socialId) {
-        const updatedReservation = { ...socialReservation, participants: updatedParticipants };
-        setViewingSocial({ ...viewingSocial, reservation: updatedReservation });
-      }
-    } catch (error) {
-      console.error("Error adding user to social:", error);
-      throw error;
-    }
-  };
-
-  const handleRemoveUserFromSocial = async (socialId: string, userId: string) => {
-    console.log("Removing user from social:", socialId, userId);
-    try {
-      const socialReservation = reservations.find(r => r.socialId === socialId);
-      if (!socialReservation) {
-        throw new Error("Reservation not found for this social game");
-      }
-
-      const updatedParticipants = (socialReservation.participants || []).filter(
-        (p: any) => p.id !== userId
-      );
-
-      // Use centralized hook - auto-refreshes state across all views
-      await updateReservation(socialReservation.id, {
-        participants: updatedParticipants
-      });
-
-      // Update local viewing state to reflect changes immediately
-      if (viewingSocial?.social.id === socialId) {
-        const updatedReservation = { ...socialReservation, participants: updatedParticipants };
-        setViewingSocial({ ...viewingSocial, reservation: updatedReservation });
-      }
-    } catch (error) {
-      console.error("Error removing user from social:", error);
-      throw error;
-    }
-  };
-
-  const handleEditSocial = async (socialId: string, updates: any) => {
-    console.log("Updating social game:", socialId, updates);
-    try {
-      // Use centralized hook - auto-refreshes state across all views
-      await updateSocial(socialId, updates);
-      toast.success("Social Game Updated", {
-        description: `Successfully updated social game: ${updates.title || 'Social game'}`
-      });
-    } catch (error) {
-      console.error("Error updating social game:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      toast.error("Failed to Update Social Game", {
-        description: errorMessage
-      });
-      throw error;
-    }
-  };
-
-  const handleDeleteSocial = async (socialId: string) => {
-    console.log("Deleting social game:", socialId);
-    try {
-      const social = dataService.socials.find(s => s.id === socialId);
-      const socialReservation = reservations.find(r => r.socialId === socialId);
-
-      // Delete the reservation first if it exists (auto-refreshes state)
-      if (socialReservation) {
-        await deleteReservation(socialReservation.id);
-      }
-
-      // Then delete the social game (auto-refreshes state)
-      await deleteSocial(socialId);
-
-      toast.success("Social Game Cancelled", {
-        description: social
-          ? `Successfully cancelled social game: ${social.title}`
-          : "Social game cancelled successfully"
-      });
-      setViewingSocial(null);
-    } catch (error) {
-      console.error("Error deleting social game:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      toast.error("Failed to Cancel Social Game", {
         description: errorMessage
       });
       throw error;
@@ -476,12 +332,8 @@ const Admin = () => {
                   onBlockTimeSlot={handleBlockTimeSlot}
                   onUnblockTimeSlot={handleUnblockTimeSlot}
                   onCreateClinicForTimeSlot={handleCreateClinic}
-                  onConvertToSocial={handleConvertToSocial}
                   onEditReservation={(reservation) => setEditingReservation(reservation)}
                   onCancelReservation={handleDeleteReservation}
-                  onEditSocial={(social) => setEditingSocial(social)}
-                  onCancelSocial={handleDeleteSocial}
-                  onViewSocial={(social, reservation) => setViewingSocial({ social, reservation })}
                 />
               </TabsContent>
 
@@ -506,8 +358,6 @@ const Admin = () => {
                   }}
                   onEditReservation={(reservation) => setEditingReservation(reservation)}
                   onCancelReservation={handleDeleteReservation}
-                  onEditSocial={(social) => setEditingSocial(social)}
-                  onCancelSocial={handleDeleteSocial}
                 />
               </TabsContent>
             </Tabs>
@@ -571,11 +421,7 @@ const Admin = () => {
 
           <TabsContent value="settings">
             <div className="space-y-6">
-              <AdminSettings onSettingsUpdate={(updatedSettings) => {
-                console.log('Settings updated:', updatedSettings);
-                // Trigger calendar refresh
-                setCalendarRefreshKey(prev => prev + 1);
-              }} />
+              <AdminSettings />
             </div>
           </TabsContent>
         </Tabs>
@@ -610,18 +456,6 @@ const Admin = () => {
         onCloseEditReservation={() => setEditingReservation(null)}
         onSaveEditReservation={handleEditReservation}
         onDeleteReservation={handleDeleteReservation}
-        editingSocial={editingSocial}
-        onCloseEditSocial={() => setEditingSocial(null)}
-        onSaveEditSocial={handleEditSocial}
-        onDeleteSocial={handleDeleteSocial}
-        onEditSocialRequested={(social) => {
-          setViewingSocial(null);
-          setEditingSocial(social);
-        }}
-        viewingSocial={viewingSocial}
-        onCloseViewSocial={() => setViewingSocial(null)}
-        onAddUserToSocial={handleAddUserToSocial}
-        onRemoveUserFromSocial={handleRemoveUserFromSocial}
         timeSlots={timeSlots}
         users={users}
         clinics={clinics}

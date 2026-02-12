@@ -6,13 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { TimeSlot, Coach } from "@/lib/types";
 import { useBookings } from "@/hooks/use-bookings";
 import { useDataService } from "@/hooks/use-data-service";
 import { format } from "date-fns";
 import { useUser } from "@/contexts/UserContext";
-import { GraduationCap, DollarSign, Clock, CheckCircle, AlertCircle, Users } from "lucide-react";
+import { GraduationCap, DollarSign, Clock, CheckCircle, AlertCircle } from "lucide-react";
 
 interface BookPrivateSessionDialogProps {
   selectedTimeSlot: TimeSlot;
@@ -31,14 +30,13 @@ export default function BookPrivateSessionDialog({
 }: BookPrivateSessionDialogProps) {
   const { currentUser, isAuthenticated } = useUser();
   const { courts, coaches } = useDataService();
-  const { createSocial, createReservation, updateTimeSlot } = useBookings();
+  const { createReservation, updateTimeSlot } = useBookings();
 
   const [selectedCoachId, setSelectedCoachId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isSocialBooking, setIsSocialBooking] = useState(false);
 
   const court = courts.find(c => c.id === selectedTimeSlot.courtId);
   const date = new Date(selectedTimeSlot.date);
@@ -79,7 +77,6 @@ export default function BookPrivateSessionDialog({
       setNotes("");
       setError(null);
       setSuccess(false);
-      setIsSocialBooking(false);
     }
   }, [isOpen, preselectedCoachId]);
 
@@ -93,137 +90,37 @@ export default function BookPrivateSessionDialog({
         throw new Error("You must be logged in to book a session");
       }
 
-      if (!isSocialBooking && !selectedCoachId) {
+      if (!selectedCoachId) {
         throw new Error("Please select a coach");
       }
 
-      if (isSocialBooking) {
-        // Generate time slots for the social booking (minimum 3 required)
-        const generateTimeSlots = () => {
-          const slots = [];
-          const [startHour, startMin] = selectedTimeSlot.startTime.split(':').map(Number);
-          const [endHour, endMin] = selectedTimeSlot.endTime.split(':').map(Number);
+      // Create a private coaching session as a reservation
+      const reservation = await createReservation({
+        timeSlotId: selectedTimeSlot.id,
+        courtId: selectedTimeSlot.courtId,
+        playerName: currentUser.name,
+        playerEmail: currentUser.email,
+        playerPhone: currentUser.phone,
+        players: 1,
+        participants: [{
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: currentUser.phone,
+          isOrganizer: true,
+        }],
+        notes: notes.trim() || undefined,
+      });
 
-          const startMinutes = startHour * 60 + startMin;
-          const endMinutes = endHour * 60 + endMin;
-          const duration = endMinutes - startMinutes;
-
-          // Create 3 time slot options within the booking window
-          if (duration >= 60) {
-            // If booking is 1 hour or more, create slots at start, middle, and end
-            for (let i = 0; i < 3; i++) {
-              const offset = Math.floor((duration / 3) * i);
-              const slotMinutes = startMinutes + offset;
-              const hour = Math.floor(slotMinutes / 60);
-              const min = slotMinutes % 60;
-              const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-
-              slots.push({
-                id: crypto.randomUUID(),
-                time: timeStr,
-                votes: i === 0 ? [currentUser.id] : [],
-                isLocked: i === 0,
-              });
-            }
-          } else {
-            // For shorter durations, create the selected time and 2 nearby options
-            slots.push({
-              id: crypto.randomUUID(),
-              time: selectedTimeSlot.startTime,
-              votes: [currentUser.id],
-              isLocked: true,
-            });
-
-            // Add a slot 15 minutes before if possible
-            if (startMinutes >= 15) {
-              const beforeMinutes = startMinutes - 15;
-              const hour = Math.floor(beforeMinutes / 60);
-              const min = beforeMinutes % 60;
-              slots.unshift({
-                id: crypto.randomUUID(),
-                time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
-                votes: [],
-                isLocked: false,
-              });
-            }
-
-            // Add a slot 15 minutes after
-            const afterMinutes = Math.min(endMinutes, startMinutes + 15);
-            const hour = Math.floor(afterMinutes / 60);
-            const min = afterMinutes % 60;
-            slots.push({
-              id: crypto.randomUUID(),
-              time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
-              votes: [],
-              isLocked: false,
-            });
-          }
-
-          return slots;
-        };
-
-        const timeSlots = generateTimeSlots();
-        const lockedSlot = timeSlots.find(slot => slot.isLocked);
-
-        // Create a social booking via centralized hook (auto-refreshes state)
-        const social = await createSocial({
-          title: `Social Game - ${court?.name || 'Court'}`,
-          description: notes || '',
-          date: selectedTimeSlot.date,
-          startTime: selectedTimeSlot.startTime,
-          endTime: selectedTimeSlot.endTime,
-          timeSlotId: selectedTimeSlot.id,
-          status: 'active',
-          votes: [],
-          createdById: currentUser.id,
-        });
-
-        // Update the time slot to mark it as social (auto-refreshes state)
-        await updateTimeSlot(selectedTimeSlot.id, {
-          type: 'social',
-          socialId: social.id,
-          available: false,
-        });
-
-        // Create a reservation linked to the social (auto-refreshes state)
-        const reservation = await createReservation({
-          timeSlotId: selectedTimeSlot.id,
-          courtId: selectedTimeSlot.courtId,
-          playerName: currentUser.name,
-          playerEmail: currentUser.email,
-          playerPhone: currentUser.phone,
-          players: 1,
-          participants: [{
-            id: currentUser.id,
-            name: currentUser.name,
-            email: currentUser.email,
-            phone: currentUser.phone,
-            isOrganizer: true,
-          }],
-          socialId: social.id,
-        });
-
-        if (!reservation) {
-          throw new Error("Failed to create reservation for social booking");
-        }
-      } else {
-        // Create a private coaching session
-        const result = dataService.privateSessionService.createSession({
-          coachId: selectedCoachId,
-          clientId: currentUser.id,
-          courtId: selectedTimeSlot.courtId,
-          timeSlotId: selectedTimeSlot.id,
-          date: selectedTimeSlot.date,
-          startTime: selectedTimeSlot.startTime,
-          endTime: selectedTimeSlot.endTime,
-          price: selectedCoach?.coachingRate || selectedCoach?.hourlyRate || 0,
-          notes: notes.trim() || undefined,
-        });
-
-        if (!result.success) {
-          throw new Error(result.errors?.[0] || "Failed to book session");
-        }
+      if (!reservation) {
+        throw new Error("Failed to book coaching session");
       }
+
+      // Update the time slot to mark it as a coaching session
+      await updateTimeSlot(selectedTimeSlot.id, {
+        type: 'coaching',
+        available: false,
+      });
 
       setSuccess(true);
       setTimeout(() => {
@@ -244,36 +141,20 @@ export default function BookPrivateSessionDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isSocialBooking ? (
-              <>
-                <Users className="h-5 w-5" />
-                Book Social Game
-              </>
-            ) : (
-              <>
-                <GraduationCap className="h-5 w-5" />
-                Book Private Coaching Session
-              </>
-            )}
+            <GraduationCap className="h-5 w-5" />
+            Book Private Coaching Session
           </DialogTitle>
           <DialogDescription>
-            {isSocialBooking
-              ? "Book this time slot for a social game"
-              : "Select a coach and book a one-on-one session"
-            }
+            Select a coach and book a one-on-one session
           </DialogDescription>
         </DialogHeader>
 
         {success ? (
           <div className="py-8 text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              {isSocialBooking ? "Social Game Booked!" : "Session Booked!"}
-            </h3>
+            <h3 className="text-lg font-semibold mb-2">Session Booked!</h3>
             <p className="text-gray-600">
-              {isSocialBooking
-                ? "Your social game has been created successfully."
-                : "Your private coaching session has been confirmed."}
+              Your private coaching session has been confirmed.
             </p>
           </div>
         ) : (
@@ -297,35 +178,8 @@ export default function BookPrivateSessionDialog({
               </div>
             </div>
 
-            {/* Booking Type Toggle */}
-            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                {isSocialBooking ? (
-                  <Users className="h-5 w-5 text-blue-600" />
-                ) : (
-                  <GraduationCap className="h-5 w-5 text-blue-600" />
-                )}
-                <div>
-                  <Label htmlFor="booking-type" className="text-base font-semibold">
-                    {isSocialBooking ? "Social Booking" : "Private Coaching"}
-                  </Label>
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    {isSocialBooking
-                      ? "Book as a social game to play with friends"
-                      : "Book as private coaching session with a coach"
-                    }
-                  </p>
-                </div>
-              </div>
-              <Switch
-                id="booking-type"
-                checked={isSocialBooking}
-                onCheckedChange={setIsSocialBooking}
-              />
-            </div>
-
-            {/* Coach Selection - only show if not a social booking and not preselected */}
-            {!isSocialBooking && !preselectedCoachId && (
+            {/* Coach Selection - only show if not preselected */}
+            {!preselectedCoachId && (
               <div className="space-y-2">
                 <Label htmlFor="coach">Select Coach</Label>
                 {availableCoaches.length === 0 ? (
@@ -357,8 +211,8 @@ export default function BookPrivateSessionDialog({
               </div>
             )}
 
-            {/* Coach Details - only show if not a social booking */}
-            {!isSocialBooking && selectedCoach && (
+            {/* Coach Details */}
+            {selectedCoach && (
               <div className="bg-blue-50 p-4 rounded-lg space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -388,11 +242,7 @@ export default function BookPrivateSessionDialog({
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
                 id="notes"
-                placeholder={
-                  isSocialBooking
-                    ? "Add any notes about the social game..."
-                    : "Any specific goals or areas you'd like to work on?"
-                }
+                placeholder="Any specific goals or areas you'd like to work on?"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
@@ -422,15 +272,11 @@ export default function BookPrivateSessionDialog({
                 type="submit"
                 disabled={
                   isSubmitting ||
-                  (!isSocialBooking && (!selectedCoachId || availableCoaches.length === 0))
+                  !selectedCoachId || availableCoaches.length === 0
                 }
                 className="flex-1"
               >
-                {isSubmitting
-                  ? "Booking..."
-                  : isSocialBooking
-                  ? "Book Social Game"
-                  : "Book Session"}
+                {isSubmitting ? "Booking..." : "Book Session"}
               </Button>
             </div>
           </form>

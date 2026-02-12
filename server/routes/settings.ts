@@ -1,44 +1,36 @@
 import express from 'express';
-import { db } from '../db/database';
+import { query, safeParseJSON } from '../db/database.js';
+import { DEFAULT_OPERATING_HOURS } from '../utils/defaults.js';
 
 const router = express.Router();
 
 // Get settings
-// Default operating hours used when no settings row exists
-const DEFAULT_OPERATING_HOURS = [
-  { dayOfWeek: 'monday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'tuesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'wednesday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'thursday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'friday', isOpen: true, startTime: '08:00', endTime: '20:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'saturday', isOpen: true, startTime: '08:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 },
-  { dayOfWeek: 'sunday', isOpen: true, startTime: '10:00', endTime: '18:00', timeSlotDuration: 60, breakTime: 15 }
-];
+router.get('/', async (req, res) => {
+  let { rows } = await query('SELECT * FROM settings WHERE tenant_id = $1', [req.tenantId]);
+  let settings = rows[0];
 
-router.get('/', (req, res) => {
-  let settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
-
-  // Auto-create a settings row if missing so downstream routes always have data
   if (!settings) {
     const createdAt = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO settings (id, courtName, advanceBookingLimit, cancellationDeadline, maxPlayersPerSlot, minPlayersPerSlot, allowWalkIns, requirePayment, timeSlotVisibilityPeriod, operatingHours, createdAt)
-      VALUES ('1', 'Pickleball Court', 24, 2, 4, 1, 1, 0, '4_weeks', ?, ?)
-    `).run(JSON.stringify(DEFAULT_OPERATING_HOURS), createdAt);
-    settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
+    const id = `settings-${req.tenantId}`;
+    await query(
+      `INSERT INTO settings (id, tenant_id, "courtName", "advanceBookingLimit", "cancellationDeadline", "maxPlayersPerSlot", "minPlayersPerSlot", "allowWalkIns", "requirePayment", "timeSlotVisibilityPeriod", "operatingHours", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [id, req.tenantId, 'Pickleball Court', 24, 2, 4, 1, true, false, '4_weeks', JSON.stringify(DEFAULT_OPERATING_HOURS), createdAt]
+    );
+    const result = await query('SELECT * FROM settings WHERE tenant_id = $1', [req.tenantId]);
+    settings = result.rows[0];
   }
 
   res.json({
     ...settings,
-    // Make sure booleans are returned as actual booleans
     allowWalkIns: Boolean(settings.allowWalkIns),
     requirePayment: Boolean(settings.requirePayment),
-    operatingHours: JSON.parse(settings.operatingHours || '[]')
+    operatingHours: safeParseJSON(settings.operatingHours, [])
   });
 });
 
 // Update settings
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
   const {
     courtName,
     advanceBookingLimit,
@@ -55,86 +47,67 @@ router.put('/', (req, res) => {
 
   // If operating hours changed, clean up time slots for closed days
   if (operatingHours) {
-    // Build a map of which days are open/closed
-    const dayStatusMap = new Map();
-    operatingHours.forEach(day => {
+    const dayStatusMap = new Map<string, boolean>();
+    operatingHours.forEach((day: any) => {
       dayStatusMap.set(day.dayOfWeek, day.isOpen);
     });
 
-    // Get all time slots
-    const allSlots = db.prepare('SELECT * FROM time_slots').all();
+    const { rows: allSlots } = await query('SELECT * FROM time_slots WHERE tenant_id = $1', [req.tenantId]);
 
-    // Process each slot
     for (const slot of allSlots) {
-      // Check if slot has a reservation or clinic
-      const hasReservation = db.prepare('SELECT COUNT(*) as count FROM reservations WHERE timeSlotId = ?').get(slot.id);
+      const resCount = await query('SELECT COUNT(*) as count FROM reservations WHERE "timeSlotId" = $1 AND tenant_id = $2', [slot.id, req.tenantId]);
+      const hasReservation = parseInt(resCount.rows[0].count) > 0;
       const hasClinic = slot.type === 'clinic' && slot.clinicId;
-      const hasSocial = slot.type === 'social' && slot.socialId;
 
-      // Get day of week for this slot
       const slotDate = new Date(slot.date);
       const dayOfWeek = slotDate.getDay();
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const dayName = dayNames[dayOfWeek];
       const isDayOpen = dayStatusMap.get(dayName) ?? false;
 
-      // If day is now closed, delete slots without reservations/clinics/socials
-      if (!isDayOpen && !hasReservation?.count && !hasClinic && !hasSocial) {
-        db.prepare('DELETE FROM time_slots WHERE id = ?').run(slot.id);
+      if (!isDayOpen && !hasReservation && !hasClinic) {
+        await query('DELETE FROM time_slots WHERE id = $1 AND tenant_id = $2', [slot.id, req.tenantId]);
         continue;
       }
 
-      // If day is open and slot is blocked but has no reservation/clinic/social, unblock it
-      if (isDayOpen && slot.blocked && !hasReservation?.count && !hasClinic && !hasSocial) {
-        db.prepare('UPDATE time_slots SET blocked = 0, available = 1, updatedAt = ? WHERE id = ?').run(updatedAt, slot.id);
+      if (isDayOpen && slot.blocked && !hasReservation && !hasClinic) {
+        await query('UPDATE time_slots SET blocked = FALSE, available = TRUE, "updatedAt" = $1 WHERE id = $2 AND tenant_id = $3', [updatedAt, slot.id, req.tenantId]);
         continue;
       }
 
-      // Delete empty available slots to regenerate with new hours
-      if (!hasReservation?.count && !hasClinic && !hasSocial && !slot.blocked) {
-        db.prepare('DELETE FROM time_slots WHERE id = ?').run(slot.id);
+      if (!hasReservation && !hasClinic && !slot.blocked) {
+        await query('DELETE FROM time_slots WHERE id = $1 AND tenant_id = $2', [slot.id, req.tenantId]);
       }
     }
   }
 
-  const update = db.prepare(`
-    UPDATE settings
-    SET courtName = ?,
-        advanceBookingLimit = ?,
-        cancellationDeadline = ?,
-        maxPlayersPerSlot = ?,
-        minPlayersPerSlot = ?,
-        allowWalkIns = ?,
-        requirePayment = ?,
-        timeSlotVisibilityPeriod = ?,
-        operatingHours = ?,
-        updatedAt = ?
-    WHERE id = '1'
-  `);
-
-  const result = update.run(
-    courtName,
-    advanceBookingLimit,
-    cancellationDeadline,
-    maxPlayersPerSlot,
-    minPlayersPerSlot,
-    allowWalkIns ? 1 : 0,
-    requirePayment ? 1 : 0,
-    timeSlotVisibilityPeriod,
-    JSON.stringify(operatingHours || []),
-    updatedAt
+  const result = await query(
+    `UPDATE settings
+     SET "courtName" = $1,
+         "advanceBookingLimit" = $2,
+         "cancellationDeadline" = $3,
+         "maxPlayersPerSlot" = $4,
+         "minPlayersPerSlot" = $5,
+         "allowWalkIns" = $6,
+         "requirePayment" = $7,
+         "timeSlotVisibilityPeriod" = $8,
+         "operatingHours" = $9,
+         "updatedAt" = $10
+     WHERE tenant_id = $11`,
+    [courtName, advanceBookingLimit, cancellationDeadline, maxPlayersPerSlot, minPlayersPerSlot, allowWalkIns, requirePayment, timeSlotVisibilityPeriod, JSON.stringify(operatingHours || []), updatedAt, req.tenantId]
   );
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Settings not found' });
   }
 
-  const settings = db.prepare('SELECT * FROM settings WHERE id = ?').get('1');
+  const { rows } = await query('SELECT * FROM settings WHERE tenant_id = $1', [req.tenantId]);
+  const settings = rows[0];
   res.json({
     ...settings,
     allowWalkIns: Boolean(settings.allowWalkIns),
     requirePayment: Boolean(settings.requirePayment),
-    operatingHours: JSON.parse(settings.operatingHours || '[]')
+    operatingHours: safeParseJSON(settings.operatingHours, [])
   });
 });
 

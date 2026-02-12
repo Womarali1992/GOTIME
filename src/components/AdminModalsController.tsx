@@ -4,8 +4,9 @@ import AddUserForm from "@/components/AddUserForm";
 import AddCoachForm from "@/components/AddCoachForm";
 import AddClinicForm from "@/components/AddClinicForm";
 import AddUserToReservationForm from "@/components/AddUserToReservationForm";
+import EditReservationDialog from "@/components/EditReservationDialog";
 import CommentForm from "@/components/CommentForm";
-import type { Court, TimeSlot, User, Clinic, Comment as AppComment } from "@/lib/types";
+import type { Court, TimeSlot, User, Clinic, Reservation, Comment as AppComment } from "@/lib/types";
 
 interface ReservationCommentContext {
   id: string;
@@ -49,6 +50,14 @@ interface AdminModalsControllerProps {
   showAddUserToReservation: boolean;
   onCloseAddUserToReservation: () => void;
   onSaveAddUserToReservation: (reservationData: any) => void;
+
+
+  // Edit reservation
+  editingReservation: Reservation | null;
+  onCloseEditReservation: () => void;
+  onSaveEditReservation: (reservationId: string, updates: any) => Promise<void>;
+  onDeleteReservation?: (reservationId: string) => Promise<void>;
+
   timeSlots: TimeSlot[];
   users: User[];
   clinics: Clinic[];
@@ -88,6 +97,10 @@ const AdminModalsController = ({
   showAddUserToReservation,
   onCloseAddUserToReservation,
   onSaveAddUserToReservation,
+  editingReservation,
+  onCloseEditReservation,
+  onSaveEditReservation,
+  onDeleteReservation,
   timeSlots,
   users,
   clinics,
@@ -145,6 +158,17 @@ const AdminModalsController = ({
           clinics={clinics}
           courts={courts}
           preSelectedTimeSlot={preSelectedTimeSlot}
+        />
+      )}
+
+
+      {editingReservation && (
+        <EditReservationDialog
+          isOpen={!!editingReservation}
+          onClose={onCloseEditReservation}
+          onSave={onSaveEditReservation}
+          onDelete={onDeleteReservation}
+          reservation={editingReservation}
         />
       )}
 

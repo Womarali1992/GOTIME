@@ -4,7 +4,7 @@ import './index.css'
 import { HashRouter } from 'react-router-dom'
 import { UserProvider } from './contexts/UserContext'
 import { CoachProvider } from './contexts/CoachContext'
-import DataProvider from './components/DataProvider'
+import { DataServiceProvider } from './contexts/DataServiceContext'
 
 const rootElement = document.getElementById("root");
 
@@ -15,9 +15,9 @@ if (rootElement) {
     <HashRouter>
       <UserProvider>
         <CoachProvider>
-          <DataProvider>
+          <DataServiceProvider>
             <App />
-          </DataProvider>
+          </DataServiceProvider>
         </CoachProvider>
       </UserProvider>
     </HashRouter>

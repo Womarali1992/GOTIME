@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, User, GraduationCap, UserCheck } from "lucide-react";
 import { TimeSlot, User as UserType, Clinic, Court } from "@/lib/types";
 import { useUser } from "@/contexts/UserContext";
+import { toast } from "sonner";
 
 interface AddUserToReservationFormProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ interface AddUserToReservationFormProps {
     playerEmail: string;
     playerPhone: string;
     players: number;
-  }) => void;
+  }) => Promise<void>;
   timeSlots: TimeSlot[];
   users: UserType[];
   clinics: Clinic[];
@@ -47,6 +48,8 @@ const AddUserToReservationForm = ({
   const [players, setPlayers] = useState(1);
   const [useCustomPlayer, setUseCustomPlayer] = useState(false);
   const [useCurrentUser, setUseCurrentUser] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const selectedSlot = timeSlots.find(slot => slot.id === selectedTimeSlot);
   const selectedUserData = users.find(user => user.id === selectedUser);
@@ -72,10 +75,14 @@ const AddUserToReservationForm = ({
     slot.available || slot.type === 'clinic'
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!selectedTimeSlot || !selectedSlot) return;
+    setValidationErrors([]);
+
+    if (!selectedTimeSlot || !selectedSlot) {
+      setValidationErrors(["Please select a time slot"]);
+      return;
+    }
 
     // Determine which user data to use
     let playerData;
@@ -99,16 +106,43 @@ const AddUserToReservationForm = ({
       };
     }
 
+    // Validate player data
+    const errors: string[] = [];
+    if (!playerData.playerName?.trim()) {
+      errors.push("Player name is required");
+    }
+    if (!playerData.playerEmail?.trim()) {
+      errors.push("Player email is required");
+    }
+    if (!playerData.playerPhone?.trim()) {
+      errors.push("Player phone is required");
+    }
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      toast.error("Validation Error", {
+        description: errors.join(", ")
+      });
+      return;
+    }
+
     const reservationData = {
       timeSlotId: selectedTimeSlot,
       courtId: selectedSlot.courtId,
       ...playerData,
       players,
+      createdById: useCurrentUser && currentUser ? currentUser.id : (useCustomPlayer ? null : selectedUser),
     };
 
-    onSave(reservationData);
-    onClose();
-    resetForm();
+    setIsSubmitting(true);
+    try {
+      await onSave(reservationData);
+      onClose();
+      resetForm();
+    } catch (error) {
+      // Error is handled by parent component, just re-enable form
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -120,6 +154,8 @@ const AddUserToReservationForm = ({
     setPlayers(1);
     setUseCustomPlayer(false);
     setUseCurrentUser(true);
+    setIsSubmitting(false);
+    setValidationErrors([]);
   };
 
   const handleClose = () => {
@@ -145,6 +181,18 @@ const AddUserToReservationForm = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-2 sm:px-0">
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <p className="text-sm font-medium text-destructive mb-1">Please fix the following errors:</p>
+              <ul className="text-xs text-destructive space-y-1 list-disc list-inside">
+                {validationErrors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Time Slot Selection */}
           <div className="space-y-2">
             <Label className="text-sm">Select Time Slot</Label>
@@ -300,13 +348,14 @@ const AddUserToReservationForm = ({
 
           {/* Form Actions */}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto text-sm">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting} className="w-full sm:w-auto text-sm">
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={
-                !selectedTimeSlot || 
+                isSubmitting ||
+                !selectedTimeSlot ||
                 (
                   !useCurrentUser && !useCustomPlayer && !selectedUser
                 ) ||
@@ -314,7 +363,7 @@ const AddUserToReservationForm = ({
               }
               className="w-full sm:w-auto text-sm"
             >
-              Add to Reservation
+              {isSubmitting ? "Creating..." : "Add to Reservation"}
             </Button>
           </div>
         </form>

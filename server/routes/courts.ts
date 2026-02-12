@@ -1,78 +1,73 @@
 import express from 'express';
-import { db } from '../db/database';
+import { query, safeParseJSON } from '../db/database.js';
 
 const router = express.Router();
 
 // Get all courts
-router.get('/', (req, res) => {
-  const courts = db.prepare('SELECT * FROM courts').all();
-  res.json(courts.map(court => ({
+router.get('/', async (req, res) => {
+  const { rows } = await query('SELECT * FROM courts WHERE tenant_id = $1', [req.tenantId]);
+  res.json(rows.map(court => ({
     ...court,
-    amenities: JSON.parse(court.amenities || '[]')
+    amenities: safeParseJSON(court.amenities, [])
   })));
 });
 
 // Get court by ID
-router.get('/:id', (req, res) => {
-  const court = db.prepare('SELECT * FROM courts WHERE id = ?').get(req.params.id);
-  if (!court) {
+router.get('/:id', async (req, res) => {
+  const { rows } = await query('SELECT * FROM courts WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
+  if (rows.length === 0) {
     return res.status(404).json({ error: 'Court not found' });
   }
   res.json({
-    ...court,
-    amenities: JSON.parse(court.amenities || '[]')
+    ...rows[0],
+    amenities: safeParseJSON(rows[0].amenities, [])
   });
 });
 
 // Create court
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, location, description, amenities } = req.body;
   const id = `court-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const createdAt = new Date().toISOString();
 
-  const insert = db.prepare(`
-    INSERT INTO courts (id, name, location, description, amenities, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
+  await query(
+    `INSERT INTO courts (id, tenant_id, name, location, description, amenities, "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [id, req.tenantId, name, location, description, JSON.stringify(amenities || []), createdAt]
+  );
 
-  insert.run(id, name, location, description, JSON.stringify(amenities || []), createdAt);
-
-  const court = db.prepare('SELECT * FROM courts WHERE id = ?').get(id);
+  const { rows } = await query('SELECT * FROM courts WHERE id = $1 AND tenant_id = $2', [id, req.tenantId]);
   res.status(201).json({
-    ...court,
-    amenities: JSON.parse(court.amenities || '[]')
+    ...rows[0],
+    amenities: safeParseJSON(rows[0].amenities, [])
   });
 });
 
 // Update court
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { name, location, description, amenities } = req.body;
   const updatedAt = new Date().toISOString();
 
-  const update = db.prepare(`
-    UPDATE courts
-    SET name = ?, location = ?, description = ?, amenities = ?, updatedAt = ?
-    WHERE id = ?
-  `);
+  const result = await query(
+    `UPDATE courts SET name = $1, location = $2, description = $3, amenities = $4, "updatedAt" = $5 WHERE id = $6 AND tenant_id = $7`,
+    [name, location, description, JSON.stringify(amenities || []), updatedAt, req.params.id, req.tenantId]
+  );
 
-  const result = update.run(name, location, description, JSON.stringify(amenities || []), updatedAt, req.params.id);
-
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Court not found' });
   }
 
-  const court = db.prepare('SELECT * FROM courts WHERE id = ?').get(req.params.id);
+  const { rows } = await query('SELECT * FROM courts WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
   res.json({
-    ...court,
-    amenities: JSON.parse(court.amenities || '[]')
+    ...rows[0],
+    amenities: safeParseJSON(rows[0].amenities, [])
   });
 });
 
 // Delete court
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM courts WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  const result = await query('DELETE FROM courts WHERE id = $1 AND tenant_id = $2', [req.params.id, req.tenantId]);
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return res.status(404).json({ error: 'Court not found' });
   }
 

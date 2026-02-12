@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { TimeSlot, Participant } from "@/lib/types";
 import { useBookings } from "@/hooks/use-bookings";
 import { apiDataService } from "@/lib/services/api-data-service";
@@ -10,9 +9,10 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useUser } from "@/contexts/UserContext";
 import { Badge } from "@/components/ui/badge";
-import { User, AlertCircle, CheckCircle, Users } from "lucide-react";
+import { User, AlertCircle, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import FriendSelector from "./FriendSelector";
+import { Switch } from "@/components/ui/switch";
 import { X } from "lucide-react";
 
 interface ReservationFormProps {
@@ -36,15 +36,15 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
   const [success, setSuccess] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<ReservationStep>('details');
   const [friendSelectorExpanded, setFriendSelectorExpanded] = useState(false);
-  const [isSocialBooking, setIsSocialBooking] = useState(false);
+  const [isOpenPlay, setIsOpenPlay] = useState(false);
+  const [openPlaySlots, setOpenPlaySlots] = useState(2);
+  const [maxOpenPlayers, setMaxOpenPlayers] = useState(4);
 
   const { currentUser, isAuthenticated } = useUser();
   const {
     users,
     courts,
-    createReservation,
-    createSocial,
-    updateTimeSlot
+    createReservation
   } = useBookings();
 
   const [clinic, setClinic] = useState<any>(null);
@@ -105,66 +105,71 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
         throw new Error("Phone number is required");
       }
 
-      let reservation;
+      // Generate a group ID so all courts in this open play session are linked
+      const groupId = isOpenPlay
+        ? `opg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        : undefined;
 
-      if (isSocialBooking) {
-        // Create a social booking via centralized hook (auto-refreshes state)
-        const social = await createSocial({
-          title: `Social Game - ${court?.name || 'Court'}`,
-          description: '',
-          date: selectedTimeSlot.date,
-          startTime: selectedTimeSlot.startTime,
-          endTime: selectedTimeSlot.endTime,
-          timeSlotId: selectedTimeSlot.id,
-          status: 'active',
-          votes: [],
-          createdById: currentUser?.id || null,
-        });
+      // Create reservation on the selected court
+      const reservationData = {
+        timeSlotId: selectedTimeSlot.id,
+        courtId: selectedTimeSlot.courtId,
+        playerName: name.trim(),
+        playerEmail: email.trim(),
+        playerPhone: phone.trim(),
+        players: totalPlayers,
+        participants: selectedParticipants,
+        isOpenPlay,
+        openPlaySlots: isOpenPlay ? openPlaySlots : undefined,
+        maxOpenPlayers: isOpenPlay ? (maxOpenPlayers === 999 ? 999 : maxOpenPlayers * openPlaySlots) : undefined,
+        openPlayGroupId: groupId,
+      };
 
-        if (!social) {
-          throw new Error("Failed to create social booking");
+      const reservation = await createReservation(reservationData);
+
+      if (!reservation) {
+        throw new Error("Failed to create reservation");
+      }
+
+      // If Open Play with multiple courts, reserve additional courts at the same time
+      if (isOpenPlay && openPlaySlots > 1) {
+        const hour = parseInt(selectedTimeSlot.startTime.split(":")[0]);
+        const dateSlots = await apiDataService.getTimeSlotsForDate(selectedTimeSlot.date);
+
+        // Find available slots at the same hour on other courts
+        const availableOtherSlots = dateSlots.filter(
+          (s: any) =>
+            s.courtId !== selectedTimeSlot.courtId &&
+            parseInt(s.startTime.split(":")[0]) === hour &&
+            s.available &&
+            !s.blocked &&
+            !s.reservation
+        );
+
+        const additionalCourts = availableOtherSlots.slice(0, openPlaySlots - 1);
+
+        for (const otherSlot of additionalCourts) {
+          try {
+            await createReservation({
+              ...reservationData,
+              timeSlotId: otherSlot.id,
+              courtId: otherSlot.courtId,
+            });
+          } catch (err) {
+            console.warn(`Could not reserve additional court ${otherSlot.courtId}:`, err);
+          }
         }
 
-        // Create a reservation for the social game (auto-refreshes state)
-        reservation = await createReservation({
-          timeSlotId: selectedTimeSlot.id,
-          courtId: selectedTimeSlot.courtId,
-          playerName: name.trim(),
-          playerEmail: email.trim(),
-          playerPhone: phone.trim(),
-          players: totalPlayers,
-          participants: selectedParticipants,
-          socialId: social.id,
-        });
-
-        if (!reservation) {
-          throw new Error("Failed to create reservation for social");
+        const totalSpots = maxOpenPlayers === 999 ? 'unlimited' : `${maxOpenPlayers * openPlaySlots}`;
+        if (additionalCourts.length < openPlaySlots - 1) {
+          const booked = 1 + additionalCourts.length;
+          setSuccess(`Reserved ${booked} of ${openPlaySlots} courts — ${totalSpots} spots!`);
+        } else {
+          setSuccess(`Reserved ${openPlaySlots} courts — ${totalSpots} spots!`);
         }
-
-        // Update the time slot to mark it as a social (auto-refreshes state)
-        await updateTimeSlot(selectedTimeSlot.id, {
-          socialId: social.id,
-          type: 'social',
-        });
-
-        setSuccess("Social booking created successfully! Friends can now join.");
       } else {
-        // Create a regular reservation (auto-refreshes state across all views)
-        reservation = await createReservation({
-          timeSlotId: selectedTimeSlot.id,
-          courtId: selectedTimeSlot.courtId,
-          playerName: name.trim(),
-          playerEmail: email.trim(),
-          playerPhone: phone.trim(),
-          players: totalPlayers,
-          participants: selectedParticipants
-        });
-
-        if (!reservation) {
-          throw new Error("Failed to create reservation");
-        }
-
-        setSuccess("Reservation created successfully!");
+        const totalSpots = maxOpenPlayers === 999 ? 'unlimited spots' : `${maxOpenPlayers} spots`;
+        setSuccess(isOpenPlay ? `Open Play created — ${totalSpots}!` : "Reservation created successfully!");
       }
 
       setTimeout(() => {
@@ -188,11 +193,12 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
     setPhone("");
     setPlayers("2");
     setSelectedParticipants([]);
+    setIsOpenPlay(false);
+    setOpenPlaySlots(2);
     setUseProfileInfo(true);
     setError(null);
     setSuccess(null);
     setCurrentStep('details');
-    setIsSocialBooking(false);
     onCancel();
   };
 
@@ -281,41 +287,6 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                 )}
               </div>
             </div>
-
-            {/* Booking Type Toggle - Only show for non-clinic reservations */}
-            {!clinic && (
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg max-w-md mx-auto">
-                <div className="flex items-center gap-3">
-                  {isSocialBooking ? (
-                    <Users className="h-5 w-5 text-blue-600" />
-                  ) : (
-                    <User className="h-5 w-5 text-blue-600" />
-                  )}
-                  <div>
-                    <Label htmlFor="booking-type" className="text-base font-semibold cursor-pointer">
-                      {isSocialBooking ? "Social Booking" : "Regular Booking"}
-                    </Label>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      {isSocialBooking
-                        ? "Book as a social game to play with friends"
-                        : "Book as a regular court reservation"
-                      }
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  id="booking-type"
-                  checked={isSocialBooking}
-                  onCheckedChange={(checked) => {
-                    setIsSocialBooking(checked);
-                    // Clear error when switching to regular booking
-                    if (!checked) {
-                      setError(null);
-                    }
-                  }}
-                />
-              </div>
-            )}
 
             {/* Profile Information Section - Only show if logged in */}
             {isAuthenticated && currentUser && (
@@ -430,7 +401,67 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
                 />
               </div>
             )}
-            
+
+            {/* Open Play Toggle - Available for all users booking non-clinic slots */}
+            {!clinic && (
+              <div className="max-w-md mx-auto">
+                <div className="border rounded-lg p-4 bg-teal-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="open-play" className="text-sm font-medium">Open Play</Label>
+                      <p className="text-xs text-muted-foreground">Allow others to join your game</p>
+                    </div>
+                    <Switch
+                      id="open-play"
+                      checked={isOpenPlay}
+                      onCheckedChange={setIsOpenPlay}
+                    />
+                  </div>
+                  {isOpenPlay && (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-sm">How many courts?</Label>
+                        <div className="flex gap-2">
+                          {[1, 2, 3].map((n) => (
+                            <Button
+                              key={n}
+                              type="button"
+                              variant={openPlaySlots === n ? "default" : "outline"}
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => setOpenPlaySlots(n)}
+                            >
+                              {n}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Players per court</Label>
+                        <div className="flex gap-2">
+                          {([4, 5, 999] as const).map((n) => (
+                            <Button
+                              key={n}
+                              type="button"
+                              variant={maxOpenPlayers === n ? "default" : "outline"}
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => setMaxOpenPlayers(n)}
+                            >
+                              {n === 999 ? '∞' : n}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-xs text-teal-700 font-medium">
+                        {maxOpenPlayers === 999 ? 'Unlimited' : maxOpenPlayers * openPlaySlots} spots — players can join on any court
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             
             <div className="flex flex-col sm:flex-row gap-3 justify-center items-center pt-4 max-w-md mx-auto">
               <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-32 text-sm">
@@ -439,7 +470,7 @@ const ReservationForm = ({ selectedTimeSlot, onCancel, onComplete, isOpen }: Res
               <Button type="submit" disabled={isSubmitting} className="w-full sm:w-32 text-sm">
                 {isSubmitting
                   ? (clinic ? "Processing..." : "Booking...")
-                  : (clinic ? "Book Clinic" : isSocialBooking ? "Book Social" : "Book")
+                  : (clinic ? "Book Clinic" : "Book")
                 }
               </Button>
             </div>

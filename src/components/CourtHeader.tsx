@@ -5,7 +5,7 @@ import { MapPin, Calendar, ChevronLeft, ChevronRight, ChevronDown } from "lucide
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-mobile";
-import { dataService } from "@/lib/services/data-service";
+import { useDataService } from "@/hooks/use-data-service";
 import { format, addDays, subDays } from "date-fns";
 
 
@@ -22,10 +22,10 @@ interface CourtHeaderProps {
   legendFilters: {
     available: boolean;
     clinic: boolean;
-    social: boolean;
     myReservations: boolean;
+    openPlay: boolean;
   };
-  onLegendFiltersChange: (filters: { available: boolean; clinic: boolean; social: boolean; myReservations: boolean; }) => void;
+  onLegendFiltersChange: (filters: { available: boolean; clinic: boolean; myReservations: boolean; openPlay: boolean; }) => void;
   selectedCourt: string | undefined;
   onCourtChange: (courtId: string | undefined) => void;
 }
@@ -45,38 +45,36 @@ const CourtHeader = ({
   onCourtChange
 }: CourtHeaderProps) => {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const { courts, reservationSettings } = useDataService();
 
   const activeFilterLabel = React.useMemo(() => {
-    if (legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations) return "All";
+    if (legendFilters.available && legendFilters.clinic && legendFilters.myReservations && legendFilters.openPlay) return "All";
     if (legendFilters.available) return "Available";
     if (legendFilters.clinic) return "Clinic";
-    if (legendFilters.social) return "Social";
     if (legendFilters.myReservations) return "My Reservations";
+    if (legendFilters.openPlay) return "Open Play";
     return "All";
   }, [legendFilters]);
 
   const isAllOn = React.useMemo(() => (
-    legendFilters.available && legendFilters.clinic && legendFilters.social && legendFilters.myReservations
+    legendFilters.available && legendFilters.clinic && legendFilters.myReservations && legendFilters.openPlay
   ), [legendFilters]);
 
   const toggleLegendFilter = React.useCallback((filterType: keyof typeof legendFilters) => {
     onLegendFiltersChange((prev) => {
-      const allOn = prev.available && prev.clinic && prev.social && prev.myReservations;
       const entries = Object.entries(prev) as Array<[keyof typeof prev, boolean]>;
       const numOn = entries.reduce((count, [, value]) => count + (value ? 1 : 0), 0);
       const isExclusive = numOn === 1 && prev[filterType];
 
       if (isExclusive) {
-        // Turning off the active exclusive filter -> show all
-        return { available: true, clinic: true, social: true, myReservations: true };
+        return { available: true, clinic: true, myReservations: true, openPlay: true };
       }
 
-      // Otherwise switch to exclusive mode for the selected filter
       return {
         available: filterType === 'available',
         clinic: filterType === 'clinic',
-        social: filterType === 'social',
         myReservations: filterType === 'myReservations',
+        openPlay: filterType === 'openPlay',
       };
     });
   }, [onLegendFiltersChange]);
@@ -123,7 +121,7 @@ const CourtHeader = ({
                     <span>All Courts</span>
                   </div>
                 </SelectItem>
-                {dataService.getAllCourts().map((courtOption) => (
+                {courts.map((courtOption) => (
                   <SelectItem key={courtOption.id} value={courtOption.id}>
                     <div className="flex items-center gap-1">
                       <MapPin className="h-2.5 w-2.5" />
@@ -147,8 +145,7 @@ const CourtHeader = ({
                     {isAllOn ? (
                       <>
                         <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-green-500/20 border border-green-500/30"></div>
-                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-500/20 border border-yellow-500/30"></div>
-                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-orange-300/30 border border-orange-400/40"></div>
+                        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-400/30 border border-yellow-500/40"></div>
                         <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500/20 border border-purple-500/30"></div>
                       </>
                     ) : (
@@ -157,10 +154,10 @@ const CourtHeader = ({
                           <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-green-500/20 border border-green-500/30"></div>
                         )}
                         {legendFilters.clinic && (
-                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-500/20 border border-yellow-500/30"></div>
+                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-orange-500/20 border border-orange-500/30"></div>
                         )}
-                        {legendFilters.social && (
-                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-orange-300/30 border border-orange-400/40"></div>
+                        {legendFilters.openPlay && (
+                          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-400/30 border border-yellow-500/40"></div>
                         )}
                         {legendFilters.myReservations && (
                           <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500/20 border border-purple-500/30"></div>
@@ -175,11 +172,10 @@ const CourtHeader = ({
               <DropdownMenuContent align="center">
                 <DropdownMenuLabel>Filter slots</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => onLegendFiltersChange({ available: true, clinic: true, social: true, myReservations: true })}>
+                <DropdownMenuItem onSelect={() => onLegendFiltersChange({ available: true, clinic: true, myReservations: true, openPlay: true })}>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                    <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                    <div className="w-3 h-3 bg-orange-300/30 border border-orange-400/40"></div>
+                    <div className="w-3 h-3 bg-yellow-400/30 border border-yellow-500/40"></div>
                     <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
                     <span className="text-sm">All</span>
                   </div>
@@ -187,27 +183,33 @@ const CourtHeader = ({
                 <DropdownMenuItem onSelect={() => toggleLegendFilter('available')}>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500/20 border border-green-500/30"></div>
-                    <span className="text-sm">Available only</span>
+                    <span className="text-sm">Available</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => toggleLegendFilter('openPlay')}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-yellow-400/40 border border-yellow-500/50"></div>
+                    <span className="text-sm">Open Play</span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => toggleLegendFilter('clinic')}>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-yellow-500/20 border border-yellow-500/30"></div>
-                    <span className="text-sm">Clinic only</span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => toggleLegendFilter('social')}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-orange-300/30 border border-orange-400/40"></div>
-                    <span className="text-sm">Social only</span>
+                    <div className="w-3 h-3 bg-orange-500/20 border border-orange-500/30"></div>
+                    <span className="text-sm">Clinic</span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => toggleLegendFilter('myReservations')}>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-purple-500/20 border border-purple-500/30"></div>
-                    <span className="text-sm whitespace-nowrap">My Reservations only</span>
+                    <span className="text-sm whitespace-nowrap">My Reservations</span>
                   </div>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Legend</DropdownMenuLabel>
+                <div className="px-2 py-1 flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500/20 border border-blue-500/30"></div>
+                  <span className="text-xs text-muted-foreground">Reserved</span>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -251,7 +253,7 @@ const CourtHeader = ({
               onClick={() => onDateSelect(new Date())}
               title="Click to go back to today"
             >
-              {dataService.reservationSettings?.courtName || 'Pickleball Court'}
+              {reservationSettings?.courtName || 'Pickleball Court'}
             </div>
             {courtName !== "All Courts" && (
               <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
@@ -268,7 +270,7 @@ const CourtHeader = ({
                 onClick={() => onDateSelect(new Date())}
                 title="Click to go back to today"
               >
-                {dataService.reservationSettings?.courtName || 'Pickleball Court'}
+                {reservationSettings?.courtName || 'Pickleball Court'}
               </span>
               {` ${format(currentDate, "EEEE, MMMM d")} - ${courtName}`}
             </h2>

@@ -1,8 +1,9 @@
 import { format, addDays, subDays } from "date-fns";
-import { Clock, GraduationCap, StickyNote, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, GraduationCap, StickyNote, ChevronDown, ChevronLeft, ChevronRight, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useUser } from "@/contexts/UserContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Court, TimeSlot, Reservation, Coach, Clinic, Comment } from "@/lib/types";
+import { apiDataService } from "@/lib/services/api-data-service";
 
 type ReservationCommentContext = {
   id: string;
@@ -55,7 +57,10 @@ interface CourtTimeSlotsProps {
   onBlockTimeSlot: (timeSlotId: string) => void;
   onUnblockTimeSlot: (timeSlotId: string) => void;
   onCreateClinicForTimeSlot: (timeSlotId: string) => void;
-  onConvertToSocial: (reservationId: string) => void;
+  onEditReservation?: (reservation: Reservation) => void;
+  onCancelReservation?: (reservationId: string) => Promise<void>;
+  users?: any[];
+  refreshKey?: number;
 }
 
 const CourtTimeSlots = ({
@@ -70,61 +75,58 @@ const CourtTimeSlots = ({
   onBlockTimeSlot,
   onUnblockTimeSlot,
   onCreateClinicForTimeSlot,
-  onConvertToSocial,
+  onEditReservation,
+  onCancelReservation,
+  users = [],
+  refreshKey = 0,
 }: CourtTimeSlotsProps) => {
+  const { currentUser } = useUser();
+
   // Filter state
   const [selectedCourt, setSelectedCourt] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [operatingHours, setOperatingHours] = useState<any[]>([]);
 
   // Navigation state for current date
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
 
-  // Load operating hours from backend (only once on mount)
+  // Dynamic time slots for current date
+  const [dynamicTimeSlots, setDynamicTimeSlots] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load time slots dynamically for current date
   useEffect(() => {
     let isMounted = true;
-    const loadSettings = async () => {
+    const loadTimeSlots = async () => {
+      setIsLoading(true);
       try {
-        const response = await fetch('http://localhost:3001/api/settings');
-        if (response.ok && isMounted) {
-          const settings = await response.json();
-          setOperatingHours(settings.operatingHours || []);
+        const dateString = currentDate.toISOString().split('T')[0];
+        const slots = await apiDataService.getTimeSlotsForDate(dateString);
+        if (isMounted) {
+          setDynamicTimeSlots(slots || []);
         }
       } catch (error) {
-        console.error('Failed to load settings:', error);
+        console.error('Failed to load time slots:', error);
+        if (isMounted) {
+          setDynamicTimeSlots([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
-    loadSettings();
+    loadTimeSlots();
     return () => {
       isMounted = false;
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [currentDate, refreshKey]); // Reload when date changes or data is refreshed
 
-  // Group all time slots by date
-  const slotsByDate: Record<string, TimeSlot[]> = {};
-  timeSlots.forEach((slot) => {
-    if (!slotsByDate[slot.date]) {
-      slotsByDate[slot.date] = [];
-    }
-    slotsByDate[slot.date].push(slot);
-  });
-
-  const sortedDates = Object.keys(slotsByDate).sort();
-
-  // Filter dates based on day view, current date navigation, and operating hours
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  // Use dynamic slots for the current date
   const currentDateString = currentDate.toISOString().split('T')[0];
-
-  const filteredDates = [currentDateString]
-    .filter(date => sortedDates.includes(date))
-    .filter(dateStr => {
-    // Filter out closed days based on operating hours
-    const date = new Date(dateStr);
-    const dayOfWeek = date.getDay();
-    const dayName = dayNames[dayOfWeek];
-    const daySettings = operatingHours.find(d => d.dayOfWeek === dayName);
-    return daySettings && daySettings.isOpen;
-  }).slice(0, 1); // Single-day view for this overview
+  const slotsByDate: Record<string, any[]> = {
+    [currentDateString]: dynamicTimeSlots
+  };
+  const filteredDates = [currentDateString];
 
   // Navigation functions
   const navigatePrevious = () => {
@@ -142,32 +144,14 @@ const CourtTimeSlots = ({
     setCurrentDate(nextDate);
   };
 
-  const getClinicForSlot = (slot: TimeSlot) => {
-    if ((slot as any).type === "clinic" && (slot as any).clinicId) {
-      return clinics.find((clinic) => clinic.id === (slot as any).clinicId) || null;
-    }
-    return null;
-  };
-
-  const getSlotStatus = (slot: TimeSlot) => {
-    const reservation = reservations.find((r) => r.timeSlotId === slot.id);
-    const clinic = getClinicForSlot(slot);
-    
-    if (clinic) return "clinic";
-    if (reservation) return "reserved";
-    if ((slot as any).blocked) return "blocked";
-    if ((slot as any).available) return "available";
-    return "unavailable";
-  };
-
   // Filter courts and slots based on selected filters
-  const filteredCourts = selectedCourt === "all" 
-    ? courts 
+  const filteredCourts = selectedCourt === "all"
+    ? courts
     : courts.filter(court => court.id === selectedCourt);
 
-  const shouldShowSlot = (slot: TimeSlot) => {
+  const shouldShowSlot = (slot: any) => {
     if (selectedStatus === "all") return true;
-    return getSlotStatus(slot) === selectedStatus;
+    return slot.status === selectedStatus;
   };
 
   return (
@@ -267,7 +251,9 @@ const CourtTimeSlots = ({
         💡 Click on available time slots or clinics to add users to them. You can also use the "Add User to Reservation" button above.
       </div>
 
-      {filteredCourts.map((court) => (
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">Loading time slots...</div>
+      ) : filteredCourts.map((court) => (
         <Card key={court.id} className="border border-input bg-card shadow-sm">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-foreground">{court.name}</CardTitle>
@@ -295,25 +281,47 @@ const CourtTimeSlots = ({
                     </h3>
                     <div className="space-y-2">
                       {courtSlots.map((slot) => {
-                        const reservation = reservations.find((r) => r.timeSlotId === slot.id);
-                        const clinic = getClinicForSlot(slot);
+                        // Dynamic slots already include reservation and clinic data
+                        const reservation = slot.reservation;
+                        const clinic = slot.clinic;
+
+                        // Check if this is the current user's reservation
+                        const isMyReservation = reservation ? (
+                          reservation.playerEmail === currentUser?.email ||
+                          (currentUser?.id && reservation.createdById === currentUser.id)
+                        ) : false;
+
+                        // Check if this is the user's clinic reservation
+                        // Check both: reservation ownership AND clinic participants
+                        const clinicParticipants = clinic?.participants || [];
+                        const isInClinicParticipants = currentUser?.email && clinicParticipants.some(
+                          (p: any) => p.email === currentUser.email || p.userId === currentUser.id
+                        );
+                        const isMyClinicReservation = clinic && (isMyReservation || isInClinicParticipants);
+                        const coachName = clinic ? coaches.find((c) => c.id === clinic.coachId)?.name : undefined;
 
                         return (
                           <div
                             key={slot.id}
                             className={`min-h-[4rem] rounded-lg p-2 sm:p-4 transition-all duration-300 hover:scale-[1.01] ${
-                              clinic
+                              isMyClinicReservation
+                                ? "bg-purple-500/30 text-purple-800 border-2 border-yellow-500/80 cursor-pointer"
+                                : slot.status === 'clinic'
                                 ? "bg-yellow-500/30 text-yellow-800 border border-yellow-500/50 cursor-pointer"
-                                : reservation
+                                : isMyReservation
+                                ? "bg-purple-500/30 text-purple-800 border border-purple-500/50"
+                                : slot.status === 'reserved'
                                 ? "bg-secondary/20 text-secondary-foreground"
-                                : (slot as any).blocked
+                                : slot.status === 'blocked'
                                 ? "bg-red-500/20 text-red-800 border border-red-500/50"
-                                : (slot as any).available
+                                : slot.status === 'available'
                                 ? "bg-primary/20 text-primary-foreground cursor-pointer"
+                                : slot.status === 'unavailable'
+                                ? "bg-gray-300/40 text-gray-600"
                                 : "bg-muted/80 text-muted-foreground"
                             }`}
                             onClick={() => {
-                              if ((slot as any).available && !(slot as any).blocked) {
+                              if (slot.status === 'available') {
                                 onAddUserToReservationRequested(slot.id);
                               }
                             }}
@@ -327,32 +335,63 @@ const CourtTimeSlots = ({
                               </div>
 
                               <div className="sm:order-1 sm:flex-1">
-                                {clinic ? (
+                                {isMyClinicReservation ? (
+                                  <div>
+                                    <span className="font-semibold text-base">My Reservation</span>
+                                    <div className="text-sm text-purple-700">
+                                      Coaching session with {coachName || 'Coach'}
+                                    </div>
+                                  </div>
+                                ) : clinic ? (
                                   <div>
                                     <span className="font-semibold text-base">{clinic.name}</span>
                                     <div className="text-sm text-muted-foreground">
-                                      Coach: {coaches.find((c) => c.id === clinic.coachId)?.name}
+                                      Coach: {coachName || 'Unknown'}
                                     </div>
                                   </div>
                                 ) : reservation ? (
-                                  <div>
+                                  <div
+                                    className={onEditReservation ? "cursor-pointer hover:underline" : ""}
+                                    onClick={(e) => {
+                                      if (onEditReservation) {
+                                        e.stopPropagation();
+                                        onEditReservation(reservation);
+                                      }
+                                    }}
+                                  >
                                     <span className="font-semibold text-base">{reservation.playerName}</span>
                                     <div className="text-sm text-muted-foreground">
                                       ({reservation.players} player{reservation.players !== 1 ? "s" : ""})
+                                      {(reservation as any).createdById && users.length > 0 && (
+                                        <>
+                                          {' • '}
+                                          <span className="text-xs">
+                                            Created by: {users.find(u => u.id === (reservation as any).createdById)?.name || 'Unknown'}
+                                          </span>
+                                        </>
+                                      )}
                                     </div>
+                                    {onEditReservation && (
+                                      <div className="text-xs text-primary mt-1">
+                                        Click to edit
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
                                   <div>
                                     <span className="text-base font-medium text-foreground">
-                                      {(slot as any).available ? "Available" : "Blocked"}
+                                      {slot.status === 'available' ? "Available" :
+                                       slot.status === 'blocked' ? "Blocked" :
+                                       slot.status === 'unavailable' ? "Past" :
+                                       "Unavailable"}
                                     </span>
-                                    {(slot as any).comments && (slot as any).comments.length > 0 && (
+                                    {slot.comments && slot.comments.length > 0 && (
                                       <div className="text-sm text-muted-foreground mt-1">
                                         <span className="text-xs font-medium text-blue-600">
-                                          {(slot as any).comments.length} comment
-                                          {(slot as any).comments.length !== 1 ? "s" : ""}:
+                                          {slot.comments.length} comment
+                                          {slot.comments.length !== 1 ? "s" : ""}:
                                         </span>
-                                        <span className="ml-1 break-words">{(slot as any).comments[(slot as any).comments.length - 1].text}</span>
+                                        <span className="ml-1 break-words">{slot.comments[slot.comments.length - 1].text}</span>
                                       </div>
                                     )}
                                   </div>
@@ -360,7 +399,14 @@ const CourtTimeSlots = ({
                               </div>
 
                               <div className="flex flex-wrap items-center gap-2 sm:order-3 sm:flex-shrink-0">
-                                {clinic ? (
+                                {isMyClinicReservation ? (
+                                  <Badge
+                                    variant="default"
+                                    className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-purple-500/20 text-purple-700 border-2 border-yellow-500/80"
+                                  >
+                                    My Session
+                                  </Badge>
+                                ) : clinic ? (
                                   <Badge
                                     variant="default"
                                     className="text-xs sm:text-sm shrink-0 min-w-[60px] sm:min-w-[80px] justify-center bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
@@ -380,12 +426,34 @@ const CourtTimeSlots = ({
                                         </Badge>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="z-[9999]" sideOffset={5}>
-                                        <DropdownMenuItem
-                                          onClick={() => onConvertToSocial(reservation.id)}
-                                          className="text-orange-600 focus:text-orange-600"
-                                        >
-                                          Convert to Social
-                                        </DropdownMenuItem>
+                                        {onEditReservation && (
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onEditReservation(reservation);
+                                            }}
+                                            className="text-blue-600 focus:text-blue-600"
+                                          >
+                                            Edit Reservation
+                                          </DropdownMenuItem>
+                                        )}
+                                        {onCancelReservation && (
+                                          <DropdownMenuItem
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              if (window.confirm(`Are you sure you want to cancel the reservation for ${reservation.playerName}? This action cannot be undone.`)) {
+                                                try {
+                                                  await onCancelReservation(reservation.id);
+                                                } catch (error) {
+                                                  console.error("Error canceling reservation:", error);
+                                                }
+                                              }
+                                            }}
+                                            className="text-red-600 focus:text-red-600"
+                                          >
+                                            Cancel Reservation
+                                          </DropdownMenuItem>
+                                        )}
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                     <Button
@@ -421,7 +489,7 @@ const CourtTimeSlots = ({
                                       </span>
                                     </Button>
                                   </div>
-                                ) : (slot as any).blocked ? (
+                                ) : slot.status === 'blocked' ? (
                                   <div className="relative">
                                     <DropdownMenu>
                                       <DropdownMenuTrigger>
@@ -444,7 +512,7 @@ const CourtTimeSlots = ({
                                             const courtRef = courts.find((c) => c.id === slot.courtId);
                                             onOpenTimeSlotComments({
                                               id: slot.id,
-                                              comments: (slot as any).comments || [],
+                                              comments: slot.comments || [],
                                               court: courtRef?.name,
                                               date: slot.date,
                                               time: `${slot.startTime} - ${slot.endTime}`,
@@ -457,13 +525,13 @@ const CourtTimeSlots = ({
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
-                                    {(slot as any).comments && (slot as any).comments.length > 0 && (
+                                    {slot.comments && slot.comments.length > 0 && (
                                       <div className="text-sm text-muted-foreground mt-1">
                                         <span className="text-xs font-medium text-blue-600">
-                                          {(slot as any).comments.length} comment
-                                          {(slot as any).comments.length !== 1 ? "s" : ""}:
+                                          {slot.comments.length} comment
+                                          {slot.comments.length !== 1 ? "s" : ""}:
                                         </span>
-                                        <span className="ml-1">{(slot as any).comments[(slot as any).comments.length - 1].text}</span>
+                                        <span className="ml-1">{slot.comments[slot.comments.length - 1].text}</span>
                                       </div>
                                     )}
                                   </div>
